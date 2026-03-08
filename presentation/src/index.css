@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #080c18;
+  --color-surface: #0f1629;
+  --color-panel: #0a0e1a;
+  --color-edge: #1e293b;
+  --color-cyan: #00e5ff;
+  --color-green: #00ff88;
+  --color-purple: #b44aff;
+  --color-amber: #ff9500;
+  --color-fg: #e2e8f0;
+  --color-muted: #94a3b8;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+html {
+  background-color: var(--color-base);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: rgba(0, 229, 255, 0.2);
+}
+
+.slide-bg {
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.glow-cyan { text-shadow: 0 0 20px rgba(0, 229, 255, 0.5), 0 0 40px rgba(0, 229, 255, 0.2); }
+.glow-green { text-shadow: 0 0 20px rgba(0, 255, 136, 0.5), 0 0 40px rgba(0, 255, 136, 0.2); }
+.glow-purple { text-shadow: 0 0 20px rgba(180, 74, 255, 0.5), 0 0 40px rgba(180, 74, 255, 0.2); }
+
+.card-glow { transition: box-shadow 0.3s ease; }
+.card-glow:hover {
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.1), 0 0 60px rgba(0, 229, 255, 0.05);
+}
+
+.slide-enter { animation: slideIn 0.4s ease-out; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.v11-pulse { animation: pulse11 2s ease-in-out infinite; }
+@keyframes pulse11 {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ── Anime Launch ── */
+
+/* 1. Overlay: quick impact flash */
+.anime-overlay {
+  background: rgba(8, 12, 24, 0.97);
+  animation: animeFlashIn 0.1s ease-out;
+}
+@keyframes animeFlashIn {
+  0%   { filter: brightness(8); }
+  100% { filter: brightness(1); }
+}
+
+/* 2. Speed lines (sunburst conic gradient, slowly rotating) */
+.anime-speed-lines {
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    transparent        0deg,
+    transparent        6deg,
+    rgba(0,229,255,.07) 6deg,
+    rgba(0,229,255,.07) 7deg,
+    transparent        7deg,
+    transparent       13deg,
+    rgba(180,74,255,.04) 13deg,
+    rgba(180,74,255,.04) 13.5deg,
+    transparent       13.5deg
+  );
+  animation:
+    speedLinesIn  0.22s ease-out 0.04s both,
+    speedLinesSpin 10s  linear   0.26s infinite;
+}
+@keyframes speedLinesIn {
+  from { opacity: 0; transform: scale(0.3); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes speedLinesSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 3. Shockwave rings expanding from center */
+.anime-ring {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  margin-top: -4px; margin-left: -4px;
+  animation: animeRingExpand 0.9s ease-out both;
+}
+.anime-ring-1 { border: 2px solid rgba(0,229,255,.85); animation-delay: 0.07s; }
+.anime-ring-2 { border: 2px solid rgba(180,74,255,.65); animation-delay: 0.2s;  }
+.anime-ring-3 { border: 2px solid rgba(0,255,136,.45); animation-delay: 0.36s; }
+@keyframes animeRingExpand {
+  from { transform: scale(1);   opacity: 1; }
+  to   { transform: scale(140); opacity: 0; }
+}
+
+/* 4. URL text: slams in from large + blurry */
+.anime-url-slam {
+  animation: animeSlam 0.48s cubic-bezier(0.175, 0.885, 0.32, 1.4) 0.13s both;
+}
+@keyframes animeSlam {
+  from { transform: scale(4.5); opacity: 0; filter: blur(18px); }
+  65%  { filter: blur(0); }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* 5. Chromatic aberration → settle → glow pulse */
+.anime-url-text {
+  display: inline-block;
+  animation:
+    chromaSettle 0.45s steps(4, end)    0.18s both,
+    glowPulse    0.65s ease-in-out      0.65s infinite alternate;
+}
+@keyframes chromaSettle {
+  0%   { text-shadow: -6px 0 #ff0055, 6px 0 #00e5ff;   transform: translateX(-3px); }
+  25%  { text-shadow:  6px 0 #ff6600, -6px 0 #b44aff;  transform: translateX(3px);  }
+  50%  { text-shadow: -3px 0 #00ff88, 3px 0 #ff0055;   transform: translateX(-2px); }
+  75%  { text-shadow:  2px 0 #b44aff, -2px 0 #00e5ff;  transform: translateX(1px);  }
+  100% { text-shadow: 0 0 28px rgba(0,229,255,.9);       transform: translateX(0);    }
+}
+@keyframes glowPulse {
+  from { text-shadow: 0 0 16px rgba(0,229,255,.7), 0 0 32px rgba(0,229,255,.3); }
+  to   { text-shadow: 0 0 32px rgba(0,229,255,1),  0 0 64px rgba(0,229,255,.7), 0 0 100px rgba(180,74,255,.45); }
+}
+
+/* 6. "— Launching —" label expands in */
+.anime-launching-label {
+  animation: animeLabelIn 0.35s ease-out 0.46s both;
+}
+@keyframes animeLabelIn {
+  from { opacity: 0; letter-spacing: 0.8em; transform: translateY(-6px); }
+  to   { opacity: 1; }
+}
+
+/* 7. Energy charge bar */
+.anime-energy-bar {
+  animation: animeBarIn 0.2s ease-out 0.55s both;
+}
+@keyframes animeBarIn {
+  from { opacity: 0; }
+  to   { opacity: 1;  }
+}
+.anime-energy-fill {
+  height: 100%;
+  box-shadow: 0 0 8px #00e5ff, 0 0 18px rgba(0,229,255,.5);
+  animation: animeBarFill 1.0s cubic-bezier(0.4, 0, 0.2, 1) 0.6s both;
+}
+@keyframes animeBarFill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.gradient-border {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(0, 255, 136, 0.2), rgba(180, 74, 255, 0.2));
+  padding: 1px;
+  border-radius: 0.75rem;
+}
