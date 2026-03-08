@@ -36,7 +36,7 @@ You receive the following from the orchestrator:
 2. Parse the **verdict** field.
 3. If verdict is **FAIL** or there are any **CRITICAL** issues:
    - **ABORT immediately.** Do not archive a failing change.
-   - Return an envelope with `status: "ABORTED"` and the reason.
+   - Return an envelope with `status: "ERROR"` and the reason.
 4. If verdict is **PASS WITH WARNINGS**:
    - Proceed but include warnings in the archive summary.
    - Note that the change was archived with known warnings.
@@ -101,7 +101,26 @@ For each removed requirement:
    ```
 4. If the entire spec file would be empty after removal, keep the file with a header noting it was deprecated.
 
-#### 3d. No Main Spec Exists
+#### 3d. Conflict Resolution
+
+When replacing or appending content in a main spec file, the target section may have been altered by another change merged since the delta was created:
+
+1. **No conflict** — The target section matches expectations (or the delta is purely ADDED). Apply normally.
+2. **Resolvable conflict** — The target section has been modified but the semantic intent of both versions is compatible (e.g., another change added a scenario to the same requirement). The agent MUST intelligently merge the semantic intent of both versions, preserving all non-contradictory content from each.
+3. **Irreconcilable conflict** — There is a direct logical contradiction that cannot be safely merged (e.g., one version says "MUST return 200" and the delta says "MUST return 204" for the same scenario). The agent MUST:
+   - Abort the merge for **that specific file only** (other domain merges continue).
+   - Leave standard git-style conflict markers in the file:
+     ```
+     <<<<<<< main-spec (current)
+     [existing content]
+     =======
+     [delta content from {changeName}]
+     >>>>>>> delta ({changeName})
+     ```
+   - Set the overall envelope `status` to `PARTIAL`.
+   - Add the conflicted file to `phaseSpecificData.warnings` with reason `"MERGE_CONFLICT_REQUIRES_HUMAN"`.
+
+#### 3e. No Main Spec Exists
 
 If the delta introduces specs for a domain that has no main spec file:
 
@@ -189,57 +208,92 @@ If a significant, reusable pattern is found:
    - **Non-obvious**: Not something covered by CLAUDE.md or standard conventions.
    - **Actionable**: Provides a clear recommendation, not just an observation.
 
-#### 5c. Memory Integration (Optional)
+#### 5c. Memory Integration (Conditional on `memory_enabled`)
 
-If Engram memory or similar memory system is available:
-- Save key decisions with context.
-- Save gotchas and non-obvious constraints.
-- Save domain-specific knowledge discovered during implementation.
-- Tag memories with the change name and domain for future retrieval.
+After capturing learnings, persist them to the memory RAG server for cross-session recall:
+
+1. Build a structured summary containing:
+   - Key decisions and their trade-offs (from `proposal.md` and `design.md`)
+   - Gotchas and non-obvious constraints discovered during implementation
+   - Domain-specific knowledge that would help future agents
+2. Call `mem_save` for each distinct learning:
+   - `topic_key`: Use hierarchical format — `decision/{changeName}-{topic}`, `pattern/{pattern-name}`, `discovery/{domain}-{insight}`
+   - `content`: Write naturally using `**What** / **Why** / **Where** / **Learned**` format. No keyword enrichment needed — semantic search handles vocabulary matching automatically.
+   - `project`: Pass the project name for namespace isolation.
+   - `tags`: Categorize as `["decision"]`, `["pattern"]`, `["discovery"]`, or `["learning"]`.
+
+If `config.yaml → capabilities.memory_enabled` is `false`, skip this entire step. If `true` but tools fail at runtime, note the failure in the envelope and proceed.
+
+#### 5d. Memory Pruning (Conditional on `memory_enabled`)
+
+After saving new learnings, prune memories rendered obsolete by this change:
+
+1. **Identify decay candidates** — Review the change's key decisions (`design.md` Architecture Decisions) and the delta specs (MODIFIED and REMOVED requirements). For each, run `mem_search` with a natural language query describing the superseded decision or removed behavior.
+
+2. **Evaluate each candidate** — For every retrieved memory, classify:
+   - **OBSOLETE**: The memory describes a pattern, decision, or bugfix that this change directly contradicts or replaces. → **Delete** via `mem_delete`.
+   - **SUPERSEDED**: The memory is partially outdated. → **Delete** via `mem_delete`, then **save** a corrected version via `mem_save` with the same topic_key.
+   - **STILL VALID**: The memory is not affected by this change. → Leave untouched.
+
+3. **Pruning guardrails**:
+   - Never delete memories with `decision/*` topic keys without finding a replacement decision in the current change.
+   - Never delete memories less than 7 days old — they may be from a concurrent change still in progress.
+   - Log every deletion in `phaseSpecificData.memoryPruning`: `{ deleted: [topic_keys], replaced: [topic_keys], preserved: count }`.
+
+If `memory_enabled` is `false`, skip entirely.
 
 ### Step 6 — Return Structured Envelope
 
 ```json
 {
   "agent": "sdd-archive",
-  "status": "COMPLETED | ABORTED",
   "changeName": "<change-name>",
-  "archivePath": "openspec/changes/archive/{YYYY-MM-DD}-{changeName}/",
-  "specsMerged": {
-    "added": [
-      { "domain": "auth", "requirements": ["account-lockout", "mfa-setup"] }
-    ],
-    "modified": [
-      { "domain": "auth", "requirements": ["login-flow"] }
-    ],
-    "removed": [
-      { "domain": "auth", "requirements": ["legacy-session-handling"] }
-    ]
+  "status": "SUCCESS | ERROR",
+  "executiveSummary": "<changeSummary.description>",
+  "metrics": {
+    "tasks":        { "completed": 0, "total": 0 },
+    "specs":        { "covered": "<count of merged specs>", "total": "<count of merged specs>" },
+    "filesCreated": ["<archivePath>", "<archive-manifest.md>"],
+    "filesModified":["<mainSpecsUpdated paths>"],
+    "issuesCritical": 0
   },
-  "mainSpecsUpdated": [
-    "openspec/specs/auth.spec.md"
-  ],
-  "changeSummary": {
-    "description": "Implemented account lockout and MFA setup for the auth module",
-    "keyDecisions": [
-      "Used time-based lockout (30 min) instead of permanent lockout",
-      "MFA codes generated server-side, not client-side"
-    ],
-    "filesCreated": ["src/auth/lockout.ts", "src/auth/mfa.ts"],
-    "filesModified": ["src/auth/login.ts", "src/auth/session.ts"]
+  "buildHealth": {
+    "typecheck": null,
+    "lint":      null,
+    "tests":     null,
+    "format":    null
   },
-  "learnings": [
-    {
-      "name": "auth-rate-limiting-pattern",
-      "path": "~/.claude/skills/learned/auth-rate-limiting-pattern.md",
-      "summary": "Rate limiting should use sliding window, not fixed window"
-    }
-  ],
-  "warnings": [
-    "Change archived with 2 WARNING-level issues from verify report"
-  ]
+  "artifacts": ["<archivePath>", "<mainSpecsUpdated paths>"],
+  "phaseSpecificData": {
+    "specsMerged": {
+      "added": [{ "domain": "<domain>", "requirements": [] }],
+      "modified": [],
+      "removed": []
+    },
+    "changeSummary": {
+      "description": "<string>",
+      "keyDecisions": [],
+      "filesCreated": [],
+      "filesModified": []
+    },
+    "learnings": [
+      {
+        "name": "<pattern-name>",
+        "path": "<skill file path>",
+        "summary": "<string>"
+      }
+    ],
+    "memoryPruning": {
+      "deleted": [],
+      "replaced": [],
+      "preserved": 0
+    },
+    "warnings": []
+  }
 }
 ```
+
+Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` means the archive was aborted (e.g., verify verdict was FAIL or unresolved REJECT violations).
 
 ---
 
@@ -251,7 +305,7 @@ If Engram memory or similar memory system is available:
 4. **Archive is permanent.** Never delete archived changes. They serve as an audit trail.
 5. **Date format is ISO 8601.** Always use `YYYY-MM-DD`.
 6. **Main specs are the source of truth after merge.** The delta specs in the archive are historical artifacts.
-7. **Learnings are optional.** Do not force patterns. Only save genuinely useful, reusable, non-obvious insights.
+7. **Learnings are selective.** Do not force patterns. Only save genuinely useful, reusable, non-obvious insights — but always persist them to memory when found (Step 5c).
 8. **Preserve previous versions.** When modifying a main spec requirement, keep the old version as a comment.
 9. **One domain per spec file.** Do not merge requirements from different domains into the same main spec file.
 10. **No code changes.** This agent does NOT modify source code. Only spec files, archive folders, and learnings.
@@ -279,7 +333,8 @@ If Engram memory or similar memory system is available:
 | Change folder is empty (all artifacts deleted) | Abort — nothing to archive |
 | Verify report has PASS WITH WARNINGS and 10+ warnings | Archive but prominently note the warning count |
 | Learning pattern name conflicts with existing file | Append a version number (e.g., `pattern-name-v2.md`) |
-| Memory system (Engram) is not available | Skip memory integration, note it in the envelope |
+| `memory_enabled: false` in config.yaml | Skip Step 5c entirely — no memory calls attempted |
+| `memory_enabled: true` but memory tools fail at runtime | Note failure in envelope, proceed with archive |
 | Multiple changes archive on the same date with the same name | Append a counter: `{YYYY-MM-DD}-{changeName}-2` |
 | Change was partially implemented (not all tasks [x]) | If verify PASSED (meaning partial was intentional), archive. Note incomplete tasks |
 
@@ -309,4 +364,19 @@ openspec/
         verify-report.md
         review-report.md
         archive-manifest.md       # Created during archive
+```
+
+---
+
+## PARCER Contract
+
+```yaml
+phase: archive
+preconditions:
+  - clean phase completed successfully
+  - verify verdict is PASS or PASS_WITH_WARNINGS (no CRITICAL issues)
+postconditions:
+  - change directory moved to openspec/changes/archive/{date}-{changeName}/
+  - archive-manifest.md written
+  - delta specs merged into openspec/specs/
 ```

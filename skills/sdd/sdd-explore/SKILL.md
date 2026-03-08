@@ -44,6 +44,12 @@ options:
    - Known directory structure
 2. If `config.yaml` does not exist, warn and proceed with manual detection.
 3. Read `CLAUDE.md` for additional project rules that may affect analysis.
+4. **Query memory for prior knowledge** (if `config.yaml → capabilities.memory_enabled` is `true`):
+   - Run `mem_search` with a natural language query describing the topic. Semantic matching is automatic — no synonym expansion needed.
+   - Pass the project name via the `project` parameter to filter results to this project.
+   - Look for prior explorations, architectural decisions, discovered patterns, or bugfix history related to the topic.
+   - Review returned results by score — higher scores indicate stronger semantic relevance. Discard results that reference deleted files or deprecated patterns.
+   - If no matches found, proceed normally — this step is non-blocking.
 
 ### Step 2: Identify Search Strategy
 
@@ -72,9 +78,19 @@ Based on the `topic`, determine the search strategy:
    - Search for comments and documentation within code
 3. If `focus_paths` is provided, prioritize those paths but do not ignore related files outside them.
 
-### Step 4: Deep Analysis
+### Step 4: Deep Analysis (Structured Exploration Protocol)
 
-For each relevant file discovered:
+For each relevant file discovered, you MUST complete the following reasoning template internally before moving to the next file. This is not optional — skipping it produces shallow, exploration-free analysis.
+
+#### 4a. Pre-Read Hypothesis
+
+Before opening any file, fill:
+
+- **HYPOTHESIS**: What do you expect to find in this file, and why do you believe it is relevant to the topic? (1-2 sentences)
+- **EVIDENCE**: What specific evidence (from tests, prior files read, grep results, or the topic itself) led you to this file?
+- **CONFIDENCE**: `HIGH` | `MEDIUM` | `LOW` — How certain are you about this hypothesis? A LOW confidence signals a speculative read; HIGH means strong prior evidence supports your expectation. Declaring confidence calibrates whether a subsequent CONFIRMED or REFUTED result is surprising or expected.
+
+#### 4b. Read and Observe
 
 1. **Read the file** to understand its purpose and structure.
 2. **Map exports and imports** to understand the dependency graph.
@@ -82,6 +98,23 @@ For each relevant file discovered:
 4. **Trace data flow** from entry point through transformations to output.
 5. **Note patterns**: Does this area follow project conventions? Are there deviations?
 6. **Assess complexity**: File length, nesting depth, number of responsibilities.
+
+Fill:
+
+- **OBSERVATIONS**: Key findings with exact references (`File:Line`). Minimum 2 observations per file read.
+
+#### 4c. Hypothesis Update
+
+After reading, formally declare:
+
+- **HYPOTHESIS STATUS**: `CONFIRMED` | `REFUTED` | `REFINED`
+- **Reason**: 1-2 sentences explaining why.
+
+If REFINED, state the updated hypothesis. Pay special attention to REFUTED results on HIGH-confidence hypotheses — these signal a misunderstanding that warrants deeper investigation.
+
+#### 4d. Next Action Reasoning
+
+- **NEXT ACTION JUSTIFICATION**: Explain why the next file you plan to open is the logical next step given your updated understanding. If no more files need reading, state "Exploration sufficient — proceeding to synthesis."
 
 ### Step 5: Dependency Mapping
 
@@ -133,6 +166,57 @@ Each approach must include:
 - Estimated number of files changed
 - Whether it requires database migration
 - Whether it requires new dependencies
+
+### Step 7b: Ambiguity Detection & Question Classification
+
+After completing the technical analysis, actively scan for ambiguities that could derail downstream phases. This step transforms passive "open questions" into an actionable clarification protocol.
+
+#### 7b-1. Scan for Ambiguity Sources
+
+Review the topic/intent and analysis results for these ambiguity patterns:
+
+| Ambiguity Type | Detection Signal | Example |
+|---|---|---|
+| **Multiple valid architectures** | Approach comparison has 2+ approaches with similar effort/risk scores | "Should we use WebSocket or SSE for real-time updates?" |
+| **Undefined scope boundary** | Topic mentions a broad area without clear limits | "Improve the auth system" — improve what specifically? |
+| **Conflicting constraints** | Exploration found patterns that contradict each other or the intent | "Design says REST, but existing code uses GraphQL for similar features" |
+| **Missing domain knowledge** | Analysis depends on business rules not visible in code | "What's the maximum number of concurrent sessions allowed?" |
+| **Undefined success criteria** | Intent describes a goal but no way to verify it's met | "Make the dashboard faster" — how fast is fast enough? |
+| **Platform/integration unknowns** | Change involves external systems with unknown constraints | "Which OAuth2 providers? What scopes are needed?" |
+
+#### 7b-2. Classify Each Question
+
+Every open question MUST be classified:
+
+| Severity | Criteria | Pipeline Effect |
+|---|---|---|
+| `BLOCKING` | The answer changes the architecture, scope, or fundamental approach. Proceeding without it risks building the wrong thing. | Orchestrator MUST present to user before proceeding to `sdd-propose`. |
+| `DEFERRED` | The answer affects implementation details but not the overall direction. Can be resolved during spec or design phase. | Listed in exploration.md for later resolution. |
+
+**Classification rules:**
+1. If the question affects which *approach* to take → `BLOCKING`
+2. If the question affects *how many files* or *which modules* are in scope → `BLOCKING`
+3. If the question requires *business domain expertise* the code doesn't reveal → `BLOCKING`
+4. If the question is about *implementation style* within an already-chosen approach → `DEFERRED`
+5. When in doubt → `BLOCKING` (cheaper to ask than to rebuild)
+
+#### 7b-3. Generate Clarification Questions
+
+For each `BLOCKING` ambiguity, generate a structured question:
+
+```markdown
+**Question**: {Clear, specific question — not "what do you want?" but "should sessions auto-extend on activity or use a hard 30-minute timeout?"}
+**Why it matters**: {1 sentence on what changes based on the answer}
+**Options** (if applicable):
+  - A: {option} → leads to {consequence}
+  - B: {option} → leads to {consequence}
+**Default recommendation**: {what you'd choose if forced to guess, and why}
+```
+
+Questions MUST be:
+- **Specific** — answerable in 1-2 sentences, not open-ended essays
+- **Consequential** — the answer visibly changes the proposal/design
+- **Informed** — include your recommendation so the user can just approve or redirect
 
 ### Step 8: Produce Output Artifacts
 
@@ -188,10 +272,19 @@ The exploration document structure:
 
 {Concise recommendation with justification}
 
-## Open Questions
+## Clarification Required (BLOCKING)
 
-- {Question 1}
-- {Question 2}
+{Questions that MUST be answered before proceeding to proposal. Omit section if none.}
+
+### Q1: {Specific question}
+- **Why it matters**: {consequence}
+- **Options**: A: {option} / B: {option}
+- **Recommendation**: {default choice and rationale}
+
+## Open Questions (DEFERRED)
+
+- {Question that can be resolved during spec/design}
+- {Question that can be resolved during spec/design}
 ```
 
 #### If `change_name` is NOT provided:
@@ -200,31 +293,48 @@ Return the analysis in the output envelope only (no file written).
 
 ### Step 9: Return Output Envelope
 
-```yaml
-phase: explore
-status: success | error
-data:
-  topic: <string>
-  detail_level: <concise | standard | deep>
-  current_state_summary: <1-3 sentence summary>
-  relevant_files:
-    - path: <absolute path>
-      purpose: <string>
-      impact_level: <low | medium | high>
-  dependency_count:
-    direct: <number>
-    transitive: <number>
-  risk_summary:
-    overall: <low | medium | high>
-    highest_risks:
-      - dimension: <string>
-        level: <string>
-        note: <string>
-  approaches: <number of approaches identified>
-  recommendation: <1-2 sentence recommendation>
-  exploration_path: <path to exploration.md if written, null otherwise>
-  open_questions:
-    - <string>
+Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or `ERROR`.
+
+```json
+{
+  "agent": "sdd-explore",
+  "changeName": "<change-name | null>",
+  "status": "SUCCESS | ERROR",
+  "executiveSummary": "<current_state_summary>. Recommendation: <recommendation>.",
+  "metrics": {
+    "tasks":        { "completed": 0, "total": 0 },
+    "specs":        { "covered": 0, "total": 0 },
+    "filesCreated": [],
+    "filesModified":[],
+    "issuesCritical": 0
+  },
+  "buildHealth": {
+    "typecheck": null,
+    "lint":      null,
+    "tests":     null,
+    "format":    null
+  },
+  "artifacts": ["<path to exploration.md if written, otherwise empty>"],
+  "phaseSpecificData": {
+    "topic": "<string>",
+    "detail_level": "<concise | standard | deep>",
+    "relevant_files": [
+      { "path": "<path>", "purpose": "<string>", "impact_level": "<low|medium|high>" }
+    ],
+    "dependency_count": { "direct": 0, "transitive": 0 },
+    "risk_summary": {
+      "overall": "<low | medium | high>",
+      "highest_risks": [
+        { "dimension": "<string>", "level": "<string>", "note": "<string>" }
+      ]
+    },
+    "approaches": 0,
+    "clarification_needed": false,
+    "blocking_questions": [],
+    "deferred_questions": [],
+    "clarificationRounds": 0
+  }
+}
 ```
 
 ## Detail Level Behavior
@@ -323,4 +433,19 @@ sdd-explore -> Orchestrator:
     open_questions:
       - "Which OAuth2 providers should be supported initially?"
       - "Should existing JWT sessions be migrated or maintained in parallel?"
+```
+
+---
+
+## PARCER Contract
+
+```yaml
+phase: explore
+preconditions:
+  - config.yaml exists at openspec/config.yaml
+  - topic parameter is non-empty string
+postconditions:
+  - exploration.md written to openspec/changes/{changeName}/ (if changeName provided)
+  - envelope.phaseSpecificData.relevant_files array has ≥1 entry (or blocking_questions explaining absence)
+  - envelope.status is SUCCESS or ERROR
 ```

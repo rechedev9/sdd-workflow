@@ -33,18 +33,42 @@ Task(
 
   TASK: {specific task}
 
-  Return structured JSON envelope with: status, executive_summary, detailed_report (optional), artifacts, next_recommended, risks.'
+  Return a JSON envelope following the STANDARD A2A SCHEMA:
+  {
+    "agent": "sdd-{phase}",
+    "changeName": "{change-name}",
+    "status": "SUCCESS | PARTIAL | ERROR",
+    "executiveSummary": "<1-3 sentence summary>",
+    "metrics": {
+      "tasks": { "completed": N, "total": N },
+      "specs": { "covered": N, "total": N },
+      "filesCreated": ["<paths>"],
+      "filesModified": ["<paths>"],
+      "issuesCritical": N
+    },
+    "buildHealth": {
+      "typecheck": "PASS | FAIL | null",
+      "lint": "PASS | FAIL | null",
+      "tests": "PASS | FAIL | null",
+      "format": "PASS | FAIL | null"
+    },
+    "artifacts": ["<generated file paths>"],
+    "phaseSpecificData": { <phase-specific fields per SKILL.md> }
+  }
+  Use null for metrics/buildHealth fields that do not apply to this phase. See your SKILL.md for which fields to populate in phaseSpecificData.'
 )
 ```
 
 ### Contract Validation (MANDATORY before launching next phase)
 
-Before dispatching any sub-agent, the orchestrator MUST validate the target phase's preconditions from `openspec/config.yaml → contracts.{phase}.preconditions`:
+Before dispatching any sub-agent, the orchestrator MUST validate the target phase's preconditions from `openspec/config.yaml → contracts.{phase}.preconditions`. This `contracts` section is a **live manifest** auto-assembled by `sdd-init` from each phase's `## PARCER Contract` block — it is not manually maintained.
 
+0. **Validate YAML** — The orchestrator MUST safely attempt to parse `openspec/config.yaml` before reading any contracts. If there is a YAML syntax/parsing error, halt the pipeline immediately, report the parsing error to the user, and refuse to launch any sub-agents until the syntax is fixed.
 1. **Read contracts** — Load the `contracts` section from config.yaml. If `contracts` section does not exist (legacy projects or pre-init), skip validation and proceed normally.
 2. **Check preconditions** — For each precondition of the target phase, verify it is satisfied (file exists, field is non-empty, prior phase completed).
 3. **If any precondition fails** — Do NOT launch the sub-agent. Report the unmet precondition(s) to the user and suggest which prior phase needs to run first.
 4. **After sub-agent returns** — Validate postconditions against the returned envelope and written artifacts. If a postcondition fails, flag it as a WARNING in the quality timeline (it does not block the next phase, but is recorded for analytics).
+5. **If a phase has no contract entry** — The phase was either installed after the last `/sdd:init` run or intentionally has no validation. Proceed without validation but log a note.
 
 ### SDD Phase Pipeline
 
@@ -114,7 +138,7 @@ Sonnet agents use `model: 'sonnet'` in Task() calls. Opus agents omit the parame
 
 After receiving a sub-agent result, the orchestrator MUST complete these steps **before** presenting results to the user or launching the next phase:
 
-1. **Extract snapshot** — Parse the sub-agent's envelope and build a `QualitySnapshot` (see Phase Delta Tracking below).
+1. **Extract snapshot** — All envelopes follow the standard A2A schema. Map fields directly to `QualitySnapshot` (see Phase Delta Tracking below). No per-phase parsing needed.
 2. **Append to timeline** — Write one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl`. Create the file if it doesn't exist.
 3. **Then proceed** — Present summary to user, ask about next phase.
 
@@ -122,15 +146,17 @@ For planning phases (explore, propose, spec, design, tasks) that return no build
 
 ### Phase Delta Tracking
 
-After **every** sub-agent returns its envelope, the orchestrator extracts a normalized QualitySnapshot and appends it to the change's timeline:
+After **every** sub-agent returns its envelope, the orchestrator maps it directly to a QualitySnapshot:
 
-1. **Extract** — Map envelope fields to QualitySnapshot:
-   - `agentStatus`: Always extract — every envelope has a `status` field
-   - `issues.critical`: Count of CRITICAL/REJECT/FAIL findings from the envelope
-   - `buildHealth`: From `buildStatus` or `buildHealth` fields (typecheck, lint, format, tests)
-   - `completeness`: From task/spec completion counts
-   - `scope`: From file counts (filesCreated, filesModified, filesReviewed)
-   - `phaseSpecific`: Full envelope passthrough (preserves all raw data)
+1. **Direct mapping** — All envelopes follow the standard A2A schema. Map fields 1:1:
+   - `agentStatus` ← `envelope.status`
+   - `issues.critical` ← `envelope.metrics.issuesCritical`
+   - `buildHealth` ← `envelope.buildHealth` (propagate nulls as-is)
+   - `completeness.tasks` ← `envelope.metrics.tasks`
+   - `completeness.specs` ← `envelope.metrics.specs`
+   - `scope.filesCreated` ← `envelope.metrics.filesCreated.length`
+   - `scope.filesModified` ← `envelope.metrics.filesModified.length`
+   - `phaseSpecific` ← `envelope.phaseSpecificData`
 2. **Append** — Serialize the QualitySnapshot as a single JSON line and append to:
    ```
    openspec/changes/{changeName}/quality-timeline.jsonl
@@ -138,55 +164,33 @@ After **every** sub-agent returns its envelope, the orchestrator extracts a norm
 3. **Create if missing** — If the timeline file doesn't exist, create it with the first snapshot.
 4. **Never block** — If the envelope is malformed or extraction fails, write a minimal snapshot (`changeName`, `phase`, `timestamp`, `agentStatus`) and continue. Phase delta tracking is observational, never blocking.
 5. **Apply batches** — For multi-batch `sdd-apply`, append one snapshot per batch with `phaseSpecific.batch` recording the batch number.
-6. **Planning phases** — explore/propose/spec/design/tasks produce mostly-null snapshots. This is correct — write them anyway for timeline completeness.
 
 ### Analytics
 
 Run `/sdd:analytics [name]` to analyze the quality timeline for a change. This reads `quality-timeline.jsonl` and produces trend reports: build health over time, issue counts by phase, completeness progression, and phase duration estimates.
 
-## Engram Persistent Memory — ACTIVE PROTOCOL
+## Persistent Memory (RAG)
 
-You have Engram memory tools via MCP. Core tools: `mem_save`, `mem_search`, `mem_context`, `mem_session_summary`, `mem_suggest_topic_key`. Additional tools: `mem_update`, `mem_delete`, `mem_timeline`, `mem_get_observation`, `mem_save_prompt`, `mem_stats`, `mem_session_start`, `mem_session_end`.
-This protocol is ACTIVE when Engram MCP tools are available. If tool calls fail (Engram not installed), skip memory operations silently and continue with the task.
+Memory behavior within SDD is determined by `openspec/config.yaml → capabilities.memory_enabled`, set during `/sdd:init`. Outside of SDD projects, memory tools are used opportunistically (attempt, skip silently on failure).
 
-### SESSION START — at the beginning of every new session:
+The memory system uses hybrid vector + BM25 search (semantic matching is automatic — no manual query expansion or keyword enrichment needed). It can be backed by any MCP server that exposes `mem_save`, `mem_search`, `mem_delete`, `mem_context`, and `mem_stats` tools.
 
-Call `mem_context` to load relevant context from prior sessions. This recovers decisions, patterns, and learnings from previous work. Do this BEFORE starting any task.
+### When `memory_enabled: true` (Expert Mode)
 
-### PROACTIVE SAVE — do NOT wait for user to ask
+- **Session start**: Call `mem_context` with the project name to recover prior context.
+- **Proactive save**: Call `mem_save` after decisions, bugfixes, discoveries, patterns. Use hierarchical topic keys (`decision/*`, `pattern/*`, `bug/*`, `discovery/*`, `learning/*`). Pass the project name via the `project` parameter. No keyword enrichment needed — embeddings capture semantics automatically.
+- **Search**: Call `mem_search` with a natural language query. Semantic matching handles vocabulary variations. Pass `project` to filter by namespace.
 
-Call `mem_save` IMMEDIATELY after ANY of these:
-- Decision made (architecture, convention, workflow, tool choice)
-- Bug fixed (include root cause)
-- Convention or workflow documented/updated
-- Non-obvious discovery, gotcha, or edge case found
-- Pattern established (naming, structure, approach)
-- User preference or constraint learned
-- Feature implemented with non-obvious approach
+### When `memory_enabled: false` (Ephemeral Mode)
 
-**Self-check after EVERY task**: "Did I just make a decision, fix a bug, learn something, or establish a convention? If yes → mem_save NOW."
+- **Do NOT call any `mem_*` tools.** All context is session-local and ephemeral.
+- Phases that would normally save learnings (archive Step 5c) skip memory integration.
+- The EET protocol in sdd-apply uses Local EET (3-attempt ceiling, in-session tracking only).
+- No degradation in core functionality — specs, design, implementation, review, and verification work identically.
 
-### SEARCH MEMORY when:
+### Pre-SDD Context (no config.yaml yet)
 
-- User asks to recall anything ("remember", "what did we do")
-- Starting work on something that might have been done before
-- User mentions a topic you have no context on
-
-### SESSION CLOSE — before saying "done":
-
-Call `mem_session_summary` with: Goal, Discoveries, Accomplished, Next Steps, Relevant Files.
-
-### COMPACTION RECOVERY
-
-If you see a message about compaction or context reset:
-1. **IMMEDIATELY** call `mem_session_summary` with the compacted content
-2. Then call `mem_context` to recover context from previous sessions
-3. Only THEN continue working
-
-### topic_key Upserts
-
-Use `mem_suggest_topic_key` before saving evolving topics. Same topic = same key (upsert, not duplicate).
-Families: `architecture/*`, `bug/*`, `decision/*`, `pattern/*`, `config/*`, `discovery/*`, `learning/*`
+Before `/sdd:init` has run (no config.yaml exists), the orchestrator should attempt to load memory tools opportunistically. If available, use them. If not, proceed silently. Once `/sdd:init` runs, the flag becomes authoritative.
 
 ## Framework Skills — Lazy Loading
 
