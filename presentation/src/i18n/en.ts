@@ -64,9 +64,9 @@ export const en = {
         'Every decision, plan, and review stored as files. Nothing is ever lost or misremembered—the project documents itself.',
     },
     memory: {
-      title: 'Project Memory',
+      title: 'Semantic Memory',
       description:
-        'A database that remembers decisions, solved bugs, and patterns across all sessions. Like a senior developer who never forgets.',
+        'A self-hosted RAG server that remembers decisions, solved bugs, and patterns across all sessions. Searches by meaning, not keywords—finds what you need even when you use different words.',
     },
     skills: {
       title: 'Expertise Guides',
@@ -86,11 +86,11 @@ export const en = {
           'The implementation agent never sees your entire codebase—only the design plan and the specific file it is modifying. Focused context produces focused results.',
       },
       {
-        title: 'Engram Memory',
+        title: 'Semantic Memory',
         description:
-          'A memory system that persists decisions, bugs, and patterns across sessions. Start a new day and pick up exactly where you left off.',
+          'A RAG-powered memory that persists decisions, bugs, and patterns across sessions. Hybrid vector + keyword search finds relevant context even when vocabulary differs.',
         detail:
-          'At session start, prior decisions are loaded automatically. Every new decision, bug fix, and discovery is saved immediately—not at the end of the session.',
+          'Self-hosted on your infrastructure (Qdrant + Ollama). Searches by meaning: "auth expiry" finds "JWT token renewal" automatically. No manual keyword enrichment needed.',
       },
       {
         title: 'Code Review Rulebook',
@@ -292,7 +292,7 @@ export const en = {
         'If the AI has tried and failed to fix the same type of error 3+ times in past sessions, it stops trying and escalates instead of wasting time on a known dead end.',
       steps: [
         'Identify the type and category of the error',
-        'Check memory for the same error in past sessions',
+        'Semantic search for the same error pattern in past sessions',
         '3 or more prior failures found → stop and escalate to the developer',
         'No prior failures → keep trying (up to 5 attempts)',
       ],
@@ -339,7 +339,7 @@ export const en = {
       items: [
         'Hypothesis-driven exploration \u2014 every file read has a declared purpose and confidence',
         'Adversarial review \u2014 function tracing, data flow analysis, counter-hypothesis check',
-        'Smart EET \u2014 Engram-backed early termination for known dead-end patterns',
+        'Smart EET \u2014 memory-backed early termination using semantic search for known dead-end patterns',
         'PARCER contracts \u2014 formal pre/post-conditions validated by the orchestrator',
         'Dynamic agentic rubrics \u2014 criteria generated from specs, design, and AGENTS.md',
         'Fault localization \u2014 PREMISES + DIVERGENCE CLAIMS with File:Line references',

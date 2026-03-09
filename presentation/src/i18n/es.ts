@@ -66,9 +66,9 @@ export const es: Translations = {
         'Cada decisión, plan y revisión guardado como archivos. Nada se pierde ni se recuerda mal — el proyecto se documenta a sí mismo.',
     },
     memory: {
-      title: 'Memoria del Proyecto',
+      title: 'Memoria Semántica',
       description:
-        'Una base de datos que recuerda decisiones, bugs resueltos y patrones de todas las sesiones. Como un desarrollador senior que nunca olvida.',
+        'Un servidor RAG auto-alojado que recuerda decisiones, bugs resueltos y patrones de todas las sesiones. Busca por significado, no por palabras clave — encuentra lo que necesitas aunque uses palabras diferentes.',
     },
     skills: {
       title: 'Guías de Conocimiento',
@@ -88,11 +88,11 @@ export const es: Translations = {
           'El agente de implementación nunca ve todo el codebase — solo el plan de diseño y el archivo específico que está modificando. Contexto enfocado produce resultados enfocados.',
       },
       {
-        title: 'Engram Memory',
+        title: 'Memoria Semántica',
         description:
-          'Un sistema de memoria que persiste decisiones, bugs y patrones entre sesiones. Empieza un día nuevo y retoma exactamente donde lo dejaste.',
+          'Una memoria RAG que persiste decisiones, bugs y patrones entre sesiones. Búsqueda híbrida vectorial + BM25 encuentra contexto relevante aunque el vocabulario sea diferente.',
         detail:
-          'Al inicio de sesión, las decisiones previas se cargan automáticamente. Cada nueva decisión, corrección de bug y descubrimiento se guarda de inmediato — no al final de la sesión.',
+          'Auto-alojado en tu infraestructura (Qdrant + Ollama). Busca por significado: "expiración de auth" encuentra "renovación de token JWT" automáticamente. Sin enriquecimiento manual de keywords.',
       },
       {
         title: 'Libro de Reglas de Revisión',
@@ -330,7 +330,7 @@ export const es: Translations = {
       items: [
         'Exploración guiada por hipótesis — cada lectura tiene un propósito declarado y nivel de confianza',
         'Revisión adversarial — trazado de funciones, análisis de flujo de datos, verificación de contra-hipótesis',
-        'Parada inteligente — terminación anticipada basada en Engram para patrones sin salida conocidos',
+        'Parada inteligente — terminación anticipada con búsqueda semántica para patrones sin salida conocidos',
         'Contratos PARCER — pre/post-condiciones formales validadas por el orquestador',
         'Rúbricas dinámicas — criterios generados a partir de specs, diseño y AGENTS.md',
         'Localización de fallos — diagnóstico preciso con referencias de archivo y línea',
