@@ -151,11 +151,20 @@ After **every** sub-agent returns its envelope, the orchestrator maps it directl
 1. **Direct mapping** — All envelopes follow the standard A2A schema. Map fields 1:1:
    - `agentStatus` ← `envelope.status`
    - `issues.critical` ← `envelope.metrics.issuesCritical`
+   - `issues.warning` ← `envelope.phaseSpecificData.warningIssueCount` (null if absent)
+   - `issues.suggestion` ← `envelope.phaseSpecificData.suggestionCount` (null if absent)
    - `buildHealth` ← `envelope.buildHealth` (propagate nulls as-is)
+   - `buildHealth.typecheckErrors` ← `envelope.phaseSpecificData.buildHealthDetail.typecheck.errorCount` (null if absent)
+   - `buildHealth.lintErrors` ← `envelope.phaseSpecificData.buildHealthDetail.lint.errorCount` (null if absent)
+   - `buildHealth.lintWarnings` ← `envelope.phaseSpecificData.buildHealthDetail.lint.warningCount` (null if absent)
+   - `buildHealth.testsPassed` ← `envelope.phaseSpecificData.buildHealthDetail.tests.passed` (null if absent)
+   - `buildHealth.testsFailed` ← `envelope.phaseSpecificData.buildHealthDetail.tests.failed` (null if absent)
    - `completeness.tasks` ← `envelope.metrics.tasks`
    - `completeness.specs` ← `envelope.metrics.specs`
    - `scope.filesCreated` ← `envelope.metrics.filesCreated.length`
    - `scope.filesModified` ← `envelope.metrics.filesModified.length`
+   - `staticAnalysis` ← `envelope.phaseSpecificData.staticAnalysis` (null if absent — only verify populates this)
+   - `security` ← `envelope.phaseSpecificData.security` (null if absent — only verify populates this)
    - `phaseSpecific` ← `envelope.phaseSpecificData`
 2. **Append** — Serialize the QualitySnapshot as a single JSON line and append to:
    ```

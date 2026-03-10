@@ -231,6 +231,15 @@ architecture:
 capabilities:
   memory_enabled: <true | false — detected in Step 5c>
 
+commands:
+  package_manager: <bun | npm | pnpm | yarn — detected from lockfile>
+  typecheck: <e.g., "bun run typecheck" | "pnpm run typecheck:all">
+  lint: <e.g., "bun run lint" | "pnpm run check:all">
+  lint_fix: <e.g., "bun run lint:fix" | "pnpm --filter <pkg> lint:fix">
+  test: <e.g., "bun test" | "pnpm test:all">
+  format_check: <e.g., "bun run format:check" | "pnpm prettier --check">
+  format_fix: <e.g., "bun run prettier --write" | "pnpm prettier --write">
+
 conventions:
   type_strictness:
     banned: <list of banned patterns from CLAUDE.md>
@@ -294,11 +303,8 @@ phases:
       - test_coverage
       - naming_conventions
   verify:
-    commands:
-      typecheck: <from CLAUDE.md or detected>
-      lint: <from CLAUDE.md or detected>
-      test: <from CLAUDE.md or detected>
-      format_check: <from CLAUDE.md or detected>
+    # Note: build commands are now in top-level `commands:` block.
+    # All phases (apply, verify, clean) read from there.
   clean:
     merge_specs: true
     archive_changes: true

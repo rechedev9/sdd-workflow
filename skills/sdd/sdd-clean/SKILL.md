@@ -1,11 +1,11 @@
 ---
 name: sdd-clean
 description: >
-  Dead code removal, duplicate elimination, and code simplification. Runs after verify passes.
-  Trigger: When user runs /sdd:clean or after sdd-verify passes.
+  Three-pass code cleanup: dead code removal, duplication & reuse analysis, and quality & efficiency review.
+  Runs after verify passes. Trigger: When user runs /sdd:clean or after sdd-verify passes.
 license: MIT
 metadata:
-  version: "1.0"
+  version: "2.0"
 ---
 
 # SDD Clean — Code Cleanup Sub-Agent
@@ -31,7 +31,7 @@ You receive the following from the orchestrator:
 
 ### Step 1 — Determine Scope
 
-1. Read `openspec/config.yaml` and `CLAUDE.md` for project conventions and tech stack. Based on the identified frameworks, load the relevant framework skills from `~/.claude/skills/frameworks/{framework}/SKILL.md` before analyzing any files. If a skill file does not exist, proceed without it. This is required to distinguish idiomatic framework patterns (e.g., React hook rules, Tailwind class ordering) from genuine simplification candidates.
+1. Read `openspec/config.yaml` and `CLAUDE.md` for project conventions and tech stack. Extract the top-level `commands` block from config.yaml into `CMD_TYPECHECK`, `CMD_LINT`, `CMD_TEST` variables. If config.yaml has no `commands` block, fall back to lockfile detection (same as sdd-apply Step 1.6).
 2. Read `tasks.md` to identify all files created or modified in this change.
 2. Build the **cleanup scope**:
    - **Primary**: Files directly created/modified in this change.
@@ -39,11 +39,19 @@ You receive the following from the orchestrator:
    - **Excluded**: Everything else. Do NOT refactor the whole project.
 3. Read `verify-report.md` to understand the current quality state. If the verify verdict is FAIL, **abort** — do not clean broken code.
 
-### Step 2 — Analyze Each File
+### Step 2 — Three-Pass Analysis
 
-For **each file** in the cleanup scope, read it and perform the following analysis:
+Analyze all files in the cleanup scope using **three distinct passes**. Each pass adopts a different mental model — approach each one fresh, as if you are a different reviewer.
 
-#### 2a. Dead Code Detection
+> **Why three passes?** A single linear review develops confirmation bias. Three passes with distinct goals catch different classes of issues. This mirrors multi-agent review patterns that empirically find more problems than single-agent approaches.
+
+---
+
+#### Pass 1 — Dead Code & Stale References
+
+**Goal**: Find everything that exists but shouldn't — code, imports, comments, and documentation that are no longer serving a purpose.
+
+**1a. Dead Code Detection**
 
 | Check | Risk Level | Description |
 |---|---|---|
@@ -56,22 +64,73 @@ For **each file** in the cleanup scope, read it and perform the following analys
 | Dead branches | CAREFUL | `if` branches with conditions that are always true/false |
 | Commented-out code | SAFE | Code blocks that are commented out (not documentation comments) |
 
-#### 2b. Duplicate Detection
+**1b. Documentation Synchronization**
 
-Scan for duplicated logic within the file and across the primary scope:
+For every function **modified in this change** (from tasks.md), check for stale documentation. Fix misleading comments — do NOT add docs to undocumented functions.
+
+| Check | Detection | Fix |
+|---|---|---|
+| **Stale JSDoc @param** | JSDoc lists a parameter that no longer exists, or is missing one that was added | Update @param list to match signature |
+| **Stale JSDoc @returns** | JSDoc return description doesn't match actual return type/behavior | Update @returns |
+| **Wrong @throws / @example** | Annotations reference behavior that no longer exists | Remove or update |
+| **Misleading inline comments** | Comment describes logic that was changed | Rewrite to describe current behavior |
+| **Orphaned TODO/FIXME** | TODO references a task completed in this change | Remove |
+| **Stale variable/function name in comment** | Comment references a renamed symbol | Update the reference |
+
+Do NOT: add new JSDoc, add explanatory comments, rewrite comments for style, touch files outside scope.
+
+**Indirect caller audit**: If a public function's signature changed, grep for callers across the codebase. Update stale doc references in callers within scope; note out-of-scope callers in the clean report.
+
+---
+
+#### Pass 2 — Duplication & Reuse
+
+**Goal**: Find code that is repeated or that reinvents something the codebase already provides. This pass looks **outward** — beyond the change scope into the existing codebase.
+
+**2a. Duplicate Detection (within change scope)**
+
+Scan for duplicated logic within and across files in the primary scope:
 
 - **Identical blocks**: 5+ lines of identical code in two or more places.
 - **Near-identical blocks**: Same structure with only variable names different.
-- **Repeated patterns**: Same sequence of operations (e.g., fetch-parse-validate) repeated in multiple functions.
+- **Repeated patterns**: Same sequence of operations (e.g., fetch-parse-validate) in multiple functions.
 
-For each duplicate found, assess:
+For each duplicate, assess:
 - Can it be extracted into a shared function without premature abstraction?
 - Do the duplicates share the same interface and semantics?
-- Would a shared function be MORE readable or LESS readable?
+- Would a shared function be MORE or LESS readable?
 
 **Rule of Three**: Only consolidate if the pattern appears 3+ times, OR if 2 occurrences are truly identical (same logic, same types).
 
-#### 2c. Complexity Analysis
+**2b. Codebase Reuse Search (beyond change scope)**
+
+For every new function or inline logic block created in this change, **actively search** the existing codebase for pre-existing utilities that could replace it:
+
+1. **Search helper/util directories** — `helpers/`, `utils/`, `lib/`, `shared/`, and any project-specific convention paths.
+2. **Search for similar function signatures** — functions with the same parameter types and return type.
+3. **Search for similar names** — functions whose names suggest the same intent (e.g., your new `formatDate` vs existing `dateToString`).
+4. **Check adjacent modules** — the same directory or parent directory as the changed files.
+
+For each match found:
+- If the existing utility does exactly what the new code does → flag as **REPLACE** (use existing).
+- If it does 80% of what's needed → flag as **EXTEND** (add a parameter or overload) — but only if the extension is backward-compatible.
+- If it's superficially similar but semantically different → skip.
+
+**2c. Cross-File Helper Consolidation**
+
+When the same helper function is defined in multiple spec/test files:
+1. Check if a shared helpers directory exists (e.g., `e2e/helpers/`, `test/helpers/`).
+2. If the function is identical across 2+ files → extract to shared helpers.
+3. If the function differs slightly → parameterize the shared version.
+4. After extraction, verify all callers still work (typecheck + tests).
+
+---
+
+#### Pass 3 — Quality & Efficiency
+
+**Goal**: Find code that works but is suboptimal — unnecessarily complex, slow, or wasteful. This pass thinks about **runtime behavior**, not just static structure.
+
+**3a. Complexity Analysis**
 
 For each function in the file:
 
@@ -82,9 +141,7 @@ For each function in the file:
 | Parameter count | > 5 params | Flag for options object pattern |
 | Cyclomatic complexity | > 10 | Flag for decomposition |
 
-#### 2d. Simplification Opportunities
-
-Look for patterns that can be simplified:
+**3b. Simplification Opportunities**
 
 | Pattern | Simplification |
 |---|---|
@@ -99,9 +156,24 @@ Look for patterns that can be simplified:
 | `try { ... } catch (e) { throw e; }` | Remove pointless try-catch |
 | Redundant type annotations (inferable) | Remove only when inference is obvious and unambiguous |
 
+**3c. Efficiency Analysis**
+
+| Check | What to look for | Fix |
+|---|---|---|
+| **Redundant computations** | Same value computed multiple times in a function/render | Extract to a variable or `useMemo` |
+| **Unnecessary waits/timeouts** | Hard-coded delays, excessive timeout values (especially in tests) | Reduce to minimum needed or use event-based waits |
+| **N+1 patterns** | Loop that makes an API/DB call per iteration | Batch into a single call |
+| **Missed concurrency** | Independent `await` calls run sequentially | Use `Promise.all()` for independent operations |
+| **Hot-path bloat** | New blocking work added to startup, per-request, or per-render paths | Defer, lazy-load, or move off hot path |
+| **Unbounded data structures** | Arrays/maps that grow without limit or cleanup | Add size limits or cleanup logic |
+| **Listener leaks** | Event listeners or subscriptions added without cleanup | Add cleanup in `useEffect` return / `finally` block |
+| **Wasted props/state** | Component receives props it never uses, or state that duplicates derived values | Remove unused props, derive instead of store |
+
+**Efficiency in test code**: Test helpers that use `.isVisible({ timeout: N })` as a "check if present" pattern waste N milliseconds when the element is absent. Flag timeouts > 500ms in optional-presence checks.
+
 ### Step 3 — Apply Changes Safely
 
-For each identified cleanup, apply it with verification:
+Aggregate findings from all three passes and apply them with verification:
 
 #### 3a. Risk-Based Approach
 
@@ -126,11 +198,20 @@ For each identified cleanup, apply it with verification:
 
 After each significant removal or group of SAFE removals:
 
-1. Run `bun run typecheck` — if it fails, **REVERT** the change and note it.
-2. Run `bun test` for affected files — if tests fail, **REVERT** and note it.
+1. Run `{CMD_TYPECHECK}` — if it fails, **REVERT** the change and note it.
+2. Run `{CMD_TEST}` for affected files — if tests fail, **REVERT** and note it.
 3. If both pass, the change is confirmed safe.
 
-#### 3c. Consolidating Duplicates
+#### 3c. Documentation Fixes
+
+Apply all doc fixes identified in Pass 1b (Documentation Synchronization):
+
+1. **Batch all doc fixes per file** — apply them together as a single edit operation.
+2. **Verification**: Doc fixes are behavior-neutral, so they do NOT require typecheck/test verification individually. However, they are included in the final verification (Step 5).
+3. **Preserve style**: Match the existing documentation style in the file (JSDoc format, comment style, indentation). If the file uses `/** */` for JSDoc, don't switch to `//`. If it uses `@param {type} name` vs `@param name - description`, match the existing convention.
+4. **Minimal changes**: Fix only what is stale. Do not rephrase correct documentation for stylistic preferences.
+
+#### 3d. Consolidating Duplicates
 
 When consolidating duplicate code:
 
@@ -157,9 +238,9 @@ For any findings, apply the same risk-based approach from Step 3.
 Run the full quality suite one last time:
 
 ```
-bun run typecheck
-bun run lint
-bun test
+{CMD_TYPECHECK}
+{CMD_LINT}
+{CMD_TEST}
 ```
 
 All three must pass. If any fail, identify which cleanup caused the failure and revert it.
@@ -172,7 +253,7 @@ Create a persistent artifact at `openspec/changes/{changeName}/clean-report.md` 
 # Clean Report: {changeName}
 
 **Date**: {YYYY-MM-DD}
-**Status**: COMPLETED | ABORTED
+**Status**: SUCCESS | ERROR
 
 ## Files Cleaned
 {List of each file and the actions taken on it}
@@ -181,11 +262,28 @@ Create a persistent artifact at `openspec/changes/{changeName}/clean-report.md` 
 {Total count and per-file breakdown}
 
 ## Actions Taken
+
+### Pass 1 — Dead Code & Stale References
 - Unused imports removed: {count}
 - Dead functions removed: {count}
+- Stale docs fixed: {count}
+
+### Pass 2 — Duplication & Reuse
 - Duplicates consolidated: {count}
+- Replaced with existing utility: {count}
+- Helpers extracted to shared module: {count}
+
+### Pass 3 — Quality & Efficiency
 - Complexity reductions: {count}
+- Efficiency improvements: {count}
 - Reverted changes: {count and reasons}
+
+## Documentation Synchronization
+| File | Function | Fix Type | Description |
+|---|---|---|---|
+| {path} | {functionName} | stale-param / stale-return / misleading-comment / orphaned-todo | {what was fixed} |
+
+{If no stale docs found: "All documentation in modified functions is synchronized with implementation."}
 
 ## Build Status
 - Typecheck: {PASS | FAIL}
@@ -200,47 +298,47 @@ This report serves as the audit trail for cleanup and feeds into sdd-archive.
 ```json
 {
   "agent": "sdd-clean",
-  "status": "COMPLETED | ABORTED",
   "changeName": "<change-name>",
-  "filesCleaned": [
-    {
-      "file": "src/auth/session.ts",
-      "actions": [
-        "Removed 3 unused imports",
-        "Removed unreachable code after early return (line 45-52)",
-        "Simplified null check to optional chaining (line 78)"
-      ]
-    }
-  ],
-  "duplicatesConsolidated": [
-    {
-      "sharedFunction": "src/utils/validate-input.ts:validateEmail()",
-      "replacedIn": ["src/auth/signup.ts", "src/auth/profile.ts", "src/auth/invite.ts"],
-      "description": "Extracted common email validation logic"
-    }
-  ],
+  "status": "SUCCESS | ERROR",
+  "executiveSummary": "Cleaned {filesModified} files: removed {linesRemoved} lines, {unusedImportsRemoved} unused imports, {deadFunctionsRemoved} dead functions. {duplicatesConsolidated} duplicates consolidated.",
   "metrics": {
-    "linesRemoved": 47,
-    "filesModified": 5,
-    "unusedImportsRemoved": 12,
-    "deadFunctionsRemoved": 2,
-    "duplicatesConsolidated": 1,
-    "complexityReductions": 3
+    "tasks":        { "completed": 0, "total": 0 },
+    "specs":        { "covered": 0, "total": 0 },
+    "filesCreated": [],
+    "filesModified":["<paths of cleaned files>"],
+    "issuesCritical": 0
   },
-  "reverted": [
-    {
-      "file": "src/auth/index.ts",
-      "action": "Attempted to remove export `createSession`",
-      "reason": "Used by dynamic import in src/api/middleware.ts"
-    }
-  ],
-  "buildStatus": {
-    "typecheck": "PASS",
-    "lint": "PASS",
-    "tests": "PASS"
+  "buildHealth": {
+    "typecheck": "PASS | FAIL",
+    "lint":      "PASS | FAIL",
+    "tests":     "PASS | FAIL",
+    "format":    null
+  },
+  "artifacts": ["<clean-report path if generated>"],
+  "phaseSpecificData": {
+    "filesCleaned": [
+      {
+        "file": "<path>",
+        "actions": ["<description of each cleanup action>"]
+      }
+    ],
+    "duplicatesConsolidated": [],
+    "cleanMetrics": {
+      "linesRemoved": 0,
+      "unusedImportsRemoved": 0,
+      "deadFunctionsRemoved": 0,
+      "replacedWithExistingUtility": 0,
+      "helpersExtracted": 0,
+      "complexityReductions": 0,
+      "efficiencyImprovements": 0,
+      "staleDocsFixed": 0
+    },
+    "reverted": []
   }
 }
 ```
+
+Status mapping: `SUCCESS` means all cleanups applied and build passes. `ERROR` means the cleanup was aborted (e.g., verify verdict was FAIL).
 
 ---
 
@@ -257,7 +355,7 @@ This report serves as the audit trail for cleanup and feeds into sdd-archive.
 9. **No new features.** Cleanup must not change behavior. If you spot a bug, note it — do not fix it here.
 10. **Respect existing tests.** All existing tests must still pass after cleanup. If a test tests dead code, remove the test AND the dead code together.
 11. **Produce a clean-report.md.** Always write `openspec/changes/{changeName}/clean-report.md` as a persistent artifact.
-12. **Load framework skills before cleaning.** Read `~/.claude/skills/frameworks/{framework}/SKILL.md` for every active framework before analyzing any file. Framework-idiomatic patterns (React hooks dependency arrays, Tailwind class ordering, Zod chain methods, etc.) must not be flagged as dead code or simplification candidates.
+12. **Respect framework idioms.** Do NOT flag framework-idiomatic patterns (React hooks dependency arrays, Tailwind class ordering, Zod chain methods, etc.) as dead code or simplification candidates. Framework skill loading is handled by `sdd-design`, `sdd-apply`, and `sdd-review` only.
 13. **Handoff to sdd-archive.** After cleanup, sdd-verify should ideally re-run to produce an updated verify-report.md. If sdd-verify is not re-run, include build health (typecheck + lint + tests) in the clean-report.md as a mini-verification so that sdd-archive has a trustworthy quality snapshot.
 
 ---
@@ -283,3 +381,17 @@ This report serves as the audit trail for cleanup and feeds into sdd-archive.
 | Duplicate code exists but with subtle differences | Do NOT consolidate — the differences are intentional |
 | File is near 600-line limit after cleanup | Good — cleanup helped. Note the improvement |
 | Cleanup reduces a file below 20 lines | Consider whether the file should be merged into a parent module |
+
+---
+
+## PARCER Contract
+
+```yaml
+phase: clean
+preconditions:
+  - verify verdict is PASS or PASS_WITH_WARNINGS
+postconditions:
+  - no orphaned imports or dead code in changed files
+  - envelope.buildHealth.typecheck is PASS
+  - envelope.buildHealth.tests is PASS
+```

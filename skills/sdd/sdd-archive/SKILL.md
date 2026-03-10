@@ -35,9 +35,10 @@ You receive the following from the orchestrator:
 1. Read `verify-report.md`.
 2. Parse the **verdict** field.
 3. If verdict is **FAIL** or there are any **CRITICAL** issues:
-   - **ABORT immediately.** Do not archive a failing change.
+   - **Check for clean-report override:** If `openspec/changes/{changeName}/clean-report.md` exists, read it. If the clean-report's build status shows all checks PASS and it reports all FAIL conditions resolved, the clean-report **supersedes** the stale verify-report for archive eligibility — proceed to step 4.
+   - Otherwise, **ABORT immediately.** Do not archive a failing change.
    - Return an envelope with `status: "ERROR"` and the reason.
-4. If verdict is **PASS WITH WARNINGS**:
+4. If verdict is **PASS_WITH_WARNINGS**:
    - Proceed but include warnings in the archive summary.
    - Note that the change was archived with known warnings.
 5. If `review-report.md` exists, check for unresolved REJECT violations:
@@ -144,7 +145,7 @@ If the delta introduces specs for a domain that has no main spec file:
    # Archive Manifest: {changeName}
 
    **Archived**: {YYYY-MM-DD}
-   **Verdict**: {PASS | PASS WITH WARNINGS}
+   **Verdict**: {PASS | PASS_WITH_WARNINGS}
    **Tasks Completed**: {X}/{Y}
    **Specs Merged**: {list of domains updated}
    **Warnings**: {count, if any}
@@ -299,7 +300,7 @@ Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` me
 
 ## Rules — Hard Constraints
 
-1. **NEVER archive a FAIL verdict.** If verify-report says FAIL or has CRITICAL issues, abort immediately. No exceptions.
+1. **NEVER archive a FAIL verdict** — unless `clean-report.md` exists and supersedes it (see Step 1.3). If verify-report says FAIL or has CRITICAL issues and no clean-report resolves them, abort immediately.
 2. **NEVER archive with unresolved REJECT violations.** If review-report has REJECT violations, abort.
 3. **Spec merge is additive by default.** For REMOVED requirements, warn prominently — do not silently delete.
 4. **Archive is permanent.** Never delete archived changes. They serve as an audit trail.
@@ -331,7 +332,7 @@ Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` me
 | `openspec/specs/` directory doesn't exist | Create it before merging |
 | `openspec/changes/archive/` directory doesn't exist | Create it before archiving |
 | Change folder is empty (all artifacts deleted) | Abort — nothing to archive |
-| Verify report has PASS WITH WARNINGS and 10+ warnings | Archive but prominently note the warning count |
+| Verify report has PASS_WITH_WARNINGS and 10+ warnings | Archive but prominently note the warning count |
 | Learning pattern name conflicts with existing file | Append a version number (e.g., `pattern-name-v2.md`) |
 | `memory_enabled: false` in config.yaml | Skip Step 5c entirely — no memory calls attempted |
 | `memory_enabled: true` but memory tools fail at runtime | Note failure in envelope, proceed with archive |

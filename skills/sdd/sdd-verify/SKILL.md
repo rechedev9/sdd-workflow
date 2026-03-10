@@ -26,10 +26,22 @@ You receive the following from the orchestrator:
 | `specsDir` | Path to `openspec/changes/{changeName}/specs/` |
 | `designPath` | Path to `openspec/changes/{changeName}/design.md` |
 | `reviewReportPath` | Optional: path to `review-report.md` from sdd-review |
+| `flags` | Optional flags: `--fuzz` (enable dynamic security testing) |
 
 ---
 
 ## Execution Steps
+
+### Step 0 — Load Build Commands
+
+Read `openspec/config.yaml` and extract the top-level `commands` block. Store as variables for all subsequent steps:
+
+- `CMD_TYPECHECK` ← `commands.typecheck` (e.g., `bun run typecheck`)
+- `CMD_LINT` ← `commands.lint` (e.g., `bun run lint`)
+- `CMD_TEST` ← `commands.test` (e.g., `bun test`)
+- `CMD_FORMAT_CHECK` ← `commands.format_check` (e.g., `bun run format:check`)
+
+**Fallback**: If `config.yaml` does not exist or has no `commands` block, detect the package manager from lockfiles (`bun.lockb` → bun, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm) and construct commands from `package.json` scripts. This ensures backward compatibility with pre-1.1 projects.
 
 ### Step 1 — Completeness Check
 
@@ -49,7 +61,7 @@ You receive the following from the orchestrator:
 Run the TypeScript compiler:
 
 ```
-bun run typecheck
+{CMD_TYPECHECK}
 ```
 
 - Capture the **full output** (stdout and stderr).
@@ -62,7 +74,7 @@ bun run typecheck
 Run the linter:
 
 ```
-bun run lint
+{CMD_LINT}
 ```
 
 - Capture the **full output**.
@@ -75,7 +87,7 @@ bun run lint
 Run the format checker:
 
 ```
-bun run format:check
+{CMD_FORMAT_CHECK}
 ```
 
 - Capture the output.
@@ -87,13 +99,48 @@ bun run format:check
 Run the test suite:
 
 ```
-bun test
+{CMD_TEST}
 ```
 
 - Capture the **full output**.
 - Extract: total tests, passed, failed, skipped.
 - For each failure, extract: test name, file path, error message, and stack trace.
 - Classify: PASS (0 failures) or FAIL (1+ failures).
+
+### Step 5b — Fault Localization Protocol (when tests fail)
+
+When Step 5 detects one or more test failures, you MUST diagnose each failure using this structured protocol before continuing to Step 6. If all tests pass, skip this step.
+
+#### PREMISES (Test Semantics)
+
+For each failing test, describe step by step:
+
+1. **Test identifier**: `describe > it` path and file location.
+2. **Setup (Arrange)**: What preconditions does the test establish? List each variable, mock, or fixture with its value.
+3. **Action (Act)**: What function or operation does the test invoke? Include the exact call signature.
+4. **Assertion (Assert)**: What is the expected outcome? Quote the exact assertion (e.g., `expect(result.ok).toBe(true)`).
+
+#### DIVERGENCE CLAIMS
+
+For each failing test, generate one or more divergence claims:
+
+- **CLAIM**: A formal statement cross-referencing a test premise with a specific code location.
+  Format: "Test expects [expected behavior] (test file:line), but implementation at [source file:line] produces [actual behavior] because [root cause]."
+- **EVIDENCE**: The specific line(s) of source code that cause the divergence.
+- **CONFIDENCE**: `HIGH` | `MEDIUM` | `LOW` — based on whether the root cause is certain or hypothetical.
+
+Example:
+
+```
+CLAIM: Test expects `Result.ok` to be `true` for valid credentials
+  (auth.test.ts:25), but `verifyPassword()` at auth.service.ts:48 returns
+  `false` because it compares raw password against hash without using
+  `bcrypt.compare()`.
+EVIDENCE: auth.service.ts:48 — `return password === storedHash`
+CONFIDENCE: HIGH
+```
+
+Include all divergence claims in the verify report under a "Fault Localization" section. This structured diagnosis enables `sdd-apply` to fix issues precisely without guessing.
 
 ### Step 6 — Static Analysis
 
@@ -130,13 +177,105 @@ Scan for hardcoded secrets and dangerous patterns:
 | Unvalidated `fetch()` URL from user input | WARNING | SSRF risk |
 | Missing input validation on API route handlers | WARNING | Injection risk |
 
+### Step 7b — Dynamic Security Testing / Fuzz (Optional)
+
+This step activates when:
+- The `--fuzz` flag is passed, OR
+- Step 7 found WARNING or CRITICAL security issues (auto-escalation), OR
+- The change touches API handlers, auth logic, input parsers, or database operations (detected by scanning file paths and imports in the changed files)
+
+If none of these conditions are met, skip this step entirely.
+
+#### 7b-1. Identify Fuzz Targets
+
+Scan the changed files to find functions that handle **external input boundaries**:
+
+| Target Type | Detection Heuristic | Priority |
+|---|---|---|
+| API route handlers | Functions inside route definitions (`.get()`, `.post()`, `.put()`, `.delete()`, `.patch()`) | HIGH |
+| Input parsers/validators | Functions that call `safeParse`, `parse`, `JSON.parse`, or accept `unknown`/`string` params from external sources | HIGH |
+| Auth/session logic | Functions in files matching `*auth*`, `*session*`, `*login*`, `*token*` | HIGH |
+| Database operations | Functions that call query builders, `.insert()`, `.update()`, `.delete()`, `.execute()` | MEDIUM |
+| File/path handlers | Functions that use `fs.*`, `path.join`, or accept file path parameters | MEDIUM |
+
+**Hard limits:** Select a maximum of **5 target functions** per change. Prioritize HIGH over MEDIUM.
+
+#### 7b-2. Generate Fuzz Test Cases
+
+For each target function, generate adversarial test cases across these categories:
+
+| Category | Example Inputs | What It Tests |
+|---|---|---|
+| **Boundary values** | Empty string `""`, max-length string (10K chars), `0`, `-1`, `Number.MAX_SAFE_INTEGER`, `NaN`, `Infinity` | Edge case handling |
+| **Injection payloads** | `'; DROP TABLE users--`, `<script>alert(1)</script>`, `../../etc/passwd`, `\`$(whoami)\`` | SQL/XSS/path traversal/command injection |
+| **Type coercion** | `{}` where string expected, `[]` where object expected, `null`, `undefined`, nested objects with `__proto__` | Prototype pollution, type confusion |
+| **Malformed data** | Truncated JSON `{"name":`, invalid UTF-8 bytes, strings with null bytes `\0`, extremely nested objects (100 levels) | Parser robustness |
+| **Auth bypass** | Empty/expired/malformed tokens, tokens with modified claims, missing auth headers | Auth boundary integrity |
+
+**Per function:** Generate a maximum of **10 test cases**, covering at least 3 of the 5 categories above.
+
+#### 7b-3. Write Temporary Fuzz Test File
+
+Write fuzz tests to `{targetDir}/{feature}.fuzz.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'bun:test';
+// import target function
+
+describe('Fuzz: {functionName}', () => {
+  describe('Boundary values', () => {
+    it('should handle empty string input without throwing', () => {
+      // Arrange: adversarial input
+      // Act: call function
+      // Assert: does not throw, returns Result.err or validation error
+    });
+  });
+
+  describe('Injection payloads', () => {
+    it('should sanitize SQL injection attempt in {paramName}', () => {
+      // ...
+    });
+  });
+});
+```
+
+**Test expectations:** Fuzz tests do NOT assert specific return values. They assert:
+1. **No unhandled throws** — the function must not crash on adversarial input
+2. **No raw error leakage** — error messages must not expose internals (stack traces, file paths, DB schema)
+3. **Input validation triggers** — if the function uses `safeParse`/validation, adversarial input must be rejected (not silently accepted)
+4. **No prototype pollution** — objects with `__proto__` keys must not modify global prototypes
+
+#### 7b-4. Run Fuzz Tests
+
+```
+{CMD_TEST} {feature}.fuzz.test.ts
+```
+
+Capture the full output. For each failure:
+- Extract the test name, input used, error message, and stack trace
+- Classify the finding:
+
+| Finding Type | Severity | Description |
+|---|---|---|
+| Unhandled throw on adversarial input | CRITICAL | Function crashes on malicious input — denial of service risk |
+| Injection payload accepted without validation | CRITICAL | Input reaches processing layer unsanitized |
+| Internal error details leaked | WARNING | Stack trace or file path in error response |
+| Prototype pollution possible | CRITICAL | `__proto__` key modifies object prototype |
+| No validation triggered | WARNING | Adversarial input passes through without any check |
+
+#### 7b-5. Cleanup and Report
+
+1. **If findings exist:** Keep the fuzz test file as evidence. Add findings to the verify report under a `## Dynamic Security Testing (Fuzz)` section. Each finding includes: target function, input used, category, severity, and observed behavior.
+2. **If no findings:** Delete the fuzz test file. Note in the report: "Dynamic security testing: {N} functions tested, {M} test cases executed, no vulnerabilities found."
+3. **Fixability:** Fuzz findings follow the standard fixability classification:
+   - Missing input validation → `AUTO_FIXABLE` (add safeParse/validation)
+   - Unhandled throw → `AUTO_FIXABLE` (wrap in try/catch + Result)
+   - Injection accepted → `HUMAN_REQUIRED` (needs security review of the validation strategy)
+   - Prototype pollution → `AUTO_FIXABLE` (filter `__proto__` keys)
+
 ### Step 8 — Dependency Audit (if available)
 
-Attempt to run:
-
-```
-bun pm audit
-```
+Attempt to run a dependency audit using the detected package manager (e.g., `bun pm audit`, `npm audit`, `pnpm audit`).
 
 If the command is not available or not supported, skip this step and note it. If available, capture the output and count vulnerabilities by severity (critical, high, moderate, low).
 
@@ -149,7 +288,7 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 
 **Date**: {YYYY-MM-DD}
 **Verifier**: sdd-verify (automated)
-**Verdict**: PASS | PASS WITH WARNINGS | FAIL
+**Verdict**: PASS | PASS_WITH_WARNINGS | FAIL
 
 ## Completeness
 
@@ -185,15 +324,32 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 | XSS vectors | {N} | CRITICAL |
 | Missing validation | {N} | WARNING |
 
+## Dynamic Security Testing (Fuzz)
+
+{If Step 7b was executed:}
+- Functions tested: {N}
+- Test cases generated: {M}
+- Vulnerabilities found: {K}
+
+| # | Target Function | File:Line | Category | Input | Severity | Observed Behavior |
+|---|---|---|---|---|---|---|
+| 1 | `handleLogin` | src/auth/login.ts:28 | Injection | `'; DROP TABLE--` | CRITICAL | Input reached query layer unsanitized |
+
+{If Step 7b was skipped: "Dynamic security testing: skipped (no --fuzz flag, no security surface detected)"}
+
+## Fault Localization (if tests failed)
+
+{Structured premises and divergence claims from Step 5b — omit this section if all tests passed}
+
 ## Issues Detail
 
-| # | Severity | Category | File | Line | Description |
-|---|---|---|---|---|---|
-| 1 | CRITICAL | typecheck | src/foo.ts | 12 | Type 'string' not assignable to 'number' |
+| # | Severity | Category | File | Line | Description | Fixability | Fix Direction |
+|---|---|---|---|---|---|---|---|
+| 1 | CRITICAL | typecheck | src/foo.ts | 12 | Type 'string' not assignable to 'number' | AUTO_FIXABLE | Change parameter type or add type conversion at line 12 |
 
 ## Verdict Rationale
 
-{Explanation of why the verdict is PASS, PASS WITH WARNINGS, or FAIL}
+{Explanation of why the verdict is PASS, PASS_WITH_WARNINGS, or FAIL}
 ```
 
 ### Step 10 — Return Structured Envelope
@@ -201,42 +357,66 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 ```json
 {
   "agent": "sdd-verify",
-  "status": "COMPLETED",
   "changeName": "<change-name>",
-  "verdict": "PASS | PASS_WITH_WARNINGS | FAIL",
-  "reportPath": "openspec/changes/{changeName}/verify-report.md",
-  "completeness": {
-    "tasksCompleted": 10,
-    "tasksTotal": 10,
-    "specsCovered": 14,
-    "specsTotal": 15,
-    "interfacesImplemented": 5,
-    "interfacesTotal": 5
+  "status": "SUCCESS",
+  "executiveSummary": "Verify {verdict}: {tasksCompleted}/{tasksTotal} tasks, {specsCovered}/{specsTotal} specs. Build health: typecheck {PASS|FAIL}, tests {PASS|FAIL}. {criticalIssueCount} critical issues.",
+  "metrics": {
+    "tasks":        { "completed": "<tasksCompleted>", "total": "<tasksTotal>" },
+    "specs":        { "covered": "<specsCovered>", "total": "<specsTotal>" },
+    "filesCreated": ["<reportPath>"],
+    "filesModified":[],
+    "issuesCritical": "<criticalIssueCount>"
   },
   "buildHealth": {
-    "typecheck": { "status": "PASS", "errorCount": 0 },
-    "lint": { "status": "PASS", "errorCount": 0, "warningCount": 2 },
-    "format": { "status": "PASS", "filesNeedFormatting": 0 },
-    "tests": { "status": "PASS", "passed": 42, "failed": 0, "skipped": 1 }
+    "typecheck": "PASS | FAIL",
+    "lint":      "PASS | FAIL",
+    "tests":     "PASS | FAIL",
+    "format":    "PASS | FAIL"
   },
-  "staticAnalysis": {
-    "bannedAny": 0,
-    "typeAssertions": 0,
-    "compilerSuppressions": 0,
-    "consoleUsage": 1,
-    "todoFixme": 3
-  },
-  "security": {
-    "hardcodedSecrets": 0,
-    "injectionRisks": 0,
-    "xssVectors": 0,
-    "missingValidation": 0
-  },
-  "criticalIssueCount": 0,
-  "warningIssueCount": 4,
-  "suggestionCount": 2
+  "artifacts": ["<reportPath>", "<fuzzTestFilesKept if any>"],
+  "phaseSpecificData": {
+    "verdict": "PASS | PASS_WITH_WARNINGS | FAIL",
+    "completeness": {
+      "interfacesImplemented": 0,
+      "interfacesTotal": 0
+    },
+    "buildHealthDetail": {
+      "typecheck": { "errorCount": 0 },
+      "lint": { "errorCount": 0, "warningCount": 0 },
+      "format": { "filesNeedFormatting": 0 },
+      "tests": { "passed": 0, "failed": 0, "skipped": 0 }
+    },
+    "staticAnalysis": {
+      "bannedAny": 0,
+      "typeAssertions": 0,
+      "compilerSuppressions": 0,
+      "consoleUsage": 0,
+      "todoFixme": 0
+    },
+    "security": {
+      "hardcodedSecrets": 0,
+      "injectionRisks": 0,
+      "xssVectors": 0,
+      "missingValidation": 0
+    },
+    "fuzz": {
+      "executed": false,
+      "functionsTargeted": 0,
+      "testCasesGenerated": 0,
+      "vulnerabilitiesFound": 0,
+      "findings": [],
+      "fuzzTestFilesKept": []
+    },
+    "warningIssueCount": 0,
+    "suggestionCount": 0,
+    "autoFixableIssues": [],
+    "humanRequiredIssues": [],
+    "allAutoFixable": true
+  }
 }
 ```
+
+Note: sdd-verify always returns `status: "SUCCESS"` — the verification's pass/fail outcome is expressed in `phaseSpecificData.verdict`. The orchestrator accesses it via `envelope.phaseSpecificData.verdict`.
 
 ---
 
@@ -245,7 +425,7 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 1. **Never fix issues.** Report only. Fixing is `sdd-apply`'s job or the developer's.
 2. **Capture full command output.** Truncated output makes debugging impossible. Always capture stderr too.
 3. **CRITICAL issues = FAIL verdict.** No exceptions. Even one type error means FAIL.
-4. **WARNING issues = PASS WITH WARNINGS.** The change can proceed but issues should be addressed.
+4. **WARNING issues = PASS_WITH_WARNINGS.** The change can proceed but issues should be addressed.
 5. **SUGGESTION issues = informational.** They do not affect the verdict.
 6. **Review-report REJECT violations = automatic FAIL.** If sdd-review found REJECT violations, the verify verdict is FAIL regardless of build health.
 7. **Be precise.** Every issue must have a file path and line number. "There might be issues" is not acceptable.
@@ -255,15 +435,32 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 
 ---
 
+## Fixability Classification
+
+Every issue in the report and envelope MUST include a `fixability` field to enable the orchestrator's **Auto-Negotiation Loop**. This determines whether the orchestrator can auto-dispatch `sdd-apply` to fix the issue or must escalate to the user.
+
+| Fixability | Criteria | Examples |
+|---|---|---|
+| `AUTO_FIXABLE` | Clear mechanical fix derivable from the error message and code context | Type errors (TS2xxx), lint violations, formatting issues, `any` usage, `console.log`, `as Type` assertions, TODO markers, missing accessibility attributes |
+| `HUMAN_REQUIRED` | Requires architectural judgment, business decision, or design rethink | Missing feature logic (entire spec scenario unimplemented), security vulnerabilities needing risk assessment, pre-existing failures in untouched files blocking the build, missing test infrastructure |
+
+**Classification rules:**
+1. When in doubt, classify as `HUMAN_REQUIRED`.
+2. Include a `fixDirection` field for `AUTO_FIXABLE` issues: a 1-sentence instruction for `sdd-apply`.
+3. Build health failures (typecheck, lint, format) are almost always `AUTO_FIXABLE`. Test failures depend on root cause — a wrong assertion is `AUTO_FIXABLE`, a missing feature is `HUMAN_REQUIRED`.
+4. The envelope MUST include `allAutoFixable: boolean` for the orchestrator's quick-check.
+
+---
+
 ## Verdict Decision Matrix
 
 | Condition | Verdict |
 |---|---|
 | All checks PASS, all tasks complete, no CRITICAL issues | PASS |
-| All checks PASS but has WARNING-level issues (TODO, console.log) | PASS WITH WARNINGS |
+| All checks PASS but has WARNING-level issues (TODO, console.log) | PASS_WITH_WARNINGS |
 | Any CRITICAL issue (type error, test failure, security vuln, REJECT violation) | FAIL |
 | Tasks incomplete (not all marked [x]) | FAIL |
-| Spec scenarios without tests > 20% of total | PASS WITH WARNINGS |
+| Spec scenarios without tests > 20% of total | PASS_WITH_WARNINGS |
 | Spec scenarios without tests > 50% of total | FAIL |
 
 ---
@@ -278,3 +475,18 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 | `review-report.md` not provided | Skip review-report checks, note that semantic review was skipped |
 | Dependency audit not available | Skip and note — do not count as failure |
 | Static analysis finds issues in node_modules | Ignore node_modules entirely — only scan project source |
+
+---
+
+## PARCER Contract
+
+```yaml
+phase: verify
+preconditions:
+  - review-report.md exists at openspec/changes/{changeName}/ (or review explicitly skipped)
+  - implementation files exist on disk
+postconditions:
+  - verify-report.md written to openspec/changes/{changeName}/
+  - envelope.buildHealth contains all 4 checks (typecheck, lint, tests, format)
+  - envelope.phaseSpecificData.verdict is PASS, PASS_WITH_WARNINGS, or FAIL
+```

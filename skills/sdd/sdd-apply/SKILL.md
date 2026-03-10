@@ -184,6 +184,14 @@ Return the standard A2A envelope with fix-specific fields in `phaseSpecificData`
 3. Read `design.md` — extract architecture decisions, interfaces, data flow, and constraints.
 4. List files in `specs/` — these contain GIVEN/WHEN/THEN acceptance criteria.
 5. Read `CLAUDE.md` at the project root for project conventions (type strictness, error handling, etc.).
+6. **Detect package manager and build commands** — extract from `CLAUDE.md` (look for "Build", "Test", "Check", "CI" sections) or fall back to inspecting the project root for `package.json` scripts and lockfiles (`pnpm-lock.yaml` → pnpm, `bun.lockb` → bun, `yarn.lock` → yarn, `package-lock.json` → npm). Store as:
+   - `CMD_TYPECHECK` — e.g., `pnpm run typecheck:all` or `bun run typecheck`
+   - `CMD_LINT` — e.g., `pnpm run check:all` or `bun run lint`
+   - `CMD_LINT_FIX` — e.g., `pnpm --filter <pkg> lint:fix` or `bun run lint:fix`
+   - `CMD_TEST` — e.g., `pnpm test:all` or `bun test`
+   - `CMD_FORMAT_CHECK` — e.g., included in `check:all` or `bun run format:check`
+   - `CMD_FORMAT_FIX` — e.g., `pnpm prettier --write` or `bun run prettier --write`
+   Use these variables in Step 4 instead of hardcoded `bun` commands.
 
 ### Step 2 — Plan the Batch
 
@@ -332,32 +340,34 @@ Local EET with no cross-session memory. Max **3 fix attempts** per error (more a
 
 #### 4a. TypeScript Type Check
 ```
-bun run typecheck
+{CMD_TYPECHECK}   # e.g., pnpm run typecheck:all  OR  bun run typecheck
 ```
 - If errors: read each error, fix the root cause (not the symptom).
 - Max fix attempts per unique error: **5** (Expert Mode) or **3** (Ephemeral Mode). If still failing, flag for manual review.
 
-#### 4b. ESLint
+#### 4b. Lint + Format
 ```
-bun run lint
+{CMD_LINT}   # e.g., pnpm run check:all  OR  bun run lint
 ```
-- If errors: fix them. Prefer `bun run lint:fix` for auto-fixable issues.
+- If errors: fix them. Prefer `{CMD_LINT_FIX}` for auto-fixable issues.
 - For non-auto-fixable issues: fix manually.
+- **Note**: some projects (e.g., pnpm monorepos) run Prettier as part of their lint/check command — do NOT assume a separate format step is needed if `CMD_FORMAT_CHECK` is already covered by `CMD_LINT`.
 - Max fix attempts per unique error: **5** (Expert) or **3** (Ephemeral).
 
 #### 4c. Tests
 ```
-bun test
+{CMD_TEST}   # e.g., pnpm test:all  OR  bun test
 ```
 - If failures in files YOU touched: fix them.
 - If failures in files you did NOT touch: note them in the return envelope but do NOT fix (pre-existing failures).
 - Max fix attempts per unique test failure: **5** (Expert) or **3** (Ephemeral).
 
-#### 4d. Format Check
+#### 4d. Format Check (if not covered by 4b)
 ```
-bun run format:check
+{CMD_FORMAT_CHECK}   # e.g., pnpm prettier --check  OR  bun run format:check
 ```
-- If formatting issues: run `bun run prettier --write <path>` for each affected file.
+- Only run this step if Prettier/formatting is NOT already checked as part of `CMD_LINT` (Step 4b).
+- If formatting issues: run `{CMD_FORMAT_FIX} <path>` for each affected file.
 
 ### Step 5 — Generate Apply Report
 
