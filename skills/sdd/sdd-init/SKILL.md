@@ -8,28 +8,15 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Init Sub-Agent
+# SDD Init
 
-You are a sub-agent responsible for bootstrapping Spec-Driven Development (SDD) in a project. Your job is to detect the project's technology stack, architecture patterns, and conventions, then create the `openspec/` directory structure with a comprehensive `config.yaml`.
+You are executing the **init** phase inline. Your job is to detect the project's technology stack, architecture patterns, and conventions, then create the `openspec/` directory structure with a comprehensive `config.yaml`.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:init`
-- The orchestrator dispatches the `sdd-init` phase
-- SDD is being set up for the first time in a project
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: init
-project_path: <absolute path to project root>
-options:
-  force: false          # If true, overwrite existing openspec/
-  dry_run: false        # If true, report what would be created without writing
-```
+User runs `/sdd:init`. The project root is the current working directory. Flags:
+- `--force`: Overwrite existing `openspec/`
+- `--dry-run`: Report what would be created without writing files
 
 ## Execution Steps
 
@@ -39,7 +26,7 @@ options:
 2. If it exists and `force` is false:
    - Read `openspec/config.yaml`
    - Report the current SDD state (schema version, detected stack, number of specs, active changes)
-   - Return an envelope with `status: SUCCESS` and a note in `executiveSummary` that SDD was already initialized
+   - Present a summary noting that SDD was already initialized, with the current config summary and next steps
 3. If it exists and `force` is true:
    - Back up existing `config.yaml` as `config.yaml.bak`
    - Proceed with re-detection
@@ -182,7 +169,7 @@ PREFER:
 
 Populate the REJECT/REQUIRE/PREFER rules from the conventions detected in Step 4. If `CLAUDE.md` doesn't exist, generate minimal rules based on detected linter/formatter configuration and standard TypeScript best practices. Add framework-specific sections (e.g., `## TypeScript / React`, `## API`) when the detected stack warrants it.
 
-Update the output envelope `directories_created` to include `AGENTS.md` if generated.
+Note in the summary that `AGENTS.md` was generated.
 
 ### Step 5c: Detect Memory Capabilities
 
@@ -192,7 +179,7 @@ Check if the persistent memory RAG server is available in the current environmen
 2. **Record result** — Set `capabilities.memory_enabled` in config.yaml:
    - `true` if `mem_stats` responded successfully with healthy Qdrant and Ollama
    - `false` if the tool call failed, timed out, or the tool doesn't exist
-3. **Log** — Note in the envelope's `phaseSpecificData.warnings` if memory is unavailable: `"Memory RAG server not detected. SDD will run in Ephemeral Mode (no cross-session memory)."`
+3. **Log** — Note in the summary warnings if memory is unavailable: `"Memory RAG server not detected. SDD will run in Ephemeral Mode (no cross-session memory)."`
 
 This flag drives conditional behavior in all downstream phases: when `true`, phases use full memory integration (EET, learning saves, context recovery). When `false`, phases skip all `mem_*` calls and use more aggressive local fallbacks.
 
@@ -338,39 +325,41 @@ The `contracts` section in `config.yaml` is NOT hardcoded. It is dynamically ass
 
 This makes the SDD ecosystem **plug-and-play**: adding a new phase (e.g., `sdd-security-audit`) only requires creating its SKILL.md with a `## PARCER Contract` block. The next `/sdd:init` run will auto-detect and register it.
 
-### Step 7: Return Output Envelope
+### Step 7: Present Summary
 
-Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or `ERROR` (if the project was already initialized, return `SUCCESS` with a note in `executiveSummary`).
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
+If `capabilities.quality_tracking` is enabled in `openspec/config.yaml`, append one line to `openspec/changes/.quality-init.jsonl` (or skip — init has no changeName):
 ```json
-{
-  "agent": "sdd-init",
-  "changeName": null,
-  "status": "SUCCESS | ERROR",
-  "executiveSummary": "Initialized SDD for {project_name} ({stack_summary}). Architecture: {architecture}.",
-  "metrics": {
-    "tasks":        { "completed": 0, "total": 0 },
-    "specs":        { "covered": 0, "total": 0 },
-    "filesCreated": ["openspec/config.yaml", "openspec/specs/", "openspec/changes/"],
-    "filesModified":[],
-    "issuesCritical": 0
-  },
-  "buildHealth": {
-    "typecheck": null,
-    "lint":      null,
-    "tests":     null,
-    "format":    null
-  },
-  "artifacts": ["openspec/config.yaml"],
-  "phaseSpecificData": {
-    "project_name": "<string>",
-    "stack_summary": "<one-line summary>",
-    "architecture": "<monorepo | single-package>",
-    "conventions_source": "<CLAUDE.md | inferred | none>",
-    "warnings": []
-  }
-}
+{ "phase": "init", "timestamp": "<ISO 8601>", "agentStatus": "SUCCESS", "stack": "<stack_summary>", "warnings": [] }
 ```
+
+**On success, output:**
+
+```markdown
+## SDD Init Complete
+
+**Project**: {project_name}
+**Stack**: {stack_summary}
+**Architecture**: {monorepo | single-package}
+
+### Files Created
+- `openspec/config.yaml` — full project configuration
+- `openspec/specs/` — baseline spec directory
+- `openspec/changes/` — change tracking directory
+- `AGENTS.md` — phase contract registry (if generated)
+
+### Conventions Captured
+- Source: {CLAUDE.md | inferred | none}
+- {N} coding rules and {N} verification commands registered
+
+{If warnings: ### ⚠ Warnings\n- {warning}\n}
+
+**Next step**: Run `/sdd:explore <topic>` to investigate an area, or `/sdd:new <change-name> "<intent>"` to start a change.
+```
+
+If already initialized and `--force` was not set: output a short note that `openspec/` already exists and suggest `/sdd:new` to start a change.
+If `--dry-run` was set: output what would be created without having written any files.
 
 ## Rules and Constraints
 
@@ -380,10 +369,10 @@ Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or
 4. **Support monorepo detection** -- Bun workspaces, npm workspaces, pnpm workspaces, Turborepo, Nx.
 5. **The `config.yaml` must capture ALL conventions from `CLAUDE.md`** if it exists. Do not skip any rules.
 6. **Use absolute paths** in all output references.
-7. **If `dry_run` is true**, return the envelope describing what would be created without actually writing files.
+7. **If `dry_run` is true**, present a summary describing what would be created without actually writing files.
 8. **Timestamp all generated files** with ISO 8601 format.
 9. **Never include secrets or environment variable values** in config.yaml -- only reference variable names.
-10. **If detection is uncertain**, include a `warnings` list in the output envelope explaining what could not be auto-detected.
+10. **If detection is uncertain**, include a `warnings` list in the summary output explaining what could not be auto-detected.
 
 ## Error Handling
 
@@ -392,25 +381,3 @@ Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or
 - If file read fails: log the file path and continue with partial detection.
 - All errors must include the phase name (`init`) and a human-readable message.
 
-## Example Usage
-
-```
-Orchestrator -> sdd-init:
-  phase: init
-  project_path: /home/user/my-project
-  options:
-    force: false
-    dry_run: false
-
-sdd-init -> Orchestrator:
-  {
-    "agent": "sdd-init",
-    "changeName": null,
-    "status": "SUCCESS",
-    "executiveSummary": "Initialized SDD for my-project (TypeScript + Bun + React 19 + ElysiaJS + PostgreSQL). Architecture: monorepo.",
-    "metrics": { "tasks": { "completed": 0, "total": 0 }, "specs": { "covered": 0, "total": 0 }, "filesCreated": ["openspec/config.yaml", "openspec/specs/", "openspec/changes/"], "filesModified": [], "issuesCritical": 0 },
-    "buildHealth": { "typecheck": null, "lint": null, "tests": null, "format": null },
-    "artifacts": ["openspec/config.yaml"],
-    "phaseSpecificData": { "project_name": "my-project", "stack_summary": "TypeScript + Bun + React 19 + ElysiaJS + PostgreSQL", "architecture": "monorepo", "conventions_source": "CLAUDE.md", "warnings": [] }
-  }
-```

@@ -8,30 +8,13 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Explore Sub-Agent
+# SDD Explore
 
-You are a sub-agent responsible for deep codebase exploration and analysis. Your output enables informed decision-making before any code changes are proposed. You produce structured, evidence-based analysis with concrete file paths and risk assessments.
+You are executing the **explore** phase inline. Your output enables informed decision-making before any code changes are proposed. You produce structured, evidence-based analysis with concrete file paths and risk assessments.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:explore`
-- The orchestrator dispatches the `explore` phase
-- A developer needs to understand a codebase area before proposing changes
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: explore
-project_path: <absolute path to project root>
-topic: <question or area to investigate>
-options:
-  change_name: <optional, kebab-case name for the change>
-  detail_level: concise | standard | deep    # default: standard
-  focus_paths: <optional list of specific directories/files to prioritize>
-```
+User runs `/sdd:explore [topic]` optionally with `--change-name <name>` and `--detail-level concise|standard|deep` (default: standard).
 
 ## Execution Steps
 
@@ -190,7 +173,7 @@ Every open question MUST be classified:
 
 | Severity | Criteria | Pipeline Effect |
 |---|---|---|
-| `BLOCKING` | The answer changes the architecture, scope, or fundamental approach. Proceeding without it risks building the wrong thing. | Orchestrator MUST present to user before proceeding to `sdd-propose`. |
+| `BLOCKING` | The answer changes the architecture, scope, or fundamental approach. Proceeding without it risks building the wrong thing. | MUST be resolved before proceeding to `sdd-propose`. |
 | `DEFERRED` | The answer affects implementation details but not the overall direction. Can be resolved during spec or design phase. | Listed in exploration.md for later resolution. |
 
 **Classification rules:**
@@ -289,52 +272,45 @@ The exploration document structure:
 
 #### If `change_name` is NOT provided:
 
-Return the analysis in the output envelope only (no file written).
+Present the analysis as a markdown summary in the conversation only (no file written).
 
-### Step 9: Return Output Envelope
+### Step 9: Present Summary
 
-Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or `ERROR`.
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
-```json
-{
-  "agent": "sdd-explore",
-  "changeName": "<change-name | null>",
-  "status": "SUCCESS | ERROR",
-  "executiveSummary": "<current_state_summary>. Recommendation: <recommendation>.",
-  "metrics": {
-    "tasks":        { "completed": 0, "total": 0 },
-    "specs":        { "covered": 0, "total": 0 },
-    "filesCreated": [],
-    "filesModified":[],
-    "issuesCritical": 0
-  },
-  "buildHealth": {
-    "typecheck": null,
-    "lint":      null,
-    "tests":     null,
-    "format":    null
-  },
-  "artifacts": ["<path to exploration.md if written, otherwise empty>"],
-  "phaseSpecificData": {
-    "topic": "<string>",
-    "detail_level": "<concise | standard | deep>",
-    "relevant_files": [
-      { "path": "<path>", "purpose": "<string>", "impact_level": "<low|medium|high>" }
-    ],
-    "dependency_count": { "direct": 0, "transitive": 0 },
-    "risk_summary": {
-      "overall": "<low | medium | high>",
-      "highest_risks": [
-        { "dimension": "<string>", "level": "<string>", "note": "<string>" }
-      ]
-    },
-    "approaches": 0,
-    "clarification_needed": false,
-    "blocking_questions": [],
-    "deferred_questions": [],
-    "clarificationRounds": 0
-  }
+**On success, output:**
+
+```markdown
+## SDD Explore: {topic}
+
+**Detail level**: {concise | standard | deep}
+**Overall risk**: {low | medium | high}
+
+### Current State
+{current_state_summary — 2-3 sentences}
+
+### Relevant Files ({N} files)
+| File | Purpose | Impact |
+|------|---------|--------|
+| {path} | {purpose} | {low/medium/high} |
+
+### Risk Assessment
+- **Highest risks**: {top 2 risk dimensions with levels}
+- **Blast radius**: {N} files potentially affected
+
+{If multiple approaches: ### Approaches\n{approach comparison table}\n}
+
+### Recommendation
+{recommendation}
+
+{If blocking questions:
+### ⛔ Clarification Required (BLOCKING)
+{structured questions — user must answer before proposing}
 }
+
+{If exploration.md written: **Artifact**: `openspec/changes/{change_name}/exploration.md`\n}
+
+**Next step**: {If blocking questions: "Answer the questions above, then re-run `/sdd:explore`." | else: "Run `/sdd:new {change_name} \"<intent>\"`  to create a proposal."}
 ```
 
 ## Detail Level Behavior
@@ -381,61 +357,11 @@ Return a JSON envelope following the standard A2A schema. Status is `SUCCESS` or
 
 ## Error Handling
 
-- If `openspec/config.yaml` does not exist: warn in the envelope and proceed with manual detection.
+- If `openspec/config.yaml` does not exist: warn in the summary output and proceed with manual detection.
 - If the topic is too vague to search for: return `status: error` with a message asking for clarification.
 - If no relevant files are found: return `status: success` with empty `relevant_files` and a note in `open_questions`.
 - If a file cannot be read: skip it and note in `warnings`.
 - All errors include the phase name (`explore`) and a human-readable message.
-
-## Example Usage
-
-```
-Orchestrator -> sdd-explore:
-  phase: explore
-  project_path: /home/user/my-project
-  topic: "How does the authentication flow work? I want to add OAuth2 support."
-  options:
-    change_name: add-oauth2
-    detail_level: standard
-
-sdd-explore -> Orchestrator:
-  phase: explore
-  status: success
-  data:
-    topic: "How does the authentication flow work?"
-    detail_level: standard
-    current_state_summary: "Auth uses JWT tokens with email/password login via /api/auth/login endpoint. Tokens are verified by Elysia middleware in auth.guard.ts."
-    relevant_files:
-      - path: /home/user/my-project/src/server/auth/auth.controller.ts
-        purpose: "Login/register endpoints"
-        impact_level: high
-      - path: /home/user/my-project/src/server/auth/auth.guard.ts
-        purpose: "JWT verification middleware"
-        impact_level: high
-      - path: /home/user/my-project/src/server/auth/auth.service.ts
-        purpose: "Token generation and password hashing"
-        impact_level: high
-    dependency_count:
-      direct: 5
-      transitive: 12
-    risk_summary:
-      overall: medium
-      highest_risks:
-        - dimension: security_surface
-          level: high
-          note: "Auth handles credentials and token generation"
-        - dimension: breaking_changes
-          level: medium
-          note: "Token format change would invalidate existing sessions"
-    approaches: 2
-    recommendation: "Add OAuth2 as a parallel auth strategy alongside existing JWT, using the existing auth.service.ts as the integration point."
-    exploration_path: /home/user/my-project/openspec/changes/add-oauth2/exploration.md
-    open_questions:
-      - "Which OAuth2 providers should be supported initially?"
-      - "Should existing JWT sessions be migrated or maintained in parallel?"
-```
-
----
 
 ## PARCER Contract
 
@@ -446,6 +372,6 @@ preconditions:
   - topic parameter is non-empty string
 postconditions:
   - exploration.md written to openspec/changes/{changeName}/ (if changeName provided)
-  - envelope.phaseSpecificData.relevant_files array has ≥1 entry (or blocking_questions explaining absence)
-  - envelope.status is SUCCESS or ERROR
+  - exploration.md contains ≥1 relevant file (or blocking_questions explaining absence)
+  - exploration.md written with all required sections
 ```

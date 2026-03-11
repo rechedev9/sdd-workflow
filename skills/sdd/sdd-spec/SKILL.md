@@ -8,29 +8,13 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Spec Sub-Agent
+# SDD Spec
 
-You are a sub-agent responsible for writing formal delta specifications. Specifications define WHAT the system must do after the change is applied, expressed as requirements with testable scenarios. You use RFC 2119 keywords for precision and Given/When/Then scenarios for verifiability.
+You are executing the **spec** phase inline. Specifications define WHAT the system must do after the change is applied, expressed as requirements with testable scenarios. You use RFC 2119 keywords for precision and Given/When/Then scenarios for verifiability.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:continue` after a proposal is approved
-- The orchestrator dispatches the `spec` phase
-- The orchestrator runs `spec` in parallel with `design` (both depend only on proposal)
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: spec
-project_path: <absolute path to project root>
-change_name: <kebab-case identifier>
-options:
-  proposal_path: <absolute path to proposal.md>
-  existing_specs_path: <optional, path to openspec/specs/ for context>
-```
+User runs `/sdd:continue` or `/sdd:spec` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md` and `openspec/specs/` for existing context.
 
 ## Execution Steps
 
@@ -112,15 +96,14 @@ The system **SHALL** {required behavior}.
 The system **SHOULD** {recommended behavior}.
 The system **MAY** {optional behavior}.
 
-#### Scenario: {Scenario Title}
+#### Scenario: {Scenario Title} · `code-based` · `critical`
 
-- **GIVEN** {precondition - specific, concrete state}
 - **WHEN** {action - specific trigger or input}
 - **THEN** {outcome - specific, observable, verifiable result}
 
-#### Scenario: {Edge Case Title}
+#### Scenario: {Edge Case Title} · `code-based` · `critical`
 
-- **GIVEN** {precondition}
+- **GIVEN** {non-obvious precondition that changes the outcome}
 - **WHEN** {action that triggers edge case}
 - **THEN** {expected handling of edge case}
 
@@ -136,9 +119,8 @@ The system **MAY** {optional behavior}.
 
 The system **MUST** now {changed behavior} instead of {old behavior}.
 
-#### Scenario: {Scenario showing new behavior}
+#### Scenario: {Scenario showing new behavior} · `code-based` · `critical`
 
-- **GIVEN** {precondition}
 - **WHEN** {action}
 - **THEN** {new outcome, different from previous behavior}
 
@@ -190,17 +172,33 @@ Rules for keyword usage:
 
 ### Step 7: Scenario Quality Standards
 
-Each scenario must be:
+Each scenario heading MUST include an inline eval type and criticality tag:
+
+```
+#### Scenario: {Title} · `{eval-type}` · `{criticality}`
+```
+
+- `eval-type`: `code-based` | `model-based` | `human-based` (same classification as Step 8b)
+- `criticality`: `critical` | `standard`
+
+This pre-annotates the Eval Definitions table at authoring time — Step 8b reads these tags directly instead of re-classifying.
+
+**GIVEN is optional.** Only include it when the precondition is non-obvious or changes the outcome. Omitting it for straightforward cases keeps scenarios focused on the trigger and result.
+
+- Include GIVEN when: a specific system state, user role, prior action, or data condition materially affects the scenario
+- Omit GIVEN when: the precondition is implied by the requirement context (e.g., "GIVEN a user exists" for a user API requirement)
+
+Each scenario must also be:
 
 1. **Specific**: Use concrete values, not placeholders.
-   - Bad: "GIVEN a user exists"
-   - Good: "GIVEN a user with email 'test@example.com' and role 'admin' exists in the database"
+   - Bad: "WHEN a user submits the form"
+   - Good: "WHEN a POST request is made to `/api/users` with body `{ email: 'test@example.com', role: 'admin' }`"
 
 2. **Independent**: Each scenario tests one behavior path.
    - Bad: "THEN the user is created AND an email is sent AND the audit log is updated"
    - Good: Three separate scenarios for creation, email, and audit
 
-3. **Verifiable**: The THEN clause must be observable.
+3. **Verifiable**: The THEN clause must be observable and map to a single assertion.
    - Bad: "THEN the system handles the error gracefully"
    - Good: "THEN the API returns HTTP 400 with body `{ error: 'INVALID_EMAIL', message: 'Email format is invalid' }`"
 
@@ -218,40 +216,74 @@ After writing all domain specs:
 3. Check for **missing coverage** (proposal in-scope items without corresponding requirements).
 4. Check for **scope creep** (requirements that cover out-of-scope items from proposal).
 
-Document any issues found in the output envelope warnings.
+Document any issues found in the summary output warnings.
 
-### Step 9: Return Output Envelope
+### Step 8b: Generate Eval Definitions
 
-```yaml
-phase: spec
-status: success | error
-data:
-  change_name: <string>
-  domains:
-    - name: <domain name>
-      spec_path: <absolute path to spec.md>
-      requirements:
-        added: <count>
-        modified: <count>
-        removed: <count>
-      scenarios: <total count>
-      priority_breakdown:
-        must: <count>
-        should: <count>
-        may: <count>
-  totals:
-    domains: <count>
-    requirements: <count>
-    scenarios: <count>
-  consistency_check:
-    passed: <boolean>
-    issues: <list of issues if any>
-  warnings:
-    - <any warnings about missing exploration, open questions, etc.>
-  next_steps:
-    - "Review specs for correctness and completeness"
-    - "Run sdd-design if not already running (can run in parallel with spec)"
-    - "After both spec and design complete, run sdd-tasks"
+For each scenario across all domain specs, emit an eval definition. This enables `sdd-verify` to apply pass@k scoring instead of binary pass/fail.
+
+**Eval type and criticality are already declared** in each scenario heading as inline tags (set in Step 7). Read them directly — do NOT re-classify from the THEN clause. If a scenario heading is missing its tags, treat it as `code-based` · `standard` and flag a warning.
+
+For reference only (use when authoring scenarios, not when generating the table):
+
+**Eval type** — pick based on the THEN clause:
+
+| Type | Use when THEN clause... |
+|------|------------------------|
+| `code-based` | References observable, machine-checkable state (HTTP status, return value, DB row, error code) |
+| `model-based` | Describes semantic behavior requiring judgment (UX quality, error message tone, accessibility) |
+| `human-based` | Requires manual verification (visual design, business process approval) |
+
+**Criticality** — pick based on RFC 2119 keyword and domain:
+
+| Level | When | Verify threshold |
+|-------|------|-----------------|
+| `critical` | MUST/SHALL requirements, security scenarios, data integrity | pass^3 = 1.00 → **FAIL** if absent |
+| `standard` | SHOULD requirements, performance goals, UX scenarios | pass@3 ≥ 0.90 → **PASS_WITH_WARNINGS** if absent |
+
+Add an `## Eval Definitions` section at the end of each domain spec file (after Acceptance Criteria Summary):
+
+```markdown
+## Eval Definitions
+
+| Scenario | Eval Type | Criticality | Threshold |
+|----------|-----------|-------------|-----------|
+| REQ-{DOMAIN}-001 › {Scenario Title} | code-based | critical | pass^3 = 1.00 |
+| REQ-{DOMAIN}-001 › {Edge Case Title} | code-based | critical | pass^3 = 1.00 |
+| REQ-{DOMAIN}-002 › {Scenario Title} | code-based | standard | pass@3 ≥ 0.90 |
+| REQ-{DOMAIN}-003 › {Scenario Title} | model-based | standard | pass@3 ≥ 0.90 |
+```
+
+Every scenario in the Acceptance Criteria Summary MUST have a corresponding row here. No orphaned scenarios.
+
+### Step 9: Present Summary
+
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
+
+**On success, output:**
+
+```markdown
+## SDD Spec: {change_name}
+
+**Domains**: {N}  |  **Requirements**: {N}  |  **Scenarios**: {N}
+
+### Spec Files Written
+{For each domain:}
+- `openspec/changes/{change_name}/specs/{domain}/spec.md` — {N} requirements, {N} scenarios
+
+### Coverage
+| Domain | MUST | SHOULD | MAY | Scenarios |
+|--------|------|--------|-----|-----------|
+| {domain} | {N} | {N} | {N} | {N} |
+
+### Eval Definitions
+- **code-based**: {N}  |  **model-based**: {N}  |  **human-based**: {N}
+- **critical**: {N}  |  **standard**: {N}
+
+{If consistency issues: ### ⚠ Consistency Issues\n- {issue}\n}
+{If warnings: ### ⚠ Warnings\n- {warning}\n}
+
+**Next step**: Review the spec files in your editor. When satisfied, proceed to `/sdd:design` (if not already running in parallel) and then `/sdd:tasks` once both spec and design are complete.
 ```
 
 ## Rules and Constraints
@@ -268,6 +300,7 @@ data:
 10. **Requirement IDs must be unique** across all domains within the change. Use the format `REQ-{DOMAIN}-{NNN}`.
 11. **Align scenarios with project error handling patterns.** If the project uses `Result<T, E>`, THEN clauses should reference `Ok` and `Err` variants where applicable.
 12. **Include negative scenarios.** For every happy path, include at least one error/edge case scenario showing what happens when things go wrong.
+13. **Domain names MUST be kebab-case.** All domain identifiers and spec directory names MUST use lowercase-with-hyphens (e.g., `auth-api`, `user-profile`, `payment-flow`). Explicitly banned: `snake_case` (e.g., `auth_api`), `camelCase` (e.g., `authApi`), `PascalCase` (e.g., `AuthApi`). This ensures consistent directory naming across `openspec/changes/{change}/specs/{domain}/` and `openspec/specs/{domain}.spec.md`.
 
 ## Error Handling
 
@@ -277,54 +310,14 @@ data:
 - If a domain spec file already exists: overwrite it (specs are regenerated, not appended).
 - All errors include the phase name (`spec`) and a human-readable message.
 
-## Example Usage
+## PARCER Contract
 
-```
-Orchestrator -> sdd-spec:
-  phase: spec
-  project_path: /home/user/my-project
-  change_name: add-oauth2-login
-  options:
-    proposal_path: /home/user/my-project/openspec/changes/add-oauth2-login/proposal.md
-    existing_specs_path: /home/user/my-project/openspec/specs/
-
-sdd-spec -> Orchestrator:
-  phase: spec
-  status: success
-  data:
-    change_name: add-oauth2-login
-    domains:
-      - name: auth-api
-        spec_path: /home/user/my-project/openspec/changes/add-oauth2-login/specs/auth-api/spec.md
-        requirements:
-          added: 4
-          modified: 1
-          removed: 0
-        scenarios: 12
-        priority_breakdown:
-          must: 3
-          should: 1
-          may: 1
-      - name: user-schema
-        spec_path: /home/user/my-project/openspec/changes/add-oauth2-login/specs/user-schema/spec.md
-        requirements:
-          added: 2
-          modified: 1
-          removed: 0
-        scenarios: 6
-        priority_breakdown:
-          must: 2
-          should: 1
-          may: 0
-    totals:
-      domains: 2
-      requirements: 8
-      scenarios: 18
-    consistency_check:
-      passed: true
-      issues: []
-    warnings: []
-    next_steps:
-      - "Review specs for correctness"
-      - "After both spec and design complete, run sdd-tasks"
+```yaml
+phase: spec
+preconditions:
+  - proposal.md exists and was approved
+postconditions:
+  - ≥1 spec file in openspec/changes/{changeName}/specs/
+  - each spec contains ≥1 GIVEN/WHEN/THEN scenario
+  - specs/ directory contains ≥1 spec file with ≥1 scenario
 ```

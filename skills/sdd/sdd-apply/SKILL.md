@@ -8,28 +8,28 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Apply — Implementation Sub-Agent
+# SDD Apply — Implementation
 
-You are the **sdd-apply** sub-agent. Your sole responsibility is writing production code that satisfies specs and design constraints. You work in **batches** (one phase at a time) and include a **build-fix loop** after each batch to ensure the codebase compiles, passes lint, and passes tests before handing off.
+You are executing the **apply** phase inline. Your sole responsibility is writing production code that satisfies specs and design constraints. You work in **batches** (one phase at a time) and include a **build-fix loop** after each batch to ensure the codebase compiles, passes lint, and passes tests before stopping for user review.
 
----
+## Activation
+
+User runs `/sdd:apply [--phase <N>] [--tdd] [--dry-run]`. Reads `tasks.md`, `design.md`, and all spec files from disk.
 
 ## Inputs
 
-You receive the following from the orchestrator:
+Read from disk:
 
-| Input | Description |
+| Input | Source |
 |---|---|
-| `projectPath` | Root of the monorepo |
-| `changeName` | Name of the current change (folder under `openspec/changes/`) |
-| `tasksPath` | Path to `openspec/changes/{changeName}/tasks.md` |
-| `designPath` | Path to `openspec/changes/{changeName}/design.md` |
-| `specsDir` | Path to `openspec/changes/{changeName}/specs/` |
-| `phase` | Which phase/batch to implement (e.g., `phase-1`, `phase-2`, or `all`) |
-| `flags` | Optional flags: `--tdd`, `--dry-run` |
-| `mode` | `'implement'` (default) or `'fix'` — fix mode is used by the Auto-Negotiation Loop |
-| `fixList` | (fix mode only) Array of `{ file, line, category, severity, description, fixDirection }` from review/verify |
-| `sourceGate` | (fix mode only) `'review'` or `'verify'` — which gate triggered this fix dispatch |
+| `changeName` | Infer from `openspec/changes/` (the active change folder) |
+| `tasks.md` | `openspec/changes/{changeName}/tasks.md` |
+| `design.md` | `openspec/changes/{changeName}/design.md` |
+| `specs/` | `openspec/changes/{changeName}/specs/` |
+| `phase` | Flag `--phase <N>` or prompt user which phase to implement |
+| `mode` | `'implement'` (default) or `'fix'` — fix mode is triggered by failed review/verify |
+| `fixList` | (fix mode only) Issues parsed from `review-report.md` or `verify-report.md` on disk |
+| `sourceGate` | (fix mode only) `'review'` or `'verify'` — which report triggered this fix pass |
 | `iteration` | (fix mode only) Current negotiation iteration number (1 or 2) |
 
 ---
@@ -40,7 +40,7 @@ The `mode` input parameter determines the agent's execution path. **All other in
 
 | Mode | Default? | Trigger | Scope | Reads | Writes |
 |------|----------|---------|-------|-------|--------|
-| `standard` | Yes | Orchestrator dispatches a normal implementation batch | Full task phase from `tasks.md` | `tasks.md`, `design.md`, `specs/`, `CLAUDE.md` | New/modified source files, `tasks.md` checkboxes, `apply-report.md` |
+| `standard` | Yes | User runs `/sdd:apply --phase N` | Full task phase from `tasks.md` | `tasks.md`, `design.md`, `specs/`, `CLAUDE.md` | New/modified source files, `tasks.md` checkboxes, `apply-report.md` |
 | `fix` | No | Auto-Negotiation Loop dispatches after a FAILED review/verify gate | **Only** files listed in the fix list | `review-report.md` or `verify-report.md` (based on `sourceGate`) | **Only** files explicitly cited in the error list |
 
 **Critical distinction**: In `standard` mode, the agent is *creative* — it interprets specs, makes design decisions, and builds features. In `fix` mode, the agent is *surgical* — it reads a precise list of issues with fix directions and applies mechanical patches. This constraint prevents hallucinated "improvements" and saves tokens during negotiation loops.
@@ -51,7 +51,7 @@ The `mode` input parameter determines the agent's execution path. **All other in
 
 ### Fix Mode (mode: 'fix')
 
-When `mode` is `'fix'`, this is a **targeted repair batch** dispatched by the orchestrator's Auto-Negotiation Loop. The agent does NOT re-implement tasks — it only fixes the listed issues.
+When `mode` is `'fix'`, this is a **targeted repair batch** triggered by a failed review or verify gate. The agent does NOT re-implement tasks — it only fixes the listed issues.
 
 #### F1. Load Context (Fix Mode)
 
@@ -61,14 +61,14 @@ When `mode` is `'fix'`, this is a **targeted repair batch** dispatched by the or
 4. **Read the source gate report:**
    - If `sourceGate: 'review'` → Read `openspec/changes/{changeName}/review-report.md`
    - If `sourceGate: 'verify'` → Read `openspec/changes/{changeName}/verify-report.md`
-5. **Cross-reference with `fixList`** — The orchestrator provides `fixList` (extracted from the report), but always validate against the report itself. If the report contains issues not in `fixList`, ignore them — they may be `HUMAN_REQUIRED`. Your scope is **exclusively** the `fixList` entries.
+5. **Cross-reference with `fixList`** — Parse `fixList` from the report's issue table (extract all `AUTO_FIXABLE` entries), but always validate against the full report. If the report contains issues not in `fixList`, ignore them — they may be `HUMAN_REQUIRED`. Your scope is **exclusively** the `fixList` entries.
 
 #### F2. Plan Fixes
 
 1. Parse `fixList` entries. Group by file path.
 2. For each unique file, verify it exists on disk. If a file was deleted or moved since the report was generated, add it to `fixesRemaining` with `reason: "FILE_NOT_FOUND"`.
 3. Order fixes within each file by line number (ascending) to avoid offset drift when applying multiple patches to the same file.
-4. **Scope validation**: Cross-check every file in `fixList` against the report's issue table. If a file appears in `fixList` but NOT in the report, skip it and log a warning — the orchestrator may have a stale list.
+4. **Scope validation**: Cross-check every file in `fixList` against the report's issue table. If a file appears in `fixList` but NOT in the report, skip it and log a warning — the list may be stale.
 
 #### F3. Apply Fixes
 
@@ -125,59 +125,45 @@ Write `openspec/changes/{changeName}/fix-report-{iteration}.md`:
 | Format | {PASS/FAIL} |
 ```
 
-#### F6. Return Fix Envelope
+#### F6. Present Fix Summary
 
-Return the standard A2A envelope with fix-specific fields in `phaseSpecificData`:
+Present a markdown summary to the user, then STOP.
 
-```json
-{
-  "agent": "sdd-apply",
-  "changeName": "<change-name>",
-  "status": "SUCCESS | PARTIAL | ERROR",
-  "executiveSummary": "Fix iteration {iteration}: applied {N}/{M} fixes from {sourceGate} gate. Build: typecheck {P/F}, lint {P/F}, tests {P/F}.",
-  "metrics": {
-    "tasks":        null,
-    "specs":        null,
-    "filesCreated": [],
-    "filesModified":["<paths of files patched>"],
-    "issuesCritical": "<fixesRemaining count>"
-  },
-  "buildHealth": {
-    "typecheck": "PASS | FAIL",
-    "lint":      "PASS | FAIL",
-    "tests":     "PASS | FAIL",
-    "format":    "PASS | FAIL"
-  },
-  "artifacts": ["openspec/changes/{changeName}/fix-report-{iteration}.md"],
-  "phaseSpecificData": {
-    "mode": "fix",
-    "sourceGate": "<review | verify>",
-    "iteration": "<1 | 2>",
-    "fixesApplied": [
-      { "file": "src/auth/session.ts", "line": 18, "category": "type-safety", "fixApplied": "Replaced `any` with `unknown` and added type guard" }
-    ],
-    "fixesRemaining": [
-      { "file": "src/auth/login.ts", "line": 42, "category": "spec-compliance", "reason": "REQUIRES_HUMAN_JUDGMENT" }
-    ],
-    "buildStatusDetail": {
-      "typecheckErrors": 0,
-      "lintErrors": 0,
-      "testsPassed": 12,
-      "testsFailed": 0,
-      "testsSkipped": 0
-    }
-  }
+Write `openspec/changes/{changeName}/fix-report-{iteration}.md` with the fix details (files patched, fixes applied, fixes remaining, build results).
+
+**Output:**
+
+```markdown
+## SDD Apply — Fix Pass {iteration} ({sourceGate} gate)
+
+**Build**: typecheck {PASS|FAIL}  |  lint {PASS|FAIL}  |  tests {PASS|FAIL}
+
+### Fixes Applied ({N}/{M})
+| File | Line | Category | Action |
+|------|------|----------|--------|
+| {file} | {line} | {category} | {fixApplied} |
+
+{If fixesRemaining:
+### ⛔ Fixes Requiring Human Judgment ({N})
+| File | Line | Category | Reason |
+|------|------|----------|--------|
+| {file} | {line} | {category} | REQUIRES_HUMAN_JUDGMENT |
 }
-```
 
-**Status mapping for fix mode:**
-- `SUCCESS` — All fixes applied, build passes.
-- `PARTIAL` — Some fixes applied, some in `fixesRemaining`, build may or may not pass.
-- `ERROR` — Build-fix loop exhausted (EET triggered) or critical failure.
+{If SUCCESS: **Next step**: Re-run `/sdd:review` or `/sdd:verify` to confirm the fixes resolved the issues.}
+{If PARTIAL: **Next step**: Review the remaining issues above — they require human judgment to resolve.}
+{If ERROR (EET): **Next step**: Build-fix loop exhausted. Review `fix-report-{iteration}.md` for persisting errors that need manual attention.}
+```
 
 ### Step 1 — Load Context (Standard Mode)
 
 > Steps 1–3 apply to `mode: 'standard'` only. For `mode: 'fix'`, see Fix Mode above.
+
+**TOKEN BUDGET (MANDATORY):**
+- quality-timeline.jsonl: Bash("tail -n 5 openspec/changes/{changeName}/quality-timeline.jsonl"). NEVER use the Read tool on this file — Read loads the full file into context.
+- Read large source files (>150 lines) using `offset`/`limit` to target only the relevant section before writing.
+- Do NOT re-read a file already loaded in context this session.
+- Load framework SKILL.md files ONLY for frameworks directly used in the files you will modify.
 
 1. Read `openspec/config.yaml` (if it exists) for project-wide SDD settings.
 2. Read `tasks.md` — parse the full task list. Identify tasks belonging to the target **phase**.
@@ -210,12 +196,12 @@ For **each task** in the batch, in dependency order:
 #### 3a. Read the Spec Scenario
 - Open the matching spec file from `specs/`.
 - Parse every GIVEN/WHEN/THEN scenario. These are your acceptance criteria.
-- If a scenario is ambiguous, note the ambiguity in the return envelope — do NOT guess.
+- If a scenario is ambiguous, note the ambiguity in `apply-report.md` — do NOT guess.
 
 #### 3b. Read Design Constraints
 - Check `design.md` for the relevant interface definitions, data types, and architectural patterns.
 - If the design specifies a particular module boundary, respect it.
-- If the design is WRONG (e.g., specifies an interface that cannot satisfy the spec), **note it** in the return envelope. Do NOT silently deviate.
+- If the design is WRONG (e.g., specifies an interface that cannot satisfy the spec), **note it** in `apply-report.md`. Do NOT silently deviate.
 
 #### 3c. Read Existing Code (Structured Reading Protocol)
 
@@ -321,7 +307,7 @@ Full EET with cross-session memory. Max **5 fix attempts** per error.
 1. **Capture Error Signature**: Extract a normalized fingerprint: `{errorCode}:{affectedFile}:{errorCategory}` (e.g., `TS2345:src/auth/session.ts:type-mismatch`).
 2. **Query Memory**: Run `mem_search` with the error signature as a natural language query (e.g., `"type mismatch error in auth session module"`). Semantic matching handles vocabulary variations automatically. Look for results with `bug/*` topic keys.
 3. **Evaluate Trajectory**:
-   - If memory returns a match where the same error persisted despite ≥3 similar fix attempts in a prior session → **EARLY TERMINATION**. Set status to `ERROR`, include the match reference in `phaseSpecificData.earlyTermination`, set `phaseSpecificData.earlyTerminationTriggered: true`, return to orchestrator.
+   - If memory returns a match where the same error persisted despite ≥3 similar fix attempts in a prior session → **EARLY TERMINATION**. Set status to `ERROR`, include the match reference in `phaseSpecificData.earlyTermination`, set `phaseSpecificData.earlyTerminationTriggered: true`, present error summary to user and STOP.
    - If no match found → proceed with fix attempt normally.
 4. **Save on Escalation**: When a fix cycle exhausts all 5 attempts, save the failure pattern via `mem_save` with topic key `bug/build-fix/{errorSignature}`, content describing error details and all attempted fixes, and tags `["bug", "build-fix"]`.
 
@@ -332,11 +318,11 @@ Local EET with no cross-session memory. Max **3 fix attempts** per error (more a
 1. **Capture Error Signature**: Same as Branch A — extract `{errorCode}:{affectedFile}:{errorCategory}`.
 2. **Track In-Session**: Maintain a local map of `{errorSignature → attemptCount}` for the current session only.
 3. **Evaluate Trajectory**:
-   - If the same error signature has appeared ≥3 times in this session → **EARLY TERMINATION**. Set status to `ERROR`, note `"Ephemeral Mode: error repeated 3 times without resolution"` in `phaseSpecificData.earlyTermination`, set `phaseSpecificData.earlyTerminationTriggered: true`, return to orchestrator.
+   - If the same error signature has appeared ≥3 times in this session → **EARLY TERMINATION**. Set status to `ERROR`, note `"Ephemeral Mode: error repeated 3 times without resolution"` in `phaseSpecificData.earlyTermination`, set `phaseSpecificData.earlyTerminationTriggered: true`, present error summary to user and STOP.
    - Otherwise → proceed with fix attempt.
 4. **No persistence**: Do not attempt any `mem_*` calls. Failure patterns are lost at session end.
 
-**Common to both branches**: EET is an additional **smart stop** on top of the per-attempt ceiling. The orchestrator's Auto-Negotiation Loop handles escalation after EET triggers.
+**Common to both branches**: EET is an additional **smart stop** on top of the per-attempt ceiling. When EET triggers, present the error summary to the user for manual resolution.
 
 #### 4a. TypeScript Type Check
 ```
@@ -359,7 +345,7 @@ Local EET with no cross-session memory. Max **3 fix attempts** per error (more a
 {CMD_TEST}   # e.g., pnpm test:all  OR  bun test
 ```
 - If failures in files YOU touched: fix them.
-- If failures in files you did NOT touch: note them in the return envelope but do NOT fix (pre-existing failures).
+- If failures in files you did NOT touch: note them in `apply-report.md` as pre-existing failures but do NOT fix them.
 - Max fix attempts per unique test failure: **5** (Expert) or **3** (Ephemeral).
 
 #### 4d. Format Check (if not covered by 4b)
@@ -371,7 +357,7 @@ Local EET with no cross-session memory. Max **3 fix attempts** per error (more a
 
 ### Step 5 — Generate Apply Report
 
-Before returning the envelope, write a **change manifest** to `openspec/changes/{changeName}/apply-report.md`. This artifact creates an explicit chain of custody between apply and review — the reviewer audits exactly what was changed, not what was planned.
+Write a **change manifest** to `openspec/changes/{changeName}/apply-report.md`. This artifact creates an explicit chain of custody between apply and review — the reviewer audits exactly what was changed, not what was planned.
 
 ```markdown
 # Apply Report: {changeName}
@@ -417,61 +403,51 @@ Before returning the envelope, write a **change manifest** to `openspec/changes/
 {List any unresolved issues after build-fix loop, or "None."}
 ```
 
-Include `apply-report.md` in the envelope's `artifacts` array.
+`apply-report.md` is the primary artifact — it feeds into sdd-review.
 
-### Step 6 — Return Structured Envelope
+### Step 6 — Present Summary
 
-Return a JSON envelope to the orchestrator:
+Present a markdown summary to the user, then STOP. Do not proceed to the next phase automatically.
 
+Append one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` (if quality tracking is enabled):
 ```json
-{
-  "agent": "sdd-apply",
-  "changeName": "<change-name>",
-  "status": "SUCCESS | PARTIAL | ERROR",
-  "executiveSummary": "Implemented {N} of {M} tasks. Build: typecheck {PASS|FAIL}, lint {PASS|FAIL}, tests {PASS|FAIL}.",
-  "metrics": {
-    "tasks":        { "completed": "<tasksCompleted count>", "total": "<tasksCompleted + tasksRemaining count>" },
-    "specs":        { "covered": 0, "total": 0 },
-    "filesCreated": ["<paths of files created>"],
-    "filesModified":["<paths of files modified>"],
-    "issuesCritical": "<manualReviewNeeded count>"
-  },
-  "buildHealth": {
-    "typecheck": "PASS | FAIL",
-    "lint":      "PASS | FAIL",
-    "tests":     "PASS | FAIL",
-    "format":    "PASS | FAIL"
-  },
-  "artifacts": ["openspec/changes/{changeName}/apply-report.md", "<all created and modified file paths>"],
-  "phaseSpecificData": {
-    "phase": "<implementation phase name>",
-    "tasksCompleted": ["task-1", "task-2"],
-    "tasksRemaining": ["task-3"],
-    "deviations": [
-      {
-        "task": "task-1",
-        "description": "Design specified X but spec requires Y",
-        "resolution": "Implemented Y, noted for design update"
-      }
-    ],
-    "buildStatusDetail": {
-      "typecheckErrors": 0,
-      "lintErrors": 0,
-      "testsPassed": 12,
-      "testsFailed": 0,
-      "testsSkipped": 0
-    },
-    "manualReviewNeeded": [
-      {
-        "file": "src/auth/session.ts",
-        "reason": "Type error persists after 5 fix attempts",
-        "error": "<full error message>"
-      }
-    ],
-    "earlyTerminationTriggered": false,
-    "pendingSubtasks": []
-  }
+{ "changeName": "...", "phase": "apply", "timestamp": "...", "agentStatus": "SUCCESS|PARTIAL|ERROR", "completeness": { "tasksCompleted": N, "tasksTotal": M }, "buildHealth": { "typecheck": "PASS|FAIL", "lint": "PASS|FAIL", "tests": "PASS|FAIL" }, "issueCount": { "critical": N }, "phaseSpecific": { "phase": "phase-N", "earlyTermination": false } }
+```
+
+**Output:**
+
+```markdown
+## SDD Apply — Phase {N} Complete
+
+**Build**: typecheck {PASS|FAIL}  |  lint {PASS|FAIL}  |  tests {PASS|FAIL}  |  format {PASS|FAIL}
+
+### Tasks Completed ({N}/{M})
+{[x] task list from tasks.md}
+
+{If tasksRemaining (partial batch):
+### Tasks Remaining
+{[ ] task list}
 }
+
+### Files Changed
+- **Created**: {N} files — {list}
+- **Modified**: {N} files — {list}
+
+{If deviations:
+### ⚠ Deviations from Design
+- {task}: {description} → {resolution}
+}
+
+{If manualReviewNeeded:
+### ⛔ Manual Review Required ({N})
+{file}: {reason}
+}
+
+**Artifact**: `openspec/changes/{changeName}/apply-report.md`
+
+{If all tasks done: **Next step**: Run `/sdd:review` to perform semantic code review.}
+{If more phases remain: **Next step**: Run `/sdd:apply --phase {N+1}` to implement the next phase (start fresh with `/clear` first).}
+{If EET triggered: **Next step**: Review the manual items above. When resolved, re-run `/sdd:apply --phase {N}` to complete the remaining tasks.}
 ```
 
 ---
@@ -502,11 +478,11 @@ Return a JSON envelope to the orchestrator:
 
 | Situation | Action |
 |---|---|
-| Spec is ambiguous | Note ambiguity, implement most reasonable interpretation, flag in envelope |
+| Spec is ambiguous | Note ambiguity, implement most reasonable interpretation, flag in apply-report.md |
 | Design contradicts spec | Follow spec (it's the source of truth), note deviation |
 | Existing code has bugs | Do NOT fix unrelated bugs. Note them if they block your task |
 | Test framework not set up | Create test file following project conventions, note if test infra is missing |
-| Circular dependency | Refactor to break cycle using dependency injection, note in envelope |
+| Circular dependency | Refactor to break cycle using dependency injection, note in apply-report.md |
 | File exceeds 600 lines | Split into focused modules, update imports |
 | Environment variable missing | Validate at startup with descriptive error message, never use `!` assertion |
 | No shared Result type exists | Create `src/shared/result.ts` with `ok()`/`err()` helpers before first consumer |
@@ -520,7 +496,7 @@ Return a JSON envelope to the orchestrator:
 
 ## TDD Mode Details
 
-**When to use TDD mode**: TDD is most valuable when specs are underspecified, when the implementation involves complex algorithmic edge cases not captured in GIVEN/WHEN/THEN scenarios, or when working on pure utility functions with high combinatorial input space. If specs already provide comprehensive scenario coverage, prefer standard mode to conserve token budget. The orchestrator SHOULD advise on this based on spec density before launching sdd-apply.
+**When to use TDD mode**: TDD is most valuable when specs are underspecified, when the implementation involves complex algorithmic edge cases not captured in GIVEN/WHEN/THEN scenarios, or when working on pure utility functions with high combinatorial input space. If specs already provide comprehensive scenario coverage, prefer standard mode to conserve token budget. Consider spec density when deciding whether to use `--tdd`.
 
 When `--tdd` flag is active, the implementation order inverts:
 
@@ -576,14 +552,10 @@ postconditions:
   standard_mode:
     - ≥1 task marked [x] in tasks.md
     - apply-report.md written to openspec/changes/{changeName}/
-    - envelope.buildHealth contains typecheck, lint, tests, format
-    - envelope.metrics.filesCreated and filesModified are populated
-    - envelope.artifacts contains apply-report.md path
-    - envelope.status is SUCCESS, PARTIAL, or ERROR
+    - apply-report.md contains build health (typecheck, lint, tests, format)
+    - apply-report.md lists files created and modified
   fix_mode:
     - fix-report-{iteration}.md written to openspec/changes/{changeName}/
-    - envelope.phaseSpecificData.mode is "fix"
-    - envelope.phaseSpecificData.fixesApplied is populated
-    - envelope.buildHealth contains typecheck, lint, tests, format
-    - envelope.status is SUCCESS, PARTIAL, or ERROR
+    - fix-report contains fixes applied and fixes remaining
+    - fix-report contains build health (typecheck, lint, tests, format)
 ```

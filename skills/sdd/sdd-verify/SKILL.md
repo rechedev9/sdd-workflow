@@ -8,31 +8,39 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Verify — Technical Quality Gate Sub-Agent
+# SDD Verify — Technical Quality Gate
 
-You are the **sdd-verify** sub-agent. Your responsibility is to run **all technical quality checks** and produce a definitive pass/fail verdict. You check build health, test coverage, static analysis, security, and completeness against the task/spec plan. You **never fix issues** — you only report them with enough detail for `sdd-apply` or the developer to act.
+You are executing the **verify** phase inline. Your responsibility is to run **all technical quality checks** and produce a definitive pass/fail verdict. You check build health, test coverage, static analysis, security, and completeness against the task/spec plan. You **never fix issues** — you only report them with enough detail for a follow-up `/sdd:apply` fix pass or the developer to act.
 
----
+## Activation
+
+User runs `/sdd:verify [--fuzz]`. Reads `tasks.md`, spec files, `design.md`, and optionally `review-report.md` from disk.
 
 ## Inputs
 
-You receive the following from the orchestrator:
+Read from disk:
 
-| Input | Description |
+| Input | Source |
 |---|---|
-| `projectPath` | Root of the monorepo |
-| `changeName` | Name of the current change |
-| `tasksPath` | Path to `openspec/changes/{changeName}/tasks.md` |
-| `specsDir` | Path to `openspec/changes/{changeName}/specs/` |
-| `designPath` | Path to `openspec/changes/{changeName}/design.md` |
-| `reviewReportPath` | Optional: path to `review-report.md` from sdd-review |
-| `flags` | Optional flags: `--fuzz` (enable dynamic security testing) |
+| `changeName` | Infer from `openspec/changes/` (the active change folder) |
+| `tasks.md` | `openspec/changes/{changeName}/tasks.md` |
+| `specs/` | `openspec/changes/{changeName}/specs/` |
+| `design.md` | `openspec/changes/{changeName}/design.md` |
+| `review-report.md` | `openspec/changes/{changeName}/review-report.md` (optional, if review ran) |
+| `--fuzz` flag | Passed via CLI when user runs `/sdd:verify --fuzz` |
 
 ---
 
 ## Execution Steps
 
-### Step 0 — Load Build Commands
+### Step 0 — Token Budget (MANDATORY before anything else)
+
+- quality-timeline.jsonl: Bash("tail -n 5 openspec/changes/{changeName}/quality-timeline.jsonl"). NEVER use the Read tool on this file — Read loads the full file into context.
+- Large source files (>150 lines): use `offset`/`limit` to read only the relevant section.
+- Do NOT re-read a file already in context.
+- Framework SKILL.md: load ONLY for frameworks present in the changed files, not the full tech stack.
+
+### Step 0b — Load Build Commands
 
 Read `openspec/config.yaml` and extract the top-level `commands` block. Store as variables for all subsequent steps:
 
@@ -41,7 +49,23 @@ Read `openspec/config.yaml` and extract the top-level `commands` block. Store as
 - `CMD_TEST` ← `commands.test` (e.g., `bun test`)
 - `CMD_FORMAT_CHECK` ← `commands.format_check` (e.g., `bun run format:check`)
 
-**Fallback**: If `config.yaml` does not exist or has no `commands` block, detect the package manager from lockfiles (`bun.lockb` → bun, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm) and construct commands from `package.json` scripts. This ensures backward compatibility with pre-1.1 projects.
+**Fallback**: If `config.yaml` does not exist or has no `commands` block, detect the toolchain:
+
+| File present | Package manager / language | Format check command |
+|---|---|---|
+| `bun.lockb` | bun | `bun run format:check` |
+| `pnpm-lock.yaml` | pnpm | `pnpm run format:check` |
+| `yarn.lock` | yarn | `yarn format:check` |
+| `package-lock.json` | npm | `npm run format:check` |
+| `go.mod` | Go | `gofmt -l .` (non-zero exit or output = unformatted files) |
+
+For Go projects, also set:
+- `CMD_TYPECHECK` ← `go build ./...`
+- `CMD_LINT` ← `go vet ./...` (or `staticcheck ./...` if available)
+- `CMD_TEST` ← `go test ./...`
+- `CMD_FORMAT_CHECK` ← `gofmt -l .`
+
+This ensures backward compatibility with pre-1.1 projects and multi-language monorepos.
 
 ### Step 1 — Completeness Check
 
@@ -55,6 +79,27 @@ Read `openspec/config.yaml` and extract the top-level `commands` block. Store as
    - Count scenarios with tests vs. scenarios without tests.
 3. Read `design.md`. Extract all interface definitions. For each interface, check if it exists in the codebase (search for `interface` or `type` declarations matching the name).
 4. If `review-report.md` exists, read it and check for REJECT violations. If any REJECT violations exist, the verdict is automatically **FAIL** — but continue running all checks for the full report.
+
+### Step 1b — Eval-Driven Assessment
+
+Read the `## Eval Definitions` sections from all spec files in `specsDir/`. If no eval definitions exist (specs written before EDD), skip this step and proceed normally.
+
+For each eval definition row:
+
+| Eval Type | How to check | Failure maps to |
+|-----------|-------------|-----------------|
+| `code-based` | Search changed files and test files for a `describe`/`it` block whose name contains keywords from the scenario title | Missing = CRITICAL (critical) or WARNING (standard) |
+| `model-based` | Semantically assess whether the implementation plausibly satisfies the THEN clause | Not satisfied = WARNING regardless of criticality |
+| `human-based` | Note as requiring manual verification — do NOT fail the verdict | Note only |
+
+**Threshold translation for single-run verify:**
+- `pass^3 = 1.00` (critical) → test MUST exist → absence = **FAIL**
+- `pass@3 ≥ 0.90` (standard) → test SHOULD exist → absence = **PASS_WITH_WARNINGS**
+
+Compute:
+- `evalsCriticalTotal` / `evalsCriticalPassing` — for pass^k score
+- `evalsStandardTotal` / `evalsStandardPassing` — for pass@k score
+- `evalPassRate` = (criticalPassing + standardPassing) / (criticalTotal + standardTotal)
 
 ### Step 2 — TypeScript Type Check
 
@@ -337,6 +382,20 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 
 {If Step 7b was skipped: "Dynamic security testing: skipped (no --fuzz flag, no security surface detected)"}
 
+## Eval-Driven Assessment
+
+{If eval definitions exist in specs:}
+
+| Eval Type | Total | Passing | Score |
+|-----------|-------|---------|-------|
+| critical (pass^3) | {evalsCriticalTotal} | {evalsCriticalPassing} | {criticalScore} |
+| standard (pass@3) | {evalsStandardTotal} | {evalsStandardPassing} | {standardScore} |
+| **Overall** | {total} | {passing} | **{evalPassRate}** |
+
+{List any missing critical evals (FAIL) and missing standard evals (WARNING)}
+
+{If no eval definitions found: "Eval-Driven Assessment: skipped (no eval definitions in spec files — specs pre-date EDD)"}
+
 ## Fault Localization (if tests failed)
 
 {Structured premises and divergence claims from Step 5b — omit this section if all tests passed}
@@ -352,71 +411,49 @@ Create `openspec/changes/{changeName}/verify-report.md`:
 {Explanation of why the verdict is PASS, PASS_WITH_WARNINGS, or FAIL}
 ```
 
-### Step 10 — Return Structured Envelope
+### Step 10 — Present Summary
 
+Write `openspec/changes/{changeName}/verify-report.md` with full verification results.
+
+Append one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` (if quality tracking enabled):
 ```json
-{
-  "agent": "sdd-verify",
-  "changeName": "<change-name>",
-  "status": "SUCCESS",
-  "executiveSummary": "Verify {verdict}: {tasksCompleted}/{tasksTotal} tasks, {specsCovered}/{specsTotal} specs. Build health: typecheck {PASS|FAIL}, tests {PASS|FAIL}. {criticalIssueCount} critical issues.",
-  "metrics": {
-    "tasks":        { "completed": "<tasksCompleted>", "total": "<tasksTotal>" },
-    "specs":        { "covered": "<specsCovered>", "total": "<specsTotal>" },
-    "filesCreated": ["<reportPath>"],
-    "filesModified":[],
-    "issuesCritical": "<criticalIssueCount>"
-  },
-  "buildHealth": {
-    "typecheck": "PASS | FAIL",
-    "lint":      "PASS | FAIL",
-    "tests":     "PASS | FAIL",
-    "format":    "PASS | FAIL"
-  },
-  "artifacts": ["<reportPath>", "<fuzzTestFilesKept if any>"],
-  "phaseSpecificData": {
-    "verdict": "PASS | PASS_WITH_WARNINGS | FAIL",
-    "completeness": {
-      "interfacesImplemented": 0,
-      "interfacesTotal": 0
-    },
-    "buildHealthDetail": {
-      "typecheck": { "errorCount": 0 },
-      "lint": { "errorCount": 0, "warningCount": 0 },
-      "format": { "filesNeedFormatting": 0 },
-      "tests": { "passed": 0, "failed": 0, "skipped": 0 }
-    },
-    "staticAnalysis": {
-      "bannedAny": 0,
-      "typeAssertions": 0,
-      "compilerSuppressions": 0,
-      "consoleUsage": 0,
-      "todoFixme": 0
-    },
-    "security": {
-      "hardcodedSecrets": 0,
-      "injectionRisks": 0,
-      "xssVectors": 0,
-      "missingValidation": 0
-    },
-    "fuzz": {
-      "executed": false,
-      "functionsTargeted": 0,
-      "testCasesGenerated": 0,
-      "vulnerabilitiesFound": 0,
-      "findings": [],
-      "fuzzTestFilesKept": []
-    },
-    "warningIssueCount": 0,
-    "suggestionCount": 0,
-    "autoFixableIssues": [],
-    "humanRequiredIssues": [],
-    "allAutoFixable": true
-  }
-}
+{ "changeName": "...", "phase": "verify", "timestamp": "...", "agentStatus": "SUCCESS", "completeness": { "tasksCompleted": N, "tasksTotal": M, "specsCovered": N, "specsTotal": M }, "buildHealth": { "typecheck": "PASS|FAIL", "lint": "PASS|FAIL", "tests": "PASS|FAIL", "format": "PASS|FAIL" }, "issueCount": { "critical": N, "warnings": N }, "phaseSpecific": { "verdict": "PASS|PASS_WITH_WARNINGS|FAIL", "allAutoFixable": true } }
 ```
 
-Note: sdd-verify always returns `status: "SUCCESS"` — the verification's pass/fail outcome is expressed in `phaseSpecificData.verdict`. The orchestrator accesses it via `envelope.phaseSpecificData.verdict`.
+Present a markdown summary to the user, then STOP:
+
+```markdown
+## SDD Verify: {change_name}
+
+**Verdict**: {✅ PASS | ⚠️ PASS_WITH_WARNINGS | ❌ FAIL}
+
+### Build Health
+| Check | Result | Details |
+|-------|--------|---------|
+| typecheck | {PASS/FAIL} | {N} errors |
+| lint | {PASS/FAIL} | {N} errors, {N} warnings |
+| tests | {PASS/FAIL} | {passed}/{total} passed, {N} failed |
+| format | {PASS/FAIL} | {N} files need formatting |
+
+### Completeness
+- **Tasks**: {N}/{M} complete  |  **Specs**: {N}/{M} covered
+- **Interfaces**: {N}/{M} implemented
+
+### Static Analysis
+- `any` usages: {N}  |  `@ts-ignore`: {N}  |  `console.*`: {N}  |  TODOs: {N}
+
+{If security findings: ### ⛔ Security\n- Hardcoded secrets: {N}, Injection risks: {N}, XSS: {N}\n}
+{If eval-driven: ### Eval Results\n- Critical: {N}/{M} passing  |  Standard: {N}/{M} passing\n}
+{If FAIL: ### ⛔ Critical Issues\n{issue list with file:line and fixability}\n}
+{If warnings: ### ⚠ Warnings\n{issue list}\n}
+
+**Artifact**: `openspec/changes/{changeName}/verify-report.md`
+
+{If PASS: **Next step**: Run `/sdd:clean` to remove dead code, or `/sdd:archive` to close the change.}
+{If PASS_WITH_WARNINGS: **Next step**: Review warnings above. Run `/sdd:clean` or `/sdd:archive` when satisfied.}
+{If FAIL and allAutoFixable: **Next step**: Run `/sdd:apply` in fix mode — all issues are auto-fixable.}
+{If FAIL and has HUMAN_REQUIRED: **Next step**: Manually fix the HUMAN_REQUIRED issues above, then re-run `/sdd:verify`.}
+```
 
 ---
 
@@ -437,7 +474,7 @@ Note: sdd-verify always returns `status: "SUCCESS"` — the verification's pass/
 
 ## Fixability Classification
 
-Every issue in the report and envelope MUST include a `fixability` field to enable the orchestrator's **Auto-Negotiation Loop**. This determines whether the orchestrator can auto-dispatch `sdd-apply` to fix the issue or must escalate to the user.
+Every issue in `verify-report.md` MUST include a `fixability` field. This determines whether a fix pass can proceed automatically or the user must intervene.
 
 | Fixability | Criteria | Examples |
 |---|---|---|
@@ -448,7 +485,7 @@ Every issue in the report and envelope MUST include a `fixability` field to enab
 1. When in doubt, classify as `HUMAN_REQUIRED`.
 2. Include a `fixDirection` field for `AUTO_FIXABLE` issues: a 1-sentence instruction for `sdd-apply`.
 3. Build health failures (typecheck, lint, format) are almost always `AUTO_FIXABLE`. Test failures depend on root cause — a wrong assertion is `AUTO_FIXABLE`, a missing feature is `HUMAN_REQUIRED`.
-4. The envelope MUST include `allAutoFixable: boolean` for the orchestrator's quick-check.
+4. The summary MUST clearly state whether all issues are `AUTO_FIXABLE` or if any require `HUMAN_REQUIRED` judgment.
 
 ---
 
@@ -487,6 +524,6 @@ preconditions:
   - implementation files exist on disk
 postconditions:
   - verify-report.md written to openspec/changes/{changeName}/
-  - envelope.buildHealth contains all 4 checks (typecheck, lint, tests, format)
-  - envelope.phaseSpecificData.verdict is PASS, PASS_WITH_WARNINGS, or FAIL
+  - verify-report.md contains all 4 build checks (typecheck, lint, tests, format)
+  - verify-report.md verdict is PASS, PASS_WITH_WARNINGS, or FAIL
 ```

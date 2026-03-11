@@ -8,30 +8,13 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Tasks Sub-Agent
+# SDD Tasks
 
-You are a sub-agent responsible for creating structured, phased implementation task lists. You transform the technical design and specifications into an actionable checklist where each task is specific, small, and verifiable. Tasks are the bridge between planning and implementation.
+You are executing the **tasks** phase inline. You transform the technical design and specifications into an actionable checklist where each task is specific, small, and verifiable. Tasks are the bridge between planning and implementation.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:continue` after both specs and design are complete
-- The orchestrator dispatches the `tasks` phase
-- Both `sdd-spec` and `sdd-design` have completed successfully
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: tasks
-project_path: <absolute path to project root>
-change_name: <kebab-case identifier>
-options:
-  design_path: <absolute path to design.md>
-  spec_paths: <list of absolute paths to spec files>
-  proposal_path: <optional, path to proposal.md for context>
-```
+User runs `/sdd:continue` after both spec and design are complete. Reads `openspec/changes/{changeName}/design.md`, all spec files in `openspec/changes/{changeName}/specs/`, and `proposal.md` for context.
 
 ## Prerequisites
 
@@ -191,6 +174,22 @@ Task action verbs and their meanings:
 | Test     | Write test cases for a specific module            |
 | Verify   | Run verification commands and check results       |
 | Migrate  | Run database migration or data transformation     |
+
+#### Task Completion States
+
+Tasks use checkbox markers to track progress:
+
+| Marker | State | Meaning |
+|--------|-------|---------|
+| `[ ]` | Pending | Not started |
+| `[x]` | Complete | Fully implemented and verified |
+| `[~]` | Partial | Started but not finished — remaining work listed in apply-report.md |
+
+**Partial state (`[~]`) rules:**
+- Used when a task is too large for a single batch, or when context limits are reached mid-task
+- The apply agent marks `[~]` in tasks.md and lists remaining work in apply-report.md
+- Re-run `/sdd:apply` for the same phase to complete `[~]` tasks before advancing to the next phase
+- A task marked `[~]` counts as 0.5 for completeness metrics
 
 ### Step 8: Mark Parallelizable Tasks
 
@@ -356,39 +355,36 @@ Before returning, validate:
 8. **Success criteria from proposal** are all included in the final checklist.
 9. **Cleanup phase includes spec merging** (moving delta specs to openspec/specs/ after verification).
 
-### Step 12: Return Output Envelope
+### Step 12: Present Summary
 
-```yaml
-phase: tasks
-status: success | error
-data:
-  change_name: <string>
-  tasks_path: <absolute path to tasks.md>
-  summary:
-    total_tasks: <count>
-    by_phase:
-      foundation: <count>
-      core: <count>
-      integration: <count>
-      testing: <count>
-      cleanup: <count>
-    parallelizable_tasks: <count of tasks marked as parallelizable>
-  file_coverage:
-    files_in_design: <count>
-    files_with_tasks: <count>
-    coverage_percent: <number>
-  requirement_coverage:
-    requirements_in_specs: <count>
-    requirements_with_tasks: <count>
-    requirements_with_tests: <count>
-    coverage_percent: <number>
-  warnings:
-    - <any warnings about missing coverage, large tasks, etc.>
-  next_steps:
-    - "Review task list for accuracy and ordering"
-    - "Begin implementation with Phase 1: run sdd-apply for task 1.1"
-    - "After each phase, run verification commands"
-    - "Mark tasks as complete in tasks.md as you progress"
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
+
+**On success, output:**
+
+```markdown
+## SDD Tasks: {change_name}
+
+**Total tasks**: {N}  |  **Requirement coverage**: {coverage_percent}%
+
+### Tasks Written
+`openspec/changes/{change_name}/tasks.md`
+
+### Tasks by Phase
+| Phase | Tasks | Parallelizable |
+|-------|-------|---------------|
+| 1: Foundation | {N} | {N} |
+| 2: Core | {N} | {N} |
+| 3: Integration | {N} | {N} |
+| 4: Testing | {N} | {N} |
+| 5: Cleanup | {N} | — |
+
+### Coverage
+- **Files in design**: {N}  →  **Files with tasks**: {N}  ({coverage_percent}%)
+- **Requirements in specs**: {N}  →  **With tasks**: {N}  →  **With tests**: {N}
+
+{If warnings: ### ⚠ Warnings\n- {warning}\n}
+
+**Next step**: Review `openspec/changes/{change_name}/tasks.md`. When ready, run `/sdd:apply --phase 1` to begin implementation (start a fresh session with `/clear` first).
 ```
 
 ## Rules and Constraints
@@ -399,7 +395,7 @@ data:
 4. **Use hierarchical numbering**: 1.1, 1.2, 2.1, 2.2. This enables precise references ("complete task 2.3").
 5. **Tasks depend on BOTH specs AND design.** Never generate tasks before both are complete.
 6. **Include testing tasks that map to spec scenarios.** Every MUST requirement needs a test task.
-7. **Mark parallelizable tasks explicitly** within each phase. This enables the orchestrator to batch them.
+7. **Mark parallelizable tasks explicitly** within each phase. This enables efficient parallel implementation.
 8. **Include verification checkpoints** after each phase. These are not optional -- they catch issues early.
 9. **All file paths must be absolute.** Never use relative paths.
 10. **Never modify source code.** Task artifacts go in `openspec/changes/{change_name}/`.
@@ -407,6 +403,7 @@ data:
 12. **Respect the project's task-size conventions.** If a file is being created with many functions, consider splitting into multiple tasks (e.g., "Create file with type exports" then "Add validation functions to file").
 13. **Testing tasks should follow project test conventions** (describe/it blocks, one assertion per test where practical, Arrange/Act/Assert pattern).
 14. **The final cleanup task must always include running the full verification suite** as defined in `openspec/config.yaml`.
+15. **TEST GENERATION POLICY**: Do NOT generate speculative test tasks. ONLY include test tasks if: (A) A spec scenario requires verification via a specific test file (referenced in the Testing Strategy), (B) The design's Testing Strategy table maps a requirement to a test, OR (C) The task explicitly starts with "Test — ...". Do not add test tasks for "just in case" coverage.
 
 ## Error Handling
 
@@ -416,47 +413,15 @@ data:
 - If design and specs are inconsistent (design mentions files not covered by specs, or vice versa): warn but proceed, noting gaps.
 - All errors include the phase name (`tasks`) and a human-readable message.
 
-## Example Usage
+## PARCER Contract
 
-```
-Orchestrator -> sdd-tasks:
-  phase: tasks
-  project_path: /home/user/my-project
-  change_name: add-oauth2-login
-  options:
-    design_path: /home/user/my-project/openspec/changes/add-oauth2-login/design.md
-    spec_paths:
-      - /home/user/my-project/openspec/changes/add-oauth2-login/specs/auth-api/spec.md
-      - /home/user/my-project/openspec/changes/add-oauth2-login/specs/user-schema/spec.md
-    proposal_path: /home/user/my-project/openspec/changes/add-oauth2-login/proposal.md
-
-sdd-tasks -> Orchestrator:
-  phase: tasks
-  status: success
-  data:
-    change_name: add-oauth2-login
-    tasks_path: /home/user/my-project/openspec/changes/add-oauth2-login/tasks.md
-    summary:
-      total_tasks: 22
-      by_phase:
-        foundation: 4
-        core: 6
-        integration: 5
-        testing: 5
-        cleanup: 2
-      parallelizable_tasks: 9
-    file_coverage:
-      files_in_design: 8
-      files_with_tasks: 8
-      coverage_percent: 100
-    requirement_coverage:
-      requirements_in_specs: 8
-      requirements_with_tasks: 8
-      requirements_with_tests: 8
-      coverage_percent: 100
-    warnings: []
-    next_steps:
-      - "Review task list for accuracy and ordering"
-      - "Begin implementation with Phase 1: run sdd-apply for task 1.1"
-      - "After each phase, run verification commands"
+```yaml
+phase: tasks
+preconditions:
+  - spec files exist in openspec/changes/{changeName}/specs/
+  - design.md exists at openspec/changes/{changeName}/
+postconditions:
+  - tasks.md written with ≥1 phase containing ≥1 task
+  - each task references a spec scenario or design component
+  - tasks.md contains ≥1 task across ≥1 phase
 ```

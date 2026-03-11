@@ -8,31 +8,13 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Propose Sub-Agent
+# SDD Propose
 
-You are a sub-agent responsible for writing structured change proposals. A proposal is the human-readable contract that must be approved before any specifications, design, or implementation work begins. It captures the WHAT, WHY, and high-level HOW of a change.
+You are executing the **propose** phase inline. A proposal is the human-readable contract that must be approved before any specifications, design, or implementation work begins. It captures the WHAT, WHY, and high-level HOW of a change.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:new`
-- The orchestrator dispatches the `propose` phase
-- An `sdd-explore` phase has completed and the user wants to proceed
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: propose
-project_path: <absolute path to project root>
-change_name: <kebab-case identifier for this change>
-intent: <user's description of what they want to change and why>
-options:
-  exploration_path: <optional, path to exploration.md from sdd-explore>
-  exploration_data: <optional, inline exploration envelope data>
-  size_hint: <optional: small | medium | large>
-```
+User runs `/sdd:new <change-name> "<intent>"`. The change name must be kebab-case. Reads `openspec/changes/{changeName}/exploration.md` if it exists.
 
 ## Execution Steps
 
@@ -57,6 +39,64 @@ options:
    - Risk assessment
    - Recommended approach
    - Open questions
+
+### Step 2b: Requirement Clarification Gate
+
+This step ensures that critical ambiguities are resolved before writing the proposal. It prevents building proposals on assumptions that could invalidate the entire approach.
+
+#### 2b-1. Check for BLOCKING Questions
+
+1. If exploration data is available, read the `blocking_questions` field (or the "Clarification Required (BLOCKING)" section of exploration.md).
+2. If no exploration data is available, perform lightweight ambiguity detection on the `intent`:
+
+| Check | Trigger | Example |
+|---|---|---|
+| Vague scope | Intent uses words like "improve", "refactor", "fix" without specifics | "Improve the dashboard" — improve what? performance? UX? data accuracy? |
+| Multiple interpretations | Intent could lead to fundamentally different approaches | "Add notifications" — email? push? in-app? all three? |
+| Missing constraints | Intent doesn't specify boundaries that affect architecture | "Support multiple users" — how many? 10 or 10 million? |
+| Undefined integration | Intent references external systems without details | "Connect to payment provider" — which one? what API version? |
+
+3. Generate any new BLOCKING questions found that weren't in the exploration.
+
+#### 2b-2. Evaluate Clarification Status
+
+Three possible states:
+
+**State A: No BLOCKING questions** → Proceed to Step 3.
+
+**State B: BLOCKING questions exist AND `clarification_answers` provided** → Validate that every BLOCKING question has a corresponding answer. If any answer is missing or unclear, add it to the questions list and return `needs_clarification`. Otherwise, incorporate answers into the proposal context and proceed to Step 3.
+
+**State C: BLOCKING questions exist AND NO `clarification_answers`** → Return early with:
+
+```yaml
+phase: propose
+status: needs_clarification
+data:
+  change_name: <string>
+  blocking_questions:
+    - question: <specific question>
+      why_it_matters: <consequence>
+      options:
+        - label: "A"
+          description: <option>
+          consequence: <result>
+        - label: "B"
+          description: <option>
+          consequence: <result>
+      recommendation: <default if forced to choose>
+  deferred_questions:
+    - <string>
+  message: "Cannot write proposal — {N} blocking question(s) require your input. Please answer and re-invoke."
+```
+
+Present these questions to the user. When they provide answers, re-run `/sdd:new` with the answers incorporated.
+
+#### 2b-3. Incorporate Answers
+
+When `clarification_answers` are provided:
+1. Use the answers to resolve approach decisions, scope boundaries, and constraints.
+2. Reference the answers explicitly in the proposal (e.g., in Key Decisions: "Per user clarification: using WebSocket over SSE for real-time updates").
+3. If an answer creates new questions (rare), classify them. New BLOCKING questions trigger another `needs_clarification` return (max 2 clarification rounds to prevent fatigue).
 
 ### Step 3: Validate Change Name
 
@@ -214,28 +254,51 @@ Before returning, validate that the proposal has:
 7. **Dependencies** -- section present even if empty ("None" is acceptable)
 8. **Success Criteria** -- at least 3 measurable criteria including type safety and test passing
 
-If any section is missing or inadequate, add it with a `[TODO]` marker and include a warning in the output envelope.
+If any section is missing or inadequate, add it with a `[TODO]` marker and include a warning in the summary output.
 
-### Step 8: Return Output Envelope
+### Step 8: Present Summary
 
-```yaml
-phase: propose
-status: success | error
-data:
-  change_name: <string>
-  proposal_path: <absolute path to proposal.md>
-  change_size: <small | medium | large>
-  affected_files_count: <number>
-  risk_level: <low | medium | high>
-  has_exploration: <boolean>
-  open_questions_count: <number>
-  warnings:
-    - <any warnings about missing data, large scope, etc.>
-  next_steps:
-    - "Review and approve this proposal"
-    - "Run sdd-spec to write specifications"
-    - "Run sdd-design to create technical design"
-    - "Note: sdd-spec and sdd-design can run in parallel"
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
+
+If blocking clarification questions exist (status: PARTIAL), output the questions and stop — do not write `proposal.md` until answers are provided.
+
+**On success, output:**
+
+```markdown
+## SDD Propose: {change_name}
+
+**Size**: {small | medium | large}  |  **Risk**: {low | medium | high}  |  **Files affected**: {N}
+
+### Proposal Written
+`openspec/changes/{change_name}/proposal.md`
+
+### Scope
+- **In scope**: {N} items
+- **Out of scope**: {N} items explicitly excluded
+
+### Key Decisions
+{decision table summary — 1-2 rows}
+
+{If open questions: ### Open Questions ({N})\n{questions list}\n}
+{If warnings: ### ⚠ Warnings\n{warnings list}\n}
+{If large change: ### ⚠ Size Warning\nThis change is large. Consider splitting into: {split suggestions}\n}
+
+**Next step**: Review `openspec/changes/{change_name}/proposal.md`. When satisfied, run `/sdd:spec` and `/sdd:design` (these can run in parallel, each in its own session).
+```
+
+**On PARTIAL (blocking questions):**
+
+```markdown
+## SDD Propose: Clarification Needed
+
+Cannot write proposal — {N} blocking question(s) require your input.
+
+### Q1: {specific question}
+- **Why it matters**: {consequence}
+- **Options**: A: {option} → {consequence} | B: {option} → {consequence}
+- **Recommendation**: {default}
+
+Re-run `/sdd:new {change_name} "<intent>"` after answering.
 ```
 
 ## Rules and Constraints
@@ -261,32 +324,14 @@ data:
 - If intent is empty or not provided: return `status: error` requesting intent description.
 - All errors include the phase name (`propose`) and a human-readable message.
 
-## Example Usage
+## PARCER Contract
 
-```
-Orchestrator -> sdd-propose:
-  phase: propose
-  project_path: /home/user/my-project
-  change_name: add-oauth2-login
-  intent: "Add Google and GitHub OAuth2 login as alternatives to email/password authentication"
-  options:
-    exploration_path: /home/user/my-project/openspec/changes/add-oauth2-login/exploration.md
-
-sdd-propose -> Orchestrator:
-  phase: propose
-  status: success
-  data:
-    change_name: add-oauth2-login
-    proposal_path: /home/user/my-project/openspec/changes/add-oauth2-login/proposal.md
-    change_size: medium
-    affected_files_count: 7
-    risk_level: medium
-    has_exploration: true
-    open_questions_count: 2
-    warnings: []
-    next_steps:
-      - "Review and approve this proposal"
-      - "Run sdd-spec to write specifications"
-      - "Run sdd-design to create technical design"
-      - "Note: sdd-spec and sdd-design can run in parallel"
+```yaml
+phase: propose
+preconditions:
+  - exploration.md exists at openspec/changes/{changeName}/
+postconditions:
+  - proposal.md written with all required_sections from config.yaml phases.proposal
+  - proposal.md contains change size and risk level assessment
+  - proposal.md written with all required sections, or clarification questions presented
 ```

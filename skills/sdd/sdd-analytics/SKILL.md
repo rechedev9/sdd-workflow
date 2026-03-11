@@ -9,22 +9,24 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Analytics — Phase Delta Tracking Sub-Agent
+# SDD Analytics — Phase Delta Tracking
 
-You are the **sdd-analytics** sub-agent. Your responsibility is to **read quality timeline data**, compute deltas between consecutive phases, and produce **markdown reports** showing how each SDD phase affected quality. You never modify source code or specs — you only read `quality-timeline.jsonl` files and produce reports.
+You are executing the **analytics** phase inline. Your responsibility is to **read quality timeline data**, compute deltas between consecutive phases, and produce **markdown reports** showing how each SDD phase affected quality. You never modify source code or specs — you only read `quality-timeline.jsonl` files and produce reports.
 
----
+## Activation
+
+User runs `/sdd:analytics [change-name] [--mode single|aggregate|compare]`. Reads `quality-timeline.jsonl` from disk.
 
 ## Inputs
 
-You receive the following from the orchestrator:
+Read from disk:
 
-| Input | Description |
+| Input | Source |
 |---|---|
-| `projectPath` | Root of the project |
-| `changeName` | Name of the change to analyze (for `single` mode), or omitted for `aggregate` |
-| `changeNames` | List of change names (for `compare` mode) |
-| `mode` | Report mode: `single` (default), `aggregate`, or `compare` |
+| `changeName` | CLI argument (for `single` mode), or omit for `aggregate` |
+| `changeNames` | Multiple CLI arguments (for `compare` mode) |
+| `mode` | Flag `--mode single|aggregate|compare` (default: `single`) |
+| `quality-timeline.jsonl` | `openspec/changes/{changeName}/quality-timeline.jsonl` |
 
 ---
 
@@ -40,7 +42,7 @@ interface QualitySnapshot {
   phase: "explore" | "propose" | "spec" | "design" | "tasks" | "apply" | "review" | "verify" | "clean" | "archive"
   /** ISO 8601 timestamp of when the phase completed */
   timestamp: string
-  /** Phase envelope status: SUCCESS, PARTIAL, ERROR, SKIPPED */
+  /** Phase completion status: SUCCESS, PARTIAL, ERROR, SKIPPED */
   agentStatus: "SUCCESS" | "PARTIAL" | "ERROR" | "SKIPPED"
   /** Task and spec completion metrics */
   completeness: {
@@ -88,42 +90,42 @@ interface QualitySnapshot {
     filesModified: number | null
     filesTotal: number | null
   }
-  /** Raw envelope passthrough — preserves phase-specific data for drilldown */
+  /** Raw phase data passthrough — preserves phase-specific data for drilldown */
   phaseSpecific: Record<string, unknown>
 }
 ```
 
 ---
 
-## Extraction Mapping — Standard A2A Schema
+## Extraction Mapping — JSONL Fields
 
-All SDD phases return the same standard envelope. The orchestrator maps envelope fields directly to QualitySnapshot fields — no per-phase conditional logic needed.
+Each SDD phase appends a JSONL line to `quality-timeline.jsonl` with fields that map directly to QualitySnapshot. The mapping is consistent across all phases — no per-phase conditional logic needed.
 
-| QualitySnapshot Field | Envelope Source | Notes |
+| QualitySnapshot Field | JSONL Source | Notes |
 |---|---|---|
-| `changeName` | `envelope.changeName` | null for init/analytics |
-| `phase` | Parsed from `envelope.agent` (e.g., "sdd-apply" → "apply") | |
-| `timestamp` | Orchestrator generates at extraction time | ISO 8601 |
-| `agentStatus` | `envelope.status` | SUCCESS / PARTIAL / ERROR |
-| `issues.critical` | `envelope.metrics.issuesCritical` | 0 if no issues |
-| `issues.warning` | `envelope.phaseSpecificData.warningIssueCount` | null if absent |
-| `issues.suggestion` | `envelope.phaseSpecificData.suggestionCount` | null if absent |
-| `buildHealth.typecheck` | `envelope.buildHealth.typecheck` | null if phase doesn't build |
-| `buildHealth.typecheckErrors` | `envelope.phaseSpecificData.buildHealthDetail.typecheck.errorCount` | null if absent |
-| `buildHealth.lint` | `envelope.buildHealth.lint` | null if phase doesn't build |
-| `buildHealth.lintErrors` | `envelope.phaseSpecificData.buildHealthDetail.lint.errorCount` | null if absent |
-| `buildHealth.lintWarnings` | `envelope.phaseSpecificData.buildHealthDetail.lint.warningCount` | null if absent |
-| `buildHealth.tests` | `envelope.buildHealth.tests` | null if phase doesn't build |
-| `buildHealth.testsPassed` | `envelope.phaseSpecificData.buildHealthDetail.tests.passed` | null if absent |
-| `buildHealth.testsFailed` | `envelope.phaseSpecificData.buildHealthDetail.tests.failed` | null if absent |
-| `buildHealth.format` | `envelope.buildHealth.format` | null if phase doesn't build |
-| `completeness.tasks` | `envelope.metrics.tasks` | { completed, total } |
-| `completeness.specs` | `envelope.metrics.specs` | { covered, total } |
-| `scope.filesCreated` | `envelope.metrics.filesCreated.length` | Count from array |
-| `scope.filesModified` | `envelope.metrics.filesModified.length` | Count from array |
-| `staticAnalysis` | `envelope.phaseSpecificData.staticAnalysis` | null if absent — only verify populates |
-| `security` | `envelope.phaseSpecificData.security` | null if absent — only verify populates |
-| `phaseSpecific` | `envelope.phaseSpecificData` | Full passthrough |
+| `changeName` | `changeName` | null for init/analytics |
+| `phase` | `phase` | e.g., "apply", "review", "verify" |
+| `timestamp` | `timestamp` | ISO 8601, written by each phase |
+| `agentStatus` | `agentStatus` | SUCCESS / PARTIAL / ERROR |
+| `issues.critical` | `issueCount.critical` | 0 if no issues |
+| `issues.warning` | `issueCount.warnings` | null if absent |
+| `issues.suggestion` | `phaseSpecific.suggestionCount` | null if absent |
+| `buildHealth.typecheck` | `buildHealth.typecheck` | null if phase doesn't build |
+| `buildHealth.typecheckErrors` | `phaseSpecific.buildHealthDetail.typecheck.errorCount` | null if absent |
+| `buildHealth.lint` | `buildHealth.lint` | null if phase doesn't build |
+| `buildHealth.lintErrors` | `phaseSpecific.buildHealthDetail.lint.errorCount` | null if absent |
+| `buildHealth.lintWarnings` | `phaseSpecific.buildHealthDetail.lint.warningCount` | null if absent |
+| `buildHealth.tests` | `buildHealth.tests` | null if phase doesn't build |
+| `buildHealth.testsPassed` | `phaseSpecific.buildHealthDetail.tests.passed` | null if absent |
+| `buildHealth.testsFailed` | `phaseSpecific.buildHealthDetail.tests.failed` | null if absent |
+| `buildHealth.format` | `buildHealth.format` | null if phase doesn't build |
+| `completeness.tasks` | `completeness.tasksCompleted / tasksTotal` | null if phase doesn't track tasks |
+| `completeness.specs` | `completeness.specsCovered / specsTotal` | null if phase doesn't track specs |
+| `scope.filesCreated` | `phaseSpecific.filesCreated` | Count |
+| `scope.filesModified` | `phaseSpecific.filesModified` | Count |
+| `staticAnalysis` | `phaseSpecific.staticAnalysis` | null if absent — only verify populates |
+| `security` | `phaseSpecific.security` | null if absent — only verify populates |
+| `phaseSpecific` | `phaseSpecific` | Full passthrough |
 
 **Null propagation**: Planning phases (explore, propose, spec, design, tasks) will have null buildHealth and zero-value metrics for tasks/specs that don't apply. This is correct — write them as-is for timeline completeness.
 
@@ -373,47 +375,40 @@ Based on `mode`, generate the appropriate report using the templates above.
    - For `aggregate`: identify outlier changes and consistent patterns.
    - For `compare`: identify which change had smoother progression.
 
-### Step 4 — Return Structured Envelope
+### Step 4 — Present Summary
 
-```json
-{
-  "agent": "sdd-analytics",
-  "changeName": "<change-name | null for aggregate>",
-  "status": "SUCCESS",
-  "executiveSummary": "Analyzed {changesAnalyzed} change(s) across {totalSnapshots} snapshots. Final score: {finalScore}. Highest delta: +{highestValueDelta} at {highestValuePhase}. {regressionsDetected} regression(s) detected.",
-  "metrics": {
-    "tasks":        { "completed": 0, "total": 0 },
-    "specs":        { "covered": 0, "total": 0 },
-    "filesCreated": ["<reportPath>"],
-    "filesModified":[],
-    "issuesCritical": 0
-  },
-  "buildHealth": {
-    "typecheck": null,
-    "lint":      null,
-    "tests":     null,
-    "format":    null
-  },
-  "artifacts": ["<reportPath>"],
-  "phaseSpecificData": {
-    "mode": "single | aggregate | compare",
-    "changesAnalyzed": 1,
-    "totalSnapshots": 9,
-    "finalScore": 75,
-    "highestValuePhase": "apply",
-    "highestValueDelta": 30,
-    "regressionsDetected": 1,
-    "timelineSpan": "2h 45m",
-    "qualityCurve": [
-      { "phase": "spec", "score": 10 },
-      { "phase": "tasks", "score": 15 },
-      { "phase": "apply", "score": 68 },
-      { "phase": "review", "score": 62 },
-      { "phase": "verify", "score": 70 },
-      { "phase": "clean", "score": 75 }
-    ]
-  }
+Write the analytics report to `openspec/analytics/{changeName}-analytics.md` (single/compare) or `openspec/analytics/aggregate-{date}.md` (aggregate).
+
+Present a markdown summary to the user, then STOP:
+
+```markdown
+## SDD Analytics: {change_name | "Aggregate"} ({mode})
+
+**Changes analyzed**: {N}  |  **Snapshots**: {N}  |  **Timeline span**: {Xh Ym}
+
+### Quality Curve
+| Phase | Score | Delta | Highest Value Phase? |
+|-------|-------|-------|---------------------|
+| spec | {N} | — | |
+| tasks | {N} | +{N} | |
+| apply | {N} | +{N} | {✓ if highest} |
+| review | {N} | {±N} | |
+| verify | {N} | +{N} | |
+| clean | {N} | +{N} | |
+
+**Final score**: {N}/100  |  **Highest value phase**: {phase} (+{delta})  |  **Regressions**: {N}
+
+{If regressions: ### Regressions Detected\n{list: phase → score drop + cause}\n}
+
+{If compare mode:
+### Comparison: {change_a} vs {change_b}
+| Metric | {change_a} | {change_b} |
+|--------|-----------|-----------|
+| Final score | {N} | {N} |
+| Smoothest progression | {yes|no} | {yes|no} |
 }
+
+**Report**: `openspec/analytics/{reportPath}`
 ```
 
 ---
@@ -429,7 +424,7 @@ Based on `mode`, generate the appropriate report using the templates above.
 7. **No timeline = graceful message.** Never error out because a timeline file is missing.
 8. **Aggregate excludes archive.** Only scan `openspec/changes/*/` excluding `openspec/changes/archive/`.
 9. **Timestamps must be sorted.** If snapshots are out of order (unlikely), sort by timestamp before computing deltas.
-10. **Reports are markdown only.** No HTML, no JSON output files. The structured envelope is the programmatic interface.
+10. **Reports are markdown only.** No HTML, no JSON output files. The JSONL timeline is the programmatic interface.
 
 ---
 
@@ -457,6 +452,5 @@ phase: analytics
 preconditions: []
 postconditions:
   - report written to openspec/analytics/
-  - envelope.artifacts contains report path
-  - envelope.status is SUCCESS
+  - analytics report contains quality curve and insights
 ```

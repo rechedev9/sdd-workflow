@@ -8,30 +8,13 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Design Sub-Agent
+# SDD Design
 
-You are a sub-agent responsible for creating technical design documents. While the proposal captures WHAT and WHY, and specs capture the requirements, the design captures HOW the change will be implemented at the architecture and code-structure level. Your design must follow existing project patterns and conventions.
+You are executing the **design** phase inline. While the proposal captures WHAT and WHY, and specs capture the requirements, the design captures HOW the change will be implemented at the architecture and code-structure level. Your design must follow existing project patterns and conventions.
 
 ## Activation
 
-This skill activates when:
-- The user runs `/sdd:continue` after a proposal is approved
-- The orchestrator dispatches the `design` phase
-- The orchestrator runs `design` in parallel with `spec` (both depend only on proposal)
-
-## Input Envelope
-
-You receive from the orchestrator:
-
-```yaml
-phase: design
-project_path: <absolute path to project root>
-change_name: <kebab-case identifier>
-options:
-  proposal_path: <absolute path to proposal.md>
-  spec_paths: <optional, list of spec file paths if specs completed first>
-  exploration_path: <optional, path to exploration.md for additional context>
-```
+User runs `/sdd:continue` or `/sdd:design` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md`, existing spec files if present, and `exploration.md` if available.
 
 ## Execution Steps
 
@@ -298,31 +281,38 @@ Before returning, validate:
 6. **New files follow project naming conventions** (kebab-case, colocated tests, etc.).
 7. **The design does not exceed project file length limits** (plan to split large files).
 
-### Step 10: Return Output Envelope
+### Step 10: Present Summary
 
-```yaml
-phase: design
-status: success | error
-data:
-  change_name: <string>
-  design_path: <absolute path to design.md>
-  architecture_decisions: <count>
-  file_changes:
-    create: <count>
-    modify: <count>
-    delete: <count>
-    total: <count>
-  interfaces_defined: <count of new types/interfaces>
-  test_cases_planned: <count>
-  has_migration: <boolean>
-  has_specs: <boolean, whether spec files were available>
-  open_questions_count: <number>
-  warnings:
-    - <any warnings about missing patterns, unclear conventions, etc.>
-  next_steps:
-    - "Review design for technical accuracy"
-    - "Ensure specs are also complete (can run in parallel)"
-    - "After both spec and design are reviewed, run sdd-tasks"
+Present a markdown summary to the user, then STOP. Do not proceed automatically.
+
+**On success, output:**
+
+```markdown
+## SDD Design: {change_name}
+
+**Decisions**: {N}  |  **File changes**: {create}✚ {modify}✎ {delete}✗  |  **Interfaces**: {N}
+
+### Design Written
+`openspec/changes/{change_name}/design.md`
+
+### File Changes Planned
+| Action | Count |
+|--------|-------|
+| Create | {N} |
+| Modify | {N} |
+| Delete | {N} |
+
+### Interfaces Defined
+{List interface names — 1 per line}
+
+### Testing Strategy
+- **Test cases planned**: {N}
+- **Has database migration**: {yes | no}
+
+{If open questions: ### Open Questions ({N})\n{questions — must be resolved before implementation}\n}
+{If warnings: ### ⚠ Warnings\n- {warning}\n}
+
+**Next step**: Review `openspec/changes/{change_name}/design.md`. When both design and spec are complete, run `/sdd:tasks` to generate the implementation checklist.
 ```
 
 ## Rules and Constraints
@@ -349,38 +339,13 @@ data:
 - If the design reveals the proposal scope is insufficient: note in `open_questions` and warn.
 - All errors include the phase name (`design`) and a human-readable message.
 
-## Example Usage
+## PARCER Contract
 
-```
-Orchestrator -> sdd-design:
-  phase: design
-  project_path: /home/user/my-project
-  change_name: add-oauth2-login
-  options:
-    proposal_path: /home/user/my-project/openspec/changes/add-oauth2-login/proposal.md
-    exploration_path: /home/user/my-project/openspec/changes/add-oauth2-login/exploration.md
-
-sdd-design -> Orchestrator:
-  phase: design
-  status: success
-  data:
-    change_name: add-oauth2-login
-    design_path: /home/user/my-project/openspec/changes/add-oauth2-login/design.md
-    architecture_decisions: 4
-    file_changes:
-      create: 5
-      modify: 3
-      delete: 0
-      total: 8
-    interfaces_defined: 6
-    test_cases_planned: 14
-    has_migration: true
-    has_specs: false
-    open_questions_count: 1
-    warnings:
-      - "Specs not yet available; testing strategy based on proposal success criteria only"
-    next_steps:
-      - "Review design for technical accuracy"
-      - "Ensure specs are also complete"
-      - "After both spec and design are reviewed, run sdd-tasks"
+```yaml
+phase: design
+preconditions:
+  - proposal.md exists and was approved
+postconditions:
+  - design.md written with all required sections
+  - ≥1 interface definition with typed fields
 ```

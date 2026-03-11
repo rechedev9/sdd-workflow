@@ -8,22 +8,23 @@ metadata:
   version: "2.0"
 ---
 
-# SDD Clean — Code Cleanup Sub-Agent
+# SDD Clean — Code Cleanup
 
-You are the **sdd-clean** sub-agent. Your responsibility is to clean up code after implementation — removing dead code, eliminating duplicates, and simplifying complex expressions. You operate **only on files related to the current change** and verify that every removal is safe before committing it.
+You are executing the **clean** phase inline. Your responsibility is to clean up code after implementation — removing dead code, eliminating duplicates, and simplifying complex expressions. You operate **only on files related to the current change** and verify that every removal is safe before committing it.
 
----
+## Activation
+
+User runs `/sdd:clean`. Reads `tasks.md` and `verify-report.md` from disk. Aborts if verify verdict is FAIL.
 
 ## Inputs
 
-You receive the following from the orchestrator:
+Read from disk:
 
-| Input | Description |
+| Input | Source |
 |---|---|
-| `projectPath` | Root of the monorepo |
-| `changeName` | Name of the current change |
-| `tasksPath` | Path to `openspec/changes/{changeName}/tasks.md` |
-| `verifyReportPath` | Path to `openspec/changes/{changeName}/verify-report.md` |
+| `changeName` | Infer from `openspec/changes/` (the active change folder) |
+| `tasks.md` | `openspec/changes/{changeName}/tasks.md` |
+| `verify-report.md` | `openspec/changes/{changeName}/verify-report.md` |
 
 ---
 
@@ -293,52 +294,38 @@ Create a persistent artifact at `openspec/changes/{changeName}/clean-report.md` 
 
 This report serves as the audit trail for cleanup and feeds into sdd-archive.
 
-### Step 7 — Return Structured Envelope
+### Step 7 — Present Summary
 
+Write `openspec/changes/{changeName}/clean-report.md` with cleanup details and build results.
+
+Append one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` (if quality tracking enabled):
 ```json
-{
-  "agent": "sdd-clean",
-  "changeName": "<change-name>",
-  "status": "SUCCESS | ERROR",
-  "executiveSummary": "Cleaned {filesModified} files: removed {linesRemoved} lines, {unusedImportsRemoved} unused imports, {deadFunctionsRemoved} dead functions. {duplicatesConsolidated} duplicates consolidated.",
-  "metrics": {
-    "tasks":        { "completed": 0, "total": 0 },
-    "specs":        { "covered": 0, "total": 0 },
-    "filesCreated": [],
-    "filesModified":["<paths of cleaned files>"],
-    "issuesCritical": 0
-  },
-  "buildHealth": {
-    "typecheck": "PASS | FAIL",
-    "lint":      "PASS | FAIL",
-    "tests":     "PASS | FAIL",
-    "format":    null
-  },
-  "artifacts": ["<clean-report path if generated>"],
-  "phaseSpecificData": {
-    "filesCleaned": [
-      {
-        "file": "<path>",
-        "actions": ["<description of each cleanup action>"]
-      }
-    ],
-    "duplicatesConsolidated": [],
-    "cleanMetrics": {
-      "linesRemoved": 0,
-      "unusedImportsRemoved": 0,
-      "deadFunctionsRemoved": 0,
-      "replacedWithExistingUtility": 0,
-      "helpersExtracted": 0,
-      "complexityReductions": 0,
-      "efficiencyImprovements": 0,
-      "staleDocsFixed": 0
-    },
-    "reverted": []
-  }
-}
+{ "changeName": "...", "phase": "clean", "timestamp": "...", "agentStatus": "SUCCESS|ERROR", "completeness": null, "buildHealth": { "typecheck": "PASS|FAIL", "lint": "PASS|FAIL", "tests": "PASS|FAIL" }, "issueCount": { "critical": 0 }, "phaseSpecific": { "linesRemoved": N, "filesModified": N } }
 ```
 
-Status mapping: `SUCCESS` means all cleanups applied and build passes. `ERROR` means the cleanup was aborted (e.g., verify verdict was FAIL).
+Present a markdown summary to the user, then STOP:
+
+```markdown
+## SDD Clean: {change_name}
+
+**Build after cleanup**: typecheck {PASS|FAIL}  |  lint {PASS|FAIL}  |  tests {PASS|FAIL}
+
+### Cleanup Summary
+- **Files cleaned**: {N}
+- **Lines removed**: {N}  |  **Unused imports**: {N}  |  **Dead functions**: {N}
+- **Duplicates consolidated**: {N}  |  **Helpers extracted**: {N}
+- **Complexity reductions**: {N}  |  **Efficiency improvements**: {N}
+
+### Files Modified
+{For each file: `{path}` — {list of actions}}
+
+{If reverted: ### ⚠ Reverted Actions ({N})\n{list — these were unsafe to remove}\n}
+
+**Artifact**: `openspec/changes/{changeName}/clean-report.md`
+
+{If SUCCESS: **Next step**: Run `/sdd:archive` to close the change and merge delta specs into main specs.}
+{If ERROR (aborted): The cleanup was aborted — verify verdict was FAIL. Fix the failing build first, then re-run `/sdd:clean`.}
+```
 
 ---
 
@@ -346,7 +333,7 @@ Status mapping: `SUCCESS` means all cleanups applied and build passes. `ERROR` m
 
 1. **Scope is limited.** Only clean files from the current change + their direct dependents. Do NOT refactor the whole project.
 2. **Verify after removal.** Every CAREFUL and RISKY removal must be followed by typecheck + tests. No exceptions.
-3. **Revert on failure.** If removal breaks the build or tests, REVERT immediately. Note it in the envelope.
+3. **Revert on failure.** If removal breaks the build or tests, REVERT immediately. Note it in `clean-report.md`.
 4. **No premature abstraction.** Three similar lines are better than a clever abstraction that nobody understands. Only consolidate when it genuinely improves readability.
 5. **Rule of Three.** Do not extract a shared function unless the pattern appears 3+ times (or 2 identical occurrences).
 6. **Preserve public API.** Do not remove or rename exported functions/types that might be used by consumers outside your scope.
@@ -392,6 +379,6 @@ preconditions:
   - verify verdict is PASS or PASS_WITH_WARNINGS
 postconditions:
   - no orphaned imports or dead code in changed files
-  - envelope.buildHealth.typecheck is PASS
-  - envelope.buildHealth.tests is PASS
+  - clean-report.md confirms typecheck PASS
+  - clean-report.md confirms tests PASS
 ```

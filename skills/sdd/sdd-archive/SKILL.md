@@ -8,23 +8,24 @@ metadata:
   version: "1.0"
 ---
 
-# SDD Archive — Change Closure Sub-Agent
+# SDD Archive — Change Closure
 
-You are the **sdd-archive** sub-agent. Your responsibility is to **close a completed change** by merging delta specs into the main spec source of truth, archiving the change folder for audit trail, and capturing any learnings for future sessions. You are the final step in the SDD pipeline.
+You are executing the **archive** phase inline. Your responsibility is to **close a completed change** by merging delta specs into the main spec source of truth, archiving the change folder for audit trail, and capturing any learnings for future sessions. You are the final step in the SDD pipeline.
 
----
+## Activation
+
+User runs `/sdd:archive`. Reads `proposal.md`, `verify-report.md`, and optionally `review-report.md` from disk. Aborts if verify verdict is FAIL with no clean-report override.
 
 ## Inputs
 
-You receive the following from the orchestrator:
+Read from disk:
 
-| Input | Description |
+| Input | Source |
 |---|---|
-| `projectPath` | Root of the monorepo |
-| `changeName` | Name of the current change |
-| `proposalPath` | Path to `openspec/changes/{changeName}/proposal.md` |
-| `verifyReportPath` | Path to `openspec/changes/{changeName}/verify-report.md` |
-| `reviewReportPath` | Optional: path to `openspec/changes/{changeName}/review-report.md` |
+| `changeName` | Infer from `openspec/changes/` (the active change folder) |
+| `proposal.md` | `openspec/changes/{changeName}/proposal.md` |
+| `verify-report.md` | `openspec/changes/{changeName}/verify-report.md` |
+| `review-report.md` | `openspec/changes/{changeName}/review-report.md` (optional) |
 
 ---
 
@@ -37,7 +38,7 @@ You receive the following from the orchestrator:
 3. If verdict is **FAIL** or there are any **CRITICAL** issues:
    - **Check for clean-report override:** If `openspec/changes/{changeName}/clean-report.md` exists, read it. If the clean-report's build status shows all checks PASS and it reports all FAIL conditions resolved, the clean-report **supersedes** the stale verify-report for archive eligibility — proceed to step 4.
    - Otherwise, **ABORT immediately.** Do not archive a failing change.
-   - Return an envelope with `status: "ERROR"` and the reason.
+   - Stop immediately and present an error message explaining why archiving was aborted.
 4. If verdict is **PASS_WITH_WARNINGS**:
    - Proceed but include warnings in the archive summary.
    - Note that the change was archived with known warnings.
@@ -93,7 +94,7 @@ For each modified requirement:
 For each removed requirement:
 
 1. Find the matching requirement in `openspec/specs/{domain}.spec.md`.
-2. **Warn before removing.** Removal is destructive — note it prominently in the return envelope.
+2. **Warn before removing.** Removal is destructive — note it prominently in the archive summary.
 3. Comment out the requirement rather than deleting it:
    ```markdown
    <!-- Removed: {YYYY-MM-DD} from change: {changeName}
@@ -118,7 +119,7 @@ When replacing or appending content in a main spec file, the target section may 
      [delta content from {changeName}]
      >>>>>>> delta ({changeName})
      ```
-   - Set the overall envelope `status` to `PARTIAL`.
+   - Set the archive status to `PARTIAL`.
    - Add the conflicted file to `phaseSpecificData.warnings` with reason `"MERGE_CONFLICT_REQUIRES_HUMAN"`.
 
 #### 3e. No Main Spec Exists
@@ -223,7 +224,7 @@ After capturing learnings, persist them to the memory RAG server for cross-sessi
    - `project`: Pass the project name for namespace isolation.
    - `tags`: Categorize as `["decision"]`, `["pattern"]`, `["discovery"]`, or `["learning"]`.
 
-If `config.yaml → capabilities.memory_enabled` is `false`, skip this entire step. If `true` but tools fail at runtime, note the failure in the envelope and proceed.
+If `config.yaml → capabilities.memory_enabled` is `false`, skip this entire step. If `true` but tools fail at runtime, note the failure in the archive summary and proceed.
 
 #### 5d. Memory Pruning (Conditional on `memory_enabled`)
 
@@ -243,58 +244,41 @@ After saving new learnings, prune memories rendered obsolete by this change:
 
 If `memory_enabled` is `false`, skip entirely.
 
-### Step 6 — Return Structured Envelope
+### Step 6 — Present Summary
 
+Append one final JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` (if quality tracking enabled):
 ```json
-{
-  "agent": "sdd-archive",
-  "changeName": "<change-name>",
-  "status": "SUCCESS | ERROR",
-  "executiveSummary": "<changeSummary.description>",
-  "metrics": {
-    "tasks":        { "completed": 0, "total": 0 },
-    "specs":        { "covered": "<count of merged specs>", "total": "<count of merged specs>" },
-    "filesCreated": ["<archivePath>", "<archive-manifest.md>"],
-    "filesModified":["<mainSpecsUpdated paths>"],
-    "issuesCritical": 0
-  },
-  "buildHealth": {
-    "typecheck": null,
-    "lint":      null,
-    "tests":     null,
-    "format":    null
-  },
-  "artifacts": ["<archivePath>", "<mainSpecsUpdated paths>"],
-  "phaseSpecificData": {
-    "specsMerged": {
-      "added": [{ "domain": "<domain>", "requirements": [] }],
-      "modified": [],
-      "removed": []
-    },
-    "changeSummary": {
-      "description": "<string>",
-      "keyDecisions": [],
-      "filesCreated": [],
-      "filesModified": []
-    },
-    "learnings": [
-      {
-        "name": "<pattern-name>",
-        "path": "<skill file path>",
-        "summary": "<string>"
-      }
-    ],
-    "memoryPruning": {
-      "deleted": [],
-      "replaced": [],
-      "preserved": 0
-    },
-    "warnings": []
-  }
-}
+{ "changeName": "...", "phase": "archive", "timestamp": "...", "agentStatus": "SUCCESS|ERROR", "completeness": null, "buildHealth": null, "issueCount": { "critical": 0 }, "phaseSpecific": { "specsMerged": N, "learningsSaved": N } }
 ```
 
-Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` means the archive was aborted (e.g., verify verdict was FAIL or unresolved REJECT violations).
+Present a markdown summary to the user, then STOP:
+
+```markdown
+## SDD Archive: {change_name} ✅
+
+**Change closed and archived.**
+
+### Specs Merged into Main
+{For each domain:}
+- `openspec/specs/{domain}.spec.md` — {N} added, {N} modified, {N} removed
+
+### Change Summary
+{changeSummary.description}
+
+**Key decisions**: {keyDecisions list}
+**Files created**: {N}  |  **Files modified**: {N}
+
+{If learnings: ### Learnings Saved to Memory ({N})\n{learning names and summaries}\n}
+{If memoryPruning.deleted: ### Memory Pruned ({N} stale entries removed)\n}
+{If warnings: ### ⚠ Warnings\n{warnings list}\n}
+
+### Archive Location
+`openspec/changes/archive/{change_name}/`
+
+**The SDD pipeline for `{change_name}` is complete.** Run `/sdd:analytics {change_name}` to view quality metrics for this change.
+```
+
+If aborted (`ERROR`): output a short message explaining why (FAIL verdict, unresolved REJECT violations, etc.) and what to fix before retrying.
 
 ---
 
@@ -319,7 +303,7 @@ Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` me
 |---|---|
 | Delta adds a requirement that already exists in main spec | Treat as MODIFIED — update the existing requirement |
 | Delta modifies a requirement that doesn't exist in main spec | Treat as ADDED — append to the domain spec |
-| Delta removes a requirement that doesn't exist in main spec | Ignore — nothing to remove, note it in the envelope |
+| Delta removes a requirement that doesn't exist in main spec | Ignore — nothing to remove, note it in the archive summary |
 | Two delta specs modify the same main requirement | Apply in order (by spec filename alphabetically), note potential conflict |
 | Domain name in delta doesn't match any existing spec | Create a new spec file for the domain |
 
@@ -335,7 +319,7 @@ Status mapping: `SUCCESS` means change was archived and specs merged. `ERROR` me
 | Verify report has PASS_WITH_WARNINGS and 10+ warnings | Archive but prominently note the warning count |
 | Learning pattern name conflicts with existing file | Append a version number (e.g., `pattern-name-v2.md`) |
 | `memory_enabled: false` in config.yaml | Skip Step 5c entirely — no memory calls attempted |
-| `memory_enabled: true` but memory tools fail at runtime | Note failure in envelope, proceed with archive |
+| `memory_enabled: true` but memory tools fail at runtime | Note failure in archive summary, proceed with archive |
 | Multiple changes archive on the same date with the same name | Append a counter: `{YYYY-MM-DD}-{changeName}-2` |
 | Change was partially implemented (not all tasks [x]) | If verify PASSED (meaning partial was intentional), archive. Note incomplete tasks |
 
