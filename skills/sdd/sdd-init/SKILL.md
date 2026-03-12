@@ -50,28 +50,9 @@ Determine:
 2. **Frontend/backend split** (separate entry points, directory structure)
 3. **Database and ORM** (from dependencies and infrastructure config)
 
-### Step 4: Detect Conventions from CLAUDE.md
+### Step 4: Capture Conventions
 
-If `CLAUDE.md` exists at the project root:
-1. Read the entire file
-2. Extract:
-   - Type strictness rules (banned patterns, allowed patterns)
-   - Error handling patterns (Result type, error boundaries)
-   - Testing conventions (runner, patterns, file naming)
-   - File organization rules (max lines, naming conventions)
-   - Code style rules (async/await preference, immutability)
-   - Security rules
-   - Git conventions
-3. Map these conventions into the `config.yaml` rules section
-
-If `AGENTS.md` exists at the project root:
-1. Read the entire file
-2. Note its presence in `config.yaml` under the `code_review.agents_md` key (set to the relative path, e.g., `AGENTS.md`)
-3. `AGENTS.md` uses keyword-prefixed rules for AI-powered code review:
-   - **REJECT** — violations that must block merge
-   - **REQUIRE** — conditions that must be met
-   - **PREFER** — advisory best practices
-4. These keywords inform `sdd-review` severity levels; `sdd-init` only records the file's existence and path
+Map conventions from `CLAUDE.md` (if present) into the `config.yaml` `conventions` section. If `AGENTS.md` exists, record its path under `code_review.agents_md` — its REJECT/REQUIRE/PREFER rules are consumed by `sdd-review`.
 
 ### Step 5: Create Directory Structure
 
