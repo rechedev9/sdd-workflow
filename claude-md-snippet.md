@@ -130,7 +130,7 @@ Recognize natural language intent and suggest the appropriate SDD command:
 | explore, propose, spec, tasks | `sonnet` | Template-driven, structured output — Sonnet sufficient |
 | review, verify, clean, archive | `sonnet` | Checklist/procedural — nearly deterministic |
 | **design** | **Opus (inherit)** | Architecture decisions that shape all subsequent phases |
-| **apply** | **Opus (inherit)** | Production code under strict TypeScript — highest cognitive load |
+| **apply** | **Opus (inherit)** | Production code — highest cognitive load |
 
 Sonnet agents use `model: 'sonnet'` in Task() calls. Opus agents omit the parameter (inherit from orchestrator session).
 

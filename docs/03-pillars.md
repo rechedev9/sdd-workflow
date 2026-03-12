@@ -615,7 +615,7 @@ SDD's architecture enables a cost-efficient model split. Because each sub-agent 
 | `sdd-clean` | Sonnet | Pattern matching for dead code and simplification opportunities |
 | `sdd-archive` | Sonnet | File operations and spec merging — procedural |
 | **`sdd-design`** | **Opus** | Makes architecture decisions that shape the entire implementation. Trade-offs between approaches require deep contextual reasoning. Wrong decisions here compound through every subsequent phase. |
-| **`sdd-apply`** | **Opus** | Writes production code. Must navigate strict TypeScript, match existing patterns, satisfy spec scenarios, and handle edge cases — the highest cognitive load in the pipeline. |
+| **`sdd-apply`** | **Opus** | Writes production code. Must match existing patterns, satisfy spec scenarios, and handle edge cases — the highest cognitive load in the pipeline. |
 
 ### Why Sonnet is sufficient for 8 of 10 agents
 

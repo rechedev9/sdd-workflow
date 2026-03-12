@@ -73,40 +73,29 @@ architecture:
 conventions:
 
   type_strictness:
-    # Patterns banned in ALL production code (never in src/ outside test files)
-    banned:
-      - any                       # Use unknown + type guards
-      - "as Type"                 # Use satisfies or type guards
-      - "@ts-ignore"              # Fix the root cause
-      - "@ts-expect-error"        # Fix the root cause
-      - "non-null assertion !"    # Use null checks or optional chaining
+    # Patterns banned in ALL production code
+    # Populate with language-specific anti-patterns from CLAUDE.md
+    # Examples (TypeScript): any, "as Type", @ts-ignore, @ts-expect-error, non-null assertion
+    # Examples (Python): type: ignore, Any without constraint
+    # Examples (Go): interface{} instead of any (Go 1.18+), unchecked error returns
+    banned: []
 
     # Patterns allowed everywhere
-    allowed:
-      - "as const"                # Literal type inference
-      - satisfies                 # Type checking without widening
-      - type guards               # is Type predicates
-      - unknown                   # Safe external data type
+    allowed: []
 
-    # Patterns allowed ONLY in test files (*.test.ts, *.spec.ts)
-    test_only:
-      - "as Type"                 # Test fixture assertions
+    # Patterns allowed ONLY in test files
+    test_only: []
 
   error_handling:
-    pattern: result               # result | throw | either
-    result_type_path: src/shared/result.ts  # Where Result<T,E> is defined
-    catch_type: unknown           # Type for catch clause variables (never any)
+    pattern: result               # result | throw | either — detected from project conventions
+    # result_type_path: optional, set if project has a central error type definition
     empty_catch: forbidden        # empty | log | forbidden
-    boundary_strategy:            # React error boundary configuration
-      root: src/providers.tsx     # Root-level boundary (reload fallback)
-      granular: true              # Wrap isolated high-risk feature panels
 
   testing:
-    runner: bun:test              # Test runner
-    import_from: bun:test         # Import path for describe/it/expect/mock
-    pattern: describe-it          # describe-it | describe-test
-    file_suffix: .test.ts         # .test.ts | .spec.ts
-    location: colocated           # colocated | __tests__
+    runner: ""                    # e.g., bun:test, vitest, jest, pytest, go test, cargo test
+    pattern: describe-it          # describe-it | describe-test | function-based
+    file_suffix: ""               # e.g., .test.ts, .spec.ts, _test.go, _test.py
+    location: colocated           # colocated | __tests__ | tests/
     # Example: feature.ts → feature.test.ts in same directory
     one_assertion_per_it: true    # Aim for one assertion per it() block
     preferred_mocking: dependency-injection  # DI preferred over mocking

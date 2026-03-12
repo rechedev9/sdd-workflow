@@ -293,9 +293,9 @@ The orchestrator respects phase skips — missing artifacts mean that phase was 
 
 ---
 
-## SDD for Non-TypeScript Projects
+## Multi-Language Support
 
-SDD works with any tech stack. The `sdd-apply` skill adjusts based on `config.yaml`.
+SDD is language-agnostic. All phase SKILLs use `{CMD_CHECK}`, `{CMD_LINT}`, `{CMD_TEST}` variables resolved from `config.yaml`. Here are example configurations for different stacks:
 
 ### Go project
 
