@@ -99,52 +99,24 @@ Task quality standards:
 | Small          | Completable in one sdd-apply batch (roughly 1 file or logical unit) |
 | Ordered       | Dependencies are respected (no task references an uncreated file) |
 
-Task action verbs and their meanings:
-
-| Verb     | Meaning                                           |
-|----------|---------------------------------------------------|
-| Create   | New file from scratch                             |
-| Add      | New function, type, or export to existing file    |
-| Modify   | Change existing function or type signature        |
-| Update   | Change configuration, imports, or wiring          |
-| Remove   | Delete file, function, or deprecated code         |
-| Wire     | Connect modules (imports, providers, routes)       |
-| Test     | Write test cases for a specific module            |
-| Verify   | Run verification commands and check results       |
-| Migrate  | Run database migration or data transformation     |
+Action verbs: Create (new file), Add (to existing file), Modify (change signature), Update (config/wiring), Remove (delete), Wire (connect modules), Test (write tests), Verify (run checks), Migrate (DB/data).
 
 #### Task Completion States
 
-Tasks use checkbox markers to track progress:
-
-| Marker | State | Meaning |
-|--------|-------|---------|
-| `[ ]` | Pending | Not started |
-| `[x]` | Complete | Fully implemented and verified |
-| `[~]` | Partial | Started but not finished — remaining work listed in apply-report.md |
-
-**Partial state (`[~]`) rules:**
-- Used when a task is too large for a single batch, or when context limits are reached mid-task
-- The apply agent marks `[~]` in tasks.md and lists remaining work in apply-report.md
-- Re-run `/sdd:apply` for the same phase to complete `[~]` tasks before advancing to the next phase
-- A task marked `[~]` counts as 0.5 for completeness metrics
+- `[ ]` Pending — not started
+- `[x]` Complete — fully implemented and verified
+- `[~]` Partial — started but not finished. Remaining work listed in apply-report.md. Counts as 0.5 for metrics. Re-run `/sdd:apply` for the same phase before advancing.
 
 ### Step 7: Mark Parallelizable Tasks
 
-Within each phase, some tasks can run in parallel. Mark them:
+Within each phase, mark tasks that can run in parallel using blockquotes:
 
 ```markdown
-### Phase 2: Business Logic
-
 > Tasks 2.1-2.3 can run in parallel.
-
-- [ ] 2.1 Create — /abs/path/to/auth.service.ts, implement OAuth2 token exchange logic
-- [ ] 2.2 Create — /abs/path/to/oauth.repository.ts, implement OAuth2 account storage
-- [ ] 2.3 Create — /abs/path/to/oauth.validator.ts, implement OAuth2 callback validation
-
-> Task 2.4 depends on 2.1 and 2.2.
-
-- [ ] 2.4 Modify — /abs/path/to/user.service.ts, add linkOAuthAccount method using auth.service and oauth.repository
+- [ ] 2.1 Create — /abs/path/to/auth.service.ts, implement token exchange
+- [ ] 2.2 Create — /abs/path/to/oauth.repository.ts, implement account storage
+> Task 2.3 depends on 2.1 and 2.2.
+- [ ] 2.3 Modify — /abs/path/to/user.service.ts, add linkOAuthAccount method
 ```
 
 ### Step 8: Add Requirement Traceability
@@ -180,13 +152,7 @@ Create `openspec/changes/{change_name}/tasks.md`:
 
 ## Verification Commands
 
-After each phase, run:
-
-```bash
-bun run typecheck    # Must pass with zero errors
-bun run lint         # Must pass with zero warnings
-bun test             # Must pass all tests
-```
+After each phase, run the project's typecheck, lint, and test commands (detected from `openspec/config.yaml`, `CLAUDE.md`, or `package.json` scripts). All must pass with zero errors.
 
 ---
 

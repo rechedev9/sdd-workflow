@@ -205,16 +205,10 @@ For **each task** in the batch, in dependency order:
 
 #### 3c. Read Existing Code (Structured Reading Protocol)
 
-**Always read before writing.** For each file you are about to modify, complete this reasoning template:
+**Always read before writing.** For each file you are about to modify:
 
-- **HYPOTHESIS**: What patterns, types, and conventions do you expect this file to use? (Based on design.md, specs, and other files already read in this session.)
-- **EVIDENCE**: Which spec scenario, design constraint, or previously-read file informed this expectation?
-
-Open and read the file. Then fill:
-
-- **OBSERVATIONS**: Key patterns found — naming conventions, import style, error handling approach, folder structure. Reference specific lines (`File:Line`) for each pattern noted.
-- **HYPOTHESIS STATUS**: `CONFIRMED` | `REFUTED` | `REFINED` — and what this means for your implementation approach.
-- **IMPLEMENTATION IMPLICATION**: 1 sentence on how your observations constrain or guide the code you are about to write.
+1. **Before reading** — State your HYPOTHESIS (expected patterns/conventions) and EVIDENCE (which spec/design/file informed it).
+2. **After reading** — Note OBSERVATIONS (key patterns with `File:Line` refs), HYPOTHESIS STATUS (`CONFIRMED` | `REFUTED` | `REFINED`), and one IMPLEMENTATION IMPLICATION sentence.
 
 Your new code MUST follow the patterns observed. Do not introduce a new style.
 
@@ -239,43 +233,20 @@ In all other cases, the acceptance criteria defined in `specs/` GIVEN/WHEN/THEN 
 
 **Standard mode (no --tdd):**
 1. Write or modify the implementation file.
-2. Follow the rules below, grouped by concern:
+2. Follow Hard Constraints 1–16 (see Rules section below). Additional detail for nuanced rules:
 
-**Type Safety**
+**Type Safety (supplements Constraints 3, 16)**
 
-1. No `any` — use `unknown` + type guards for external data.
-2. `as Type` assertions:
-   - ALLOWED inside type guard functions after a runtime check (e.g., `typeof x === 'object'`): `as Record<string, unknown>`, `as unknown`.
-   - BANNED in business logic: `as ConcreteType` (e.g., `as User`, `as Parameters<...>[0]`).
-   - Prefer `String()`, `Number()` over `as string`, `as number` inside type guards.
-3. No `@ts-ignore` or `@ts-expect-error`.
-4. No non-null assertions (`!`). For required environment variables, validate at startup with a descriptive error:
-   ```ts
-   const dbUrl = process.env['DATABASE_URL'];
-   if (!dbUrl) throw new Error('DATABASE_URL is required');
-   ```
-5. All exported functions and named function declarations MUST have explicit return types. Inline callbacks in framework DSLs (route handlers, event handlers, middleware) MAY rely on inference when the framework provides type context.
-6. All parameters: explicit types.
-7. Use `readonly` unless mutation is required.
-8. Model multi-state objects as discriminated unions. Use a `type` or `status` discriminant field so variant-specific properties only exist on the relevant variant. Example: `{ status: 'error'; error: Error }` not `{ status: string; error: Error | null }`.
+- `as Type` is ALLOWED inside type guard functions after a runtime check (`as Record<string, unknown>`, `as unknown`). BANNED in business logic (`as User`, `as Parameters<...>[0]`). Prefer `String()`, `Number()` over `as string`.
+- No non-null assertions (`!`). For required env vars, validate at startup: `if (!dbUrl) throw new Error('DATABASE_URL is required');`
+- Exported functions and named declarations MUST have explicit return types. Inline callbacks in framework DSLs MAY rely on inference.
+- All parameters: explicit types. Use `readonly` unless mutation is required.
 
-**Error Handling**
+**Error Handling (supplements Constraint 4)**
 
-1. Use `Result<T, E>` for operations that can fail with errors (network calls, DB writes, parsing, validation). For queries that simply may not find data, `T | null` or `T | undefined` is acceptable. Rule of thumb: use Result for error paths, not for absence of data. For required environment variables, see Type Safety item 4.
-2. For real-time connections (WebSocket, SSE, long-poll): implement reconnection with configurable max attempts and exponential backoff. Use named constants for retry parameters (`MAX_RECONNECT_ATTEMPTS`, `RECONNECT_DELAY_MS`).
-3. For event/message processing: add idempotency checks (deduplicate by ID before processing).
-
-**Architecture**
-
-1. Use dependency injection for external resources. Modules that access DB, HTTP clients, or file system MUST accept these as constructor/factory parameters — never import a global singleton. Example: `createUserRepository(db: Database)` not `import { db } from './db'`.
-2. Aim for files under 200 lines. 600 lines is the hard maximum. If a file grows past 200 lines, consider extracting sub-components, utilities, or types into separate files. Components with inline styles or embedded sub-components SHOULD be split.
-3. Extract shared utilities (used by 2+ modules) into a shared directory — never duplicate across feature modules.
-
-**Code Style**
-
-1. No `console.*` methods (`log`, `error`, `warn`, `debug`, `info`) in production code — use the project's structured logger. Exception: React error boundaries may use `console.error` as a last-resort fallback if no logger is available at that layer.
-2. No magic numbers or strings — use named constants.
-3. Max nesting depth: 3 levels. Use early returns to flatten.
+- `Result<T, E>` for error paths (network, DB writes, parsing). `T | null` for absence-of-data lookups.
+- Real-time connections: reconnection with exponential backoff (`MAX_RECONNECT_ATTEMPTS`, `RECONNECT_DELAY_MS`).
+- Event/message processing: deduplicate by ID before processing.
 
 **Accessibility** (when implementing UI components)
 
