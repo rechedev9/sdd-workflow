@@ -113,11 +113,6 @@ Populate the `contracts` section by scanning `~/.claude/skills/sdd/sdd-*/SKILL.m
 
 Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
-If `capabilities.quality_tracking` is enabled in `openspec/config.yaml`, append one line to `openspec/changes/.quality-init.jsonl` (or skip — init has no changeName):
-```json
-{ "phase": "init", "timestamp": "<ISO 8601>", "agentStatus": "SUCCESS", "stack": "<stack_summary>", "warnings": [] }
-```
-
 **On success, output:**
 
 ```markdown
