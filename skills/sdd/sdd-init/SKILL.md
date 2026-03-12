@@ -70,18 +70,6 @@ openspec/
 ```
 
 
-### Step 5c: Detect Memory Capabilities
-
-Check if the persistent memory RAG server is available in the current environment:
-
-1. **Probe** — Attempt to call `mem_stats` (a lightweight read-only memory tool). If it succeeds and reports healthy backends, memory is available.
-2. **Record result** — Set `capabilities.memory_enabled` in config.yaml:
-   - `true` if `mem_stats` responded successfully with healthy Qdrant and Ollama
-   - `false` if the tool call failed, timed out, or the tool doesn't exist
-3. **Log** — Note in the summary warnings if memory is unavailable: `"Memory RAG server not detected. SDD will run in Ephemeral Mode (no cross-session memory)."`
-
-This flag drives conditional behavior in all downstream phases: when `true`, phases use full memory integration (EET, learning saves, context recovery). When `false`, phases skip all `mem_*` calls and use more aggressive local fallbacks.
-
 ### Step 6: Generate config.yaml
 
 The `config.yaml` must follow this structure:
@@ -113,9 +101,6 @@ architecture:
   entry_points:
     frontend: <path to frontend entry>
     backend: <path to backend entry>
-
-capabilities:
-  memory_enabled: <true | false — detected in Step 5c>
 
 commands:
   package_manager: <bun | npm | pnpm | yarn — detected from lockfile>
