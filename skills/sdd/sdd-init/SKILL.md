@@ -33,33 +33,25 @@ User runs `/sdd:init`. The project root is the current working directory. Flags:
 
 ### Step 2: Detect Technology Stack
 
-Read the following files (if they exist) to detect the stack:
+Scan the project root for manifest files to identify the primary language and ecosystem:
 
-| File                  | Detects                                      |
-|-----------------------|----------------------------------------------|
-| `package.json`        | Runtime (Node/Bun/Deno), dependencies, scripts |
-| `bun.lockb`           | Bun runtime confirmation                     |
-| `pnpm-lock.yaml`      | pnpm runtime confirmation                    |
-| `yarn.lock`           | Yarn runtime confirmation                    |
-| `package-lock.json`   | npm runtime confirmation                     |
-| `tsconfig.json`       | TypeScript configuration, strictness level    |
-| `go.mod`              | Go module and dependencies                   |
-| `pyproject.toml` / `requirements.txt` | Python project and dependencies |
-| `Cargo.toml`          | Rust project and dependencies                |
-| `Makefile` / `CMakeLists.txt` | C/C++ build configuration             |
-| `build.gradle` / `pom.xml` | Java/Kotlin project and dependencies    |
-| `docker-compose.yml`  | Infrastructure services (DB, cache, queue)   |
-| `.env.example`        | Environment variables and external services  |
-| `CLAUDE.md`           | Project conventions and rules                |
-| `AGENTS.md`           | AI code-review rules (REJECT/REQUIRE/PREFER) |
+| Manifest | Ecosystem | Lockfile → package manager |
+|---|---|---|
+| `package.json` | JS/TS (Node, Bun, Deno) | `bun.lockb` → bun, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm |
+| `go.mod` | Go | — |
+| `pyproject.toml` / `requirements.txt` | Python | `poetry.lock` → poetry, `uv.lock` → uv |
+| `Cargo.toml` | Rust | `Cargo.lock` |
+| `build.gradle` / `pom.xml` | Java/Kotlin | — |
+| `Makefile` / `CMakeLists.txt` | C/C++ | — |
 
-From `package.json`, extract:
-- **Runtime**: Check for `bun.lockb` (Bun), `yarn.lock` (Yarn), `pnpm-lock.yaml` (pnpm), `package-lock.json` (npm)
-- **Framework**: React, Next.js, Remix, Vue, Svelte, Express, Fastify, Elysia, Hono
-- **Language**: TypeScript (check `tsconfig.json` exists), JavaScript
-- **Testing**: bun:test, vitest, jest, mocha, playwright, cypress
-- **Linting**: ESLint, Biome, oxlint
-- **Formatting**: Prettier, Biome
+Also read (if they exist): `docker-compose.yml` (infrastructure), `.env.example` (env vars), `CLAUDE.md` (conventions), `AGENTS.md` (code-review rules).
+
+From the project manifest and its ecosystem, extract:
+- **Language & version** (e.g., TypeScript via `tsconfig.json`, Python version from `pyproject.toml`)
+- **Frameworks** (frontend, backend, ORM — from dependencies)
+- **Test runner** (from dependencies or scripts)
+- **Linter & formatter** (from dependencies or config files)
+- **Build/check commands** (from scripts, Makefile targets, or convention)
 
 ### Step 3: Detect Architecture Patterns
 
