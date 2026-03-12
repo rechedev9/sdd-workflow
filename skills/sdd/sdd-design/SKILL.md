@@ -94,7 +94,7 @@ User Action
           -> Business Logic (service file path)
             -> Database Query (repository file path)
               -> Response (type, shape)
-            <- Error Path (Result<T, E> with error type)
+            <- Error Path (error type per project conventions)
           <- Validation Error (shape)
         <- HTTP Response (status, body type)
       <- Frontend State Update (store/hook file path)
@@ -134,11 +134,11 @@ Map each requirement (from specs if available, or from proposal success criteria
 
 | What to Test                  | Type        | Approach                          | File Path                    |
 |-------------------------------|-------------|-----------------------------------|------------------------------|
-| {Feature} input validation    | Unit        | Test each validation rule         | src/features/{f}/{f}.test.ts |
-| {Feature} business logic      | Unit        | Test Result<T,E> paths            | src/services/{s}/{s}.test.ts |
-| {Feature} API endpoint        | Integration | Test HTTP request/response cycle  | src/routes/{r}/{r}.test.ts   |
-| {Feature} error handling      | Unit        | Test all error variants           | src/features/{f}/{f}.test.ts |
-| {Feature} database operations | Integration | Test with real DB (test container) | src/repos/{r}/{r}.test.ts    |
+| {Feature} input validation    | Unit        | Test each validation rule         | {path per project convention} |
+| {Feature} business logic      | Unit        | Test success/error paths          | {path per project convention} |
+| {Feature} API endpoint        | Integration | Test HTTP request/response cycle  | {path per project convention} |
+| {Feature} error handling      | Unit        | Test all error variants           | {path per project convention} |
+| {Feature} database operations | Integration | Test with real DB (test container) | {path per project convention} |
 
 For each test, note:
 - What dependencies need to be mocked vs. real
@@ -209,9 +209,9 @@ Create `openspec/changes/{change_name}/design.md`:
 
 | # | What to Test                  | Type         | File Path                          | Maps to Requirement |
 |---|-------------------------------|--------------|------------------------------------|---------------------|
-| 1 | {Test subject}                | unit         | {/abs/path/to/test.test.ts}       | REQ-{DOMAIN}-{NNN} |
-| 2 | {Test subject}                | unit         | {/abs/path/to/test.test.ts}       | REQ-{DOMAIN}-{NNN} |
-| 3 | {Test subject}                | integration  | {/abs/path/to/test.test.ts}       | REQ-{DOMAIN}-{NNN} |
+| 1 | {Test subject}                | unit         | {/abs/path/to/test file}       | REQ-{DOMAIN}-{NNN} |
+| 2 | {Test subject}                | unit         | {/abs/path/to/test file}       | REQ-{DOMAIN}-{NNN} |
+| 3 | {Test subject}                | integration  | {/abs/path/to/test file}       | REQ-{DOMAIN}-{NNN} |
 
 ### Test Dependencies
 
