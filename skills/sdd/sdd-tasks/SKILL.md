@@ -34,11 +34,7 @@ If either spec or design is missing, return `status: error` with a message indic
    - Phase ordering conventions
    - Task format conventions
    - Verification commands (typecheck, lint, test)
-2. Note project-specific constraints:
-   - File length limits
-   - Testing patterns (describe/it, bun:test)
-   - Type strictness requirements
-   - Error handling patterns (Result<T, E>)
+2. Read `CLAUDE.md` for project-specific constraints (file length limits, testing patterns, type strictness, error handling patterns).
 
 ### Step 2: Read Design Document
 
@@ -190,9 +186,9 @@ From the proposal, all must be true when tasks are complete:
 - [ ] {Criterion 2 from proposal}
 - [ ] {Criterion 3 from proposal}
 - [ ] All delta specs pass (scenarios verified by tests)
-- [ ] No type errors (`bun run typecheck`)
-- [ ] No lint errors (`bun run lint`)
-- [ ] All tests pass (`bun test`)
+- [ ] No type/build errors (project's check command passes)
+- [ ] No lint errors (project's lint command passes)
+- [ ] All tests pass (project's test command passes)
 ```
 
 ### Step 10: Validate Task Completeness
@@ -252,7 +248,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 10. **Never modify source code.** Task artifacts go in `openspec/changes/{change_name}/`.
 11. **The traceability matrix must be complete.** Every requirement maps to implementation tasks and test tasks.
 12. **Respect the project's task-size conventions.** If a file is being created with many functions, consider splitting into multiple tasks (e.g., "Create file with type exports" then "Add validation functions to file").
-13. **Testing tasks should follow project test conventions** (describe/it blocks, one assertion per test where practical, Arrange/Act/Assert pattern).
+13. **Testing tasks should follow project test conventions** (per CLAUDE.md and framework SKILLs — test grouping, assertion patterns, Arrange/Act/Assert).
 14. **The final cleanup task must always include running the full verification suite** as defined in `openspec/config.yaml`.
 15. **TEST GENERATION POLICY**: Do NOT generate speculative test tasks. ONLY include test tasks if: (A) A spec scenario requires verification via a specific test file (referenced in the Testing Strategy), (B) The design's Testing Strategy table maps a requirement to a test, OR (C) The task explicitly starts with "Test — ...". Do not add test tasks for "just in case" coverage.
 

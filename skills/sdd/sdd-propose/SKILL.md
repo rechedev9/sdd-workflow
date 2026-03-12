@@ -224,9 +224,9 @@ All of the following must be true for this change to be considered complete:
 
 - [ ] {Measurable criterion 1, e.g., "All new endpoints return typed responses with proper error handling"}
 - [ ] {Measurable criterion 2, e.g., "Unit tests cover all new functions with >80% branch coverage"}
-- [ ] {Measurable criterion 3, e.g., "bun run typecheck passes with zero errors"}
-- [ ] {Measurable criterion 4, e.g., "bun run lint passes with zero warnings"}
-- [ ] {Measurable criterion 5, e.g., "No any types, no as Type assertions, no @ts-ignore in new code"}
+- [ ] {Measurable criterion 3, e.g., "Project's build/typecheck command passes with zero errors"}
+- [ ] {Measurable criterion 4, e.g., "Project's lint command passes with zero warnings"}
+- [ ] {Measurable criterion 5, e.g., "No type-system escape hatches or compiler suppressions in new code"}
 - [ ] {Measurable criterion 6, e.g., "Rollback plan tested and verified"}
 
 ## Open Questions
@@ -313,7 +313,7 @@ Re-run `/sdd:new {change_name} "<intent>"` after answering.
 8. **Never skip risk assessment.** Even "simple" changes have risks (regression, performance, compatibility).
 9. **Reference exploration data** when available. The proposal should build on exploration findings, not ignore them.
 10. **Open questions must be answerable.** Not "will this work?" but "should we use WebSocket or SSE for real-time updates?"
-11. **Respect project conventions** from `config.yaml`. If the project bans `any`, the success criteria must include type safety checks. If the project uses Result pattern, mention it in approach.
+11. **Respect project conventions** from `config.yaml` and `CLAUDE.md`. Success criteria must include type safety and error handling checks consistent with the project's rules.
 12. **Do not prescribe implementation details.** The proposal says WHAT and WHY, not exactly HOW at the code level. That is the design phase's job.
 
 ## Error Handling

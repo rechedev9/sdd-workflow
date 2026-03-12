@@ -203,7 +203,7 @@ Each scenario must also be:
    - Good: "THEN the API returns HTTP 400 with body `{ error: 'INVALID_EMAIL', message: 'Email format is invalid' }`"
 
 4. **Aligned with project conventions**:
-   - For TypeScript projects: reference Result types in THEN clauses where applicable
+   - Reference the project's error handling patterns in THEN clauses where applicable (per CLAUDE.md)
    - For API specs: include HTTP status codes and response body shapes
    - For UI specs: reference user-visible states and interactions
 
@@ -298,7 +298,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 8. **Never write specs for out-of-scope items.** If the proposal says "OAuth2 token refresh is out of scope", do not write refresh specs.
 9. **Specs can run in PARALLEL with sdd-design.** Both depend only on the proposal. Neither depends on the other.
 10. **Requirement IDs must be unique** across all domains within the change. Use the format `REQ-{DOMAIN}-{NNN}`.
-11. **Align scenarios with project error handling patterns.** If the project uses `Result<T, E>`, THEN clauses should reference `Ok` and `Err` variants where applicable.
+11. **Align scenarios with project error handling patterns** (per CLAUDE.md). THEN clauses should reference the project's success/error return conventions where applicable.
 12. **Include negative scenarios.** For every happy path, include at least one error/edge case scenario showing what happens when things go wrong.
 13. **Domain names MUST be kebab-case.** All domain identifiers and spec directory names MUST use lowercase-with-hyphens (e.g., `auth-api`, `user-profile`, `payment-flow`). Explicitly banned: `snake_case` (e.g., `auth_api`), `camelCase` (e.g., `authApi`), `PascalCase` (e.g., `AuthApi`). This ensures consistent directory naming across `openspec/changes/{change}/specs/{domain}/` and `openspec/specs/{domain}.spec.md`.
 

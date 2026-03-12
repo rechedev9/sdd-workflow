@@ -39,10 +39,15 @@ Read the following files (if they exist) to detect the stack:
 |-----------------------|----------------------------------------------|
 | `package.json`        | Runtime (Node/Bun/Deno), dependencies, scripts |
 | `bun.lockb`           | Bun runtime confirmation                     |
+| `pnpm-lock.yaml`      | pnpm runtime confirmation                    |
+| `yarn.lock`           | Yarn runtime confirmation                    |
+| `package-lock.json`   | npm runtime confirmation                     |
 | `tsconfig.json`       | TypeScript configuration, strictness level    |
 | `go.mod`              | Go module and dependencies                   |
-| `pyproject.toml`      | Python project and dependencies              |
+| `pyproject.toml` / `requirements.txt` | Python project and dependencies |
 | `Cargo.toml`          | Rust project and dependencies                |
+| `Makefile` / `CMakeLists.txt` | C/C++ build configuration             |
+| `build.gradle` / `pom.xml` | Java/Kotlin project and dependencies    |
 | `docker-compose.yml`  | Infrastructure services (DB, cache, queue)   |
 | `.env.example`        | Environment variables and external services  |
 | `CLAUDE.md`           | Project conventions and rules                |
@@ -145,7 +150,7 @@ This project uses **Spec-Driven Development (SDD)**. All feature work follows th
 
 | Command | Purpose |
 |---------|---------|
-| `{typecheck_cmd}` | TypeScript type checking |
+| `{typecheck_cmd}` | Build / type checking |
 | `{lint_cmd}` | Linting |
 | `{test_cmd}` | Test suite |
 | `{format_cmd}` | Format checking |
@@ -156,18 +161,18 @@ This project uses **Spec-Driven Development (SDD)**. All feature work follows th
 
 REJECT if:
 
-{Generated from CLAUDE.md banned patterns — e.g., `any` type, `as Type` assertions, `@ts-ignore`, empty catch blocks, hardcoded secrets, console.log in production}
+{Generated from CLAUDE.md banned patterns — e.g., type-system escape hatches, compiler suppression directives, empty catch blocks, hardcoded secrets, unstructured logging in production}
 
 REQUIRE:
 
-{Generated from CLAUDE.md required patterns — e.g., explicit return types, explicit parameter types, `unknown` in catch clauses, `readonly` properties}
+{Generated from CLAUDE.md required patterns — e.g., explicit return types, explicit parameter types, proper error narrowing, immutable-by-default properties}
 
 PREFER:
 
 {Generated from CLAUDE.md preferred patterns — e.g., async/await over .then(), immutable patterns, early returns, descriptive names}
 ```
 
-Populate the REJECT/REQUIRE/PREFER rules from the conventions detected in Step 4. If `CLAUDE.md` doesn't exist, generate minimal rules based on detected linter/formatter configuration and standard TypeScript best practices. Add framework-specific sections (e.g., `## TypeScript / React`, `## API`) when the detected stack warrants it.
+Populate the REJECT/REQUIRE/PREFER rules from the conventions detected in Step 4. If `CLAUDE.md` doesn't exist, generate minimal rules based on detected linter/formatter configuration and the project language's best practices. Add language/framework-specific sections when the detected stack warrants it.
 
 Note in the summary that `AGENTS.md` was generated.
 
@@ -373,7 +378,7 @@ If `--dry-run` was set: output what would be created without having written any 
 ## Error Handling
 
 - If the project root does not exist: return `status: error` with message.
-- If no `package.json` or equivalent is found: return `status: error` with message suggesting manual configuration.
+- If no `package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, or equivalent is found: return `status: error` with message suggesting manual configuration.
 - If file read fails: log the file path and continue with partial detection.
 - All errors must include the phase name (`init`) and a human-readable message.
 

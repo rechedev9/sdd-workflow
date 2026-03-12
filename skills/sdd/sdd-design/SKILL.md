@@ -27,11 +27,7 @@ User runs `/sdd:continue` or `/sdd:design` after the proposal is approved. Reads
    - Design phase required sections (`phases.design.required_sections`)
 2. Read `CLAUDE.md` for any additional rules not captured in config.
 3. **Load framework skills.** Based on the tech stack identified in config.yaml, read the relevant skill file(s) from `~/.claude/skills/frameworks/` before designing components or interfaces for that domain. For example: React → `react-19/SKILL.md`, Next.js → `nextjs-15/SKILL.md`, Tailwind → `tailwind-4/SKILL.md`, Zod → `zod-4/SKILL.md`. If a skill file does not exist, proceed without it. This step is required so that interface definitions and data flow diagrams follow idiomatic patterns for the project's actual framework versions.
-4. Note all constraints that affect design decisions:
-   - No `any`, no `as Type`, no `@ts-ignore` in production code
-   - Result<T, E> pattern for fallible operations
-   - Max file length (600 lines warning, 800 lines error)
-   - Max nesting depth (3 levels)
+4. Note all constraints from `CLAUDE.md` that affect design decisions (type strictness, error handling patterns, file organization limits, etc.).
 
 ### Step 2: Read Proposal and Optional Specs
 
@@ -53,14 +49,13 @@ This is a critical step. The design MUST follow existing patterns. Read source c
 1. **Project structure**: How are files organized? What naming conventions are used?
    - Use Glob to map the directory tree
    - Identify patterns: feature-based, layer-based, domain-driven
-2. **Type patterns**: How are types defined and shared?
-   - Search for type definition files (types.ts, interfaces.ts, schemas.ts)
-   - Identify shared type locations (e.g., `src/shared/types/`)
-   - Note generic patterns used (Result<T, E>, Option<T>, etc.)
+2. **Type patterns**: How are types/interfaces defined and shared?
+   - Search for type definition files and shared type locations
+   - Note generic patterns used (Result types, Option types, error enums, etc.)
 3. **Error handling patterns**: How are errors created and propagated?
-   - Find the Result type definition and how it is used
-   - Identify error type conventions (AppError, DomainError, etc.)
-   - Note error boundary patterns in React components
+   - Find the project's error handling pattern and how it is used
+   - Identify error type conventions (custom error types, error enums, etc.)
+   - Note error boundary patterns if applicable (UI frameworks, middleware, etc.)
 4. **API patterns**: How are endpoints defined?
    - Read existing route/controller files
    - Note middleware usage, validation patterns, response shapes
@@ -69,7 +64,7 @@ This is a critical step. The design MUST follow existing patterns. Read source c
    - Note ORM usage, transaction patterns, migration conventions
 6. **Testing patterns**: How are tests structured?
    - Read existing test files
-   - Note describe/it patterns, mock patterns, assertion styles
+   - Note test grouping patterns, assertion styles, and test runner conventions
 
 ### Step 4: Make Architecture Decisions
 
@@ -110,26 +105,7 @@ Use ASCII diagrams for complex flows. Keep it readable without specialized tooli
 
 ### Step 6: Define Interfaces and Contracts
 
-For TypeScript projects, write the actual type definitions that will be created:
-
-```typescript
-// Types to be created in src/features/{feature}/types.ts
-
-/** Input for creating a new {thing} */
-interface Create{Thing}Input {
-  readonly name: string
-  readonly email: string
-  readonly role: UserRole
-}
-
-/** Result of the create operation */
-type Create{Thing}Result = Result<{Thing}, Create{Thing}Error>
-
-/** Possible errors when creating a {thing} */
-type Create{Thing}Error =
-  | { readonly code: 'DUPLICATE_EMAIL'; readonly email: string }
-  | { readonly code: 'INVALID_ROLE'; readonly role: string }
-```
+Write type/interface definitions in the project's language. Use the actual syntax that will compile/type-check — not pseudocode. Follow the project's error handling pattern (per CLAUDE.md) for fallible operations.
 
 For API endpoints, define request/response contracts:
 
@@ -276,7 +252,7 @@ Before returning, validate:
 1. **Every file from the proposal's affected areas** appears in the File Changes table.
 2. **Every success criterion** has a corresponding testing strategy entry.
 3. **Architecture decisions** each have at least 2 alternatives.
-4. **Interfaces use project conventions** (no `any`, proper Result types, readonly properties).
+4. **Interfaces use project conventions** (per CLAUDE.md type safety and error handling rules).
 5. **File paths are absolute** throughout the document.
 6. **New files follow project naming conventions** (kebab-case, colocated tests, etc.).
 7. **The design does not exceed project file length limits** (plan to split large files).
@@ -318,16 +294,16 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 ## Rules and Constraints
 
 1. **Design MUST follow existing project patterns.** Read code first, then design. Never introduce patterns that conflict with the codebase.
-2. **For TypeScript projects**: include actual type definitions, not pseudo-code. Types must compile.
+2. **Include actual type/interface definitions** in the project's language, not pseudo-code. They must compile/type-check.
 3. **Architecture decisions MUST have at least 2 alternatives** with rationale. Single-option "decisions" are not decisions.
 4. **File Changes MUST list EVERY file** that will be created, modified, or deleted. No surprises during implementation.
 5. **Testing strategy MUST cover each requirement** from specs (if available) or each success criterion from proposal.
 6. **Design can run in PARALLEL with sdd-spec.** Both depend only on the proposal.
-7. **If the project uses Result<T, E> pattern**, all new error types must follow it. Define error variants explicitly.
+7. **Follow the project's error handling pattern** (per CLAUDE.md). Define error variants explicitly.
 8. **All file paths must be absolute.** Never use relative paths.
 9. **Never modify source code.** Design artifacts go in `openspec/changes/{change_name}/`.
 10. **Respect file organization rules.** If the project limits files to 600 lines, plan to split accordingly.
-11. **Interface definitions must be strict.** Use `readonly` properties, explicit return types, no implicit `any`.
+11. **Interface definitions must be strict.** Use the project's immutability patterns, explicit return types, and no type-system escape hatches (per CLAUDE.md).
 12. **Data flow diagrams must be ASCII-based.** Do not reference external diagramming tools. The design must be readable in any text editor.
 13. **Load framework skills before designing.** Read `~/.claude/skills/frameworks/{framework}/SKILL.md` for every active framework in the project before defining interfaces, data flow, or architecture decisions for that domain. Designing without the framework skill risks specifying deprecated APIs or non-idiomatic patterns that sdd-apply will then implement incorrectly.
 
