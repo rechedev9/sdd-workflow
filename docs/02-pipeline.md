@@ -350,12 +350,7 @@ interface SessionToken {
 
 **What the sub-agent does**:
 - Reads both `spec.md` and `design.md` from the current change
-- Organizes work into five sequential phases:
-  1. **Foundation** — types, database migrations, configuration, constants
-  2. **Core** — business logic, services, repositories, utilities
-  3. **Integration** — routes, UI components, event handlers, wiring
-  4. **Testing** — unit tests, integration tests, E2E tests
-  5. **Cleanup** — dead code removal, documentation, final verification
+- Organizes work into numbered phases using **bottom-up ordering** — as many or as few as the change requires (a 2-file bugfix might need 2 phases; a full-stack feature might need 6). Phase 1 contains the lowest-level work (types, schemas, config); each subsequent phase builds on the previous.
 - Numbers every task: `1.1`, `1.2`, `2.1`, etc.
 - Marks tasks that can be done in parallel within a phase
 - Produces a requirement traceability matrix: each requirement mapped to the tasks that implement it and the tests that verify it
@@ -369,7 +364,7 @@ interface SessionToken {
 
 **Key rules**:
 - Every task references an absolute file path. No ambiguous descriptions.
-- Foundation tasks must precede Core tasks; Core must precede Integration; all precede Testing.
+- Phases follow strict bottom-up ordering — no task may reference a file created in a later phase.
 - Testing tasks must reference the spec scenarios they verify (e.g., "covers REQ-AUTH-001 scenario: Invalid password").
 
 **Output artifact**: `openspec/changes/{name}/tasks.md`
@@ -392,7 +387,7 @@ interface SessionToken {
 **Purpose**: Implement code following specs and design, in batches, with a build-fix loop after each batch.
 
 **What the sub-agent does**:
-- Implements one task phase at a time (Foundation, then Core, then Integration, then Testing, then Cleanup)
+- Implements one task phase at a time, following the bottom-up order defined in tasks.md
 - Before modifying any file: reads the existing file to understand its structure, naming patterns, and import style
 - Uses spec scenarios as acceptance criteria: if implementing a function, the scenarios for that function are the definition of correct behavior
 - Marks tasks `[x]` as completed in tasks.md immediately after implementing them

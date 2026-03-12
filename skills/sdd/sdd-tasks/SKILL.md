@@ -31,7 +31,7 @@ If either spec or design is missing, return `status: error` with a message indic
 
 1. Read `openspec/config.yaml` for:
    - Task phase rules (`phases.tasks`)
-   - Phase ordering (foundation, core, integration, testing, cleanup)
+   - Phase ordering conventions
    - Task format conventions
    - Verification commands (typecheck, lint, test)
 2. Note project-specific constraints:
@@ -134,7 +134,7 @@ Tasks use checkbox markers to track progress:
 Within each phase, some tasks can run in parallel. Mark them:
 
 ```markdown
-### Phase 2: Core Implementation
+### Phase 2: Business Logic
 
 > Tasks 2.1-2.3 can run in parallel.
 
