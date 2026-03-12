@@ -44,21 +44,11 @@ Also read `CLAUDE.md` (conventions) and `AGENTS.md` (code-review rules) if they 
 
 ### Step 3: Detect Architecture Patterns
 
-1. **Monorepo detection**:
-   - Check `package.json` for `workspaces` field
-   - Check for `bun.workspace.ts`, `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`
-   - If monorepo, list all workspace packages
+Determine:
 
-2. **Frontend/Backend split**:
-   - Look for `src/client`, `src/server`, `apps/`, `packages/`
-   - Detect API framework vs UI framework separation
-
-3. **Database detection**:
-   - Check dependencies for `pg`, `mysql2`, `better-sqlite3`, `drizzle-orm`, `prisma`, `typeorm`, `knex`
-   - Check `docker-compose.yml` for database services
-
-4. **State management** (frontend):
-   - Check for `zustand`, `jotai`, `redux`, `@tanstack/query`, `swr`
+1. **Monorepo vs single-package** (workspace configs, multiple build targets)
+2. **Frontend/backend split** (separate entry points, directory structure)
+3. **Database and ORM** (from dependencies and infrastructure config)
 
 ### Step 4: Detect Conventions from CLAUDE.md
 
