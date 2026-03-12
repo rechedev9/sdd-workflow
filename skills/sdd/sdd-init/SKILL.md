@@ -72,7 +72,7 @@ openspec/
 
 ### Step 6: Generate config.yaml
 
-The `config.yaml` must follow this structure:
+Generate `openspec/config.yaml` with the following sections:
 
 ```yaml
 schema: spec-driven
@@ -80,107 +80,30 @@ version: "1.0"
 generated_at: <ISO 8601 timestamp>
 
 project:
-  name: <from package.json name or directory name>
+  name: <detected from manifest or directory name>
   path: <absolute project path>
   type: <monorepo | single-package>
 
 stack:
-  runtime: <bun | node | deno | go | python | rust>
-  language: <typescript | javascript | go | python | rust>
-  language_version: <from tsconfig target or runtime version>
-  frameworks:
-    frontend: <react | vue | svelte | none>
-    backend: <elysia | express | fastify | hono | none>
-    testing: <bun:test | vitest | jest | none>
-  database: <postgresql | mysql | sqlite | none>
-  orm: <drizzle | prisma | typeorm | none>
-
-architecture:
-  pattern: <monorepo | single-package>
-  workspaces: <list of workspace paths if monorepo>
-  entry_points:
-    frontend: <path to frontend entry>
-    backend: <path to backend entry>
+  language: <detected language>
+  runtime: <detected runtime>
+  frameworks: <detected frameworks list>
 
 commands:
-  package_manager: <bun | npm | pnpm | yarn — detected from lockfile>
-  typecheck: <e.g., "bun run typecheck" | "pnpm run typecheck:all">
-  lint: <e.g., "bun run lint" | "pnpm run check:all">
-  lint_fix: <e.g., "bun run lint:fix" | "pnpm --filter <pkg> lint:fix">
-  test: <e.g., "bun test" | "pnpm test:all">
-  format_check: <e.g., "bun run format:check" | "pnpm prettier --check">
-  format_fix: <e.g., "bun run prettier --write" | "pnpm prettier --write">
-
-conventions:
-  type_strictness:
-    banned: <list of banned patterns from CLAUDE.md>
-    allowed: <list of allowed patterns>
-    test_only: <list of test-only patterns>
-  error_handling:
-    pattern: <result | throw | either>
-    result_type_path: <path to Result type if applicable>
-  testing:
-    runner: <bun:test | vitest | jest>
-    pattern: <describe-it | describe-test>
-    file_suffix: <.test.ts | .spec.ts>
-    location: <colocated | __tests__>
-  file_organization:
-    max_lines_warning: <number>
-    max_lines_error: <number>
-    max_nesting_depth: <number>
-  code_style:
-    async_preference: <async-await | then-chains>
-    immutability: <prefer-immutable | mutable>
-    no_console_log: <boolean>
-
-phases:
-  proposal:
-    required_sections:
-      - intent
-      - scope
-      - approach
-      - affected_areas
-      - risks
-      - rollback_plan
-      - dependencies
-      - success_criteria
-  specs:
-    keywords: RFC2119
-    scenario_format: given-when-then
-    min_scenarios_per_requirement: 1
-  design:
-    required_sections:
-      - technical_approach
-      - architecture_decisions
-      - data_flow
-      - file_changes
-      - interfaces
-      - testing_strategy
-  tasks:
-    ordering: bottom-up
-    ordering_hint: ""
-    task_format: "N.M Action - file, change"
-  apply:
-    batch_size: 1
-    verify_after_each: true
-  review:
-    checklist:
-      - type_safety
-      - error_handling
-      - test_coverage
-      - naming_conventions
-  verify:
-    # Note: build commands are now in top-level `commands:` block.
-    # All phases (apply, verify, clean) read from there.
-  clean:
-    merge_specs: true
-    archive_changes: true
+  typecheck: <detected build/type check command>
+  lint: <detected lint command>
+  lint_fix: <detected lint fix command>
+  test: <detected test command>
+  format_check: <detected format check command>
+  format_fix: <detected format fix command>
 
 contracts:
-  # AUTO-ASSEMBLED from PARCER Contract blocks in each phase's SKILL.md
-  # sdd-init scans ~/.claude/skills/sdd/sdd-*/SKILL.md for ## PARCER Contract sections
-  # and merges them here. Do not edit manually — re-run /sdd:init to regenerate.
+  # Auto-assembled from PARCER Contract blocks in each phase's SKILL.md.
+  # Scan ~/.claude/skills/sdd/sdd-*/SKILL.md for ## PARCER Contract sections
+  # and merge here. Re-run /sdd:init to regenerate.
 ```
+
+The `commands` block is the most critical output — all downstream phases read it. Detect commands from `CLAUDE.md`, manifest scripts, Makefile targets, or ecosystem conventions.
 
 ### Step 6b: Assemble PARCER Contracts
 
