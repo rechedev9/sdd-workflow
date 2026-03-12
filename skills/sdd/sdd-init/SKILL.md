@@ -33,25 +33,14 @@ User runs `/sdd:init`. The project root is the current working directory. Flags:
 
 ### Step 2: Detect Technology Stack
 
-Scan the project root for manifest files to identify the primary language and ecosystem:
+Scan the project root for manifest files, lockfiles, and config files. Detect:
 
-| Manifest | Ecosystem | Lockfile → package manager |
-|---|---|---|
-| `package.json` | JS/TS (Node, Bun, Deno) | `bun.lockb` → bun, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm |
-| `go.mod` | Go | — |
-| `pyproject.toml` / `requirements.txt` | Python | `poetry.lock` → poetry, `uv.lock` → uv |
-| `Cargo.toml` | Rust | `Cargo.lock` |
-| `build.gradle` / `pom.xml` | Java/Kotlin | — |
-| `Makefile` / `CMakeLists.txt` | C/C++ | — |
+1. **Language, runtime, and package manager**
+2. **Frameworks** (frontend, backend, ORM)
+3. **Test runner, linter, and formatter**
+4. **Build/check commands** (from scripts or build system)
 
-Also read (if they exist): `docker-compose.yml` (infrastructure), `.env.example` (env vars), `CLAUDE.md` (conventions), `AGENTS.md` (code-review rules).
-
-From the project manifest and its ecosystem, extract:
-- **Language & version** (e.g., TypeScript via `tsconfig.json`, Python version from `pyproject.toml`)
-- **Frameworks** (frontend, backend, ORM — from dependencies)
-- **Test runner** (from dependencies or scripts)
-- **Linter & formatter** (from dependencies or config files)
-- **Build/check commands** (from scripts, Makefile targets, or convention)
+Also read `CLAUDE.md` (conventions) and `AGENTS.md` (code-review rules) if they exist.
 
 ### Step 3: Detect Architecture Patterns
 
