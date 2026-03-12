@@ -487,8 +487,8 @@ conversation that is about to be garbage collected.
    └─ You review specs and design
 
 3. /sdd:continue
-   └─ tasks: Phase 1 (store slice), Phase 2 (chart components),
-             Phase 3 (dashboard page), Phase 4 (routing)
+   └─ tasks: Phases determined by bottom-up analysis — e.g., types → store slice →
+             chart components → dashboard page → routing → verification
 
 4. /sdd:apply (runs each phase with build-fix loop)
    └─ Each phase: implement → typecheck → fix → next phase

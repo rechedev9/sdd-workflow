@@ -263,21 +263,16 @@ phases:
     max_files_per_task: 3  # Allow related files in one task
 ```
 
-### Custom phase ordering in tasks
+### Phase ordering in tasks
 
-For non-standard architectures, the default 5-phase ordering can be adjusted:
+Phases are determined dynamically by bottom-up analysis — the agent creates as many or as few phases as the change requires. Phase 1 always contains the lowest-level work (types, schemas, config); each subsequent phase builds on the previous. No task may reference a file created in a later phase.
+
+You can hint at domain-specific ordering via config:
 
 ```yaml
 phases:
   tasks:
-    phase_order:
-      - database        # DB schema first (for data-heavy projects)
-      - foundation      # Types and config
-      - core
-      - api             # API before UI (for backend-first teams)
-      - frontend
-      - testing
-      - cleanup
+    ordering_hint: "database schemas before types, API before frontend"
 ```
 
 ### Skipping phases

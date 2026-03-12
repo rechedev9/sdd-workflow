@@ -273,12 +273,8 @@ phases:
       - interfaces
       - testing_strategy
   tasks:
-    phase_order:
-      - foundation
-      - core
-      - integration
-      - testing
-      - cleanup
+    ordering: bottom-up
+    ordering_hint: ""
     task_format: "N.M Action - file, change"
   apply:
     batch_size: 1

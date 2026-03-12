@@ -184,12 +184,8 @@ phases:
     alternatives_per_decision: 2  # Every decision needs 2+ alternatives considered
 
   tasks:
-    phase_order:
-      - foundation               # Types, migrations, config
-      - core                     # Business logic, services
-      - integration              # Routes, UI, wiring
-      - testing                  # Unit + integration tests
-      - cleanup                  # Dead code, verification
+    ordering: bottom-up          # Phases determined dynamically by dependency analysis
+    ordering_hint: ""            # Optional: domain-specific hint (e.g., "database before API")
     task_format: "N.M Action — file, change"  # e.g., "2.1 Create — /abs/path, implement X"
     max_files_per_task: 2        # Tasks should modify 1-2 closely related files
 
