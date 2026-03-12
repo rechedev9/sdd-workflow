@@ -107,26 +107,7 @@ The `commands` block is the most critical output — all downstream phases read 
 
 ### Step 6b: Assemble PARCER Contracts
 
-The `contracts` section in `config.yaml` is NOT hardcoded. It is dynamically assembled from each phase's self-declared contract:
-
-1. **Scan** — List all directories matching `~/.claude/skills/sdd/sdd-*/`
-2. **Extract** — For each `SKILL.md` found, search for a `## PARCER Contract` section containing a YAML code block
-3. **Parse** — Extract the `phase`, `preconditions`, and `postconditions` fields from each YAML block
-4. **Merge** — Assemble all contracts into the `contracts:` section of `openspec/config.yaml`:
-   ```yaml
-   contracts:
-     explore:
-       preconditions: [...]
-       postconditions: [...]
-     propose:
-       preconditions: [...]
-       postconditions: [...]
-     # ... one entry per phase with a PARCER Contract
-   ```
-5. **Skip phases without contracts** — If a SKILL.md has no `## PARCER Contract` section, do not add an entry (the phase has no validation requirements)
-6. **Log** — Include in `phaseSpecificData.warnings` any phases found without PARCER contracts
-
-This makes the SDD ecosystem **plug-and-play**: adding a new phase (e.g., `sdd-security-audit`) only requires creating its SKILL.md with a `## PARCER Contract` block. The next `/sdd:init` run will auto-detect and register it.
+Populate the `contracts` section by scanning `~/.claude/skills/sdd/sdd-*/SKILL.md` files. For each file with a `## PARCER Contract` section, extract the YAML block and merge it into `contracts:` keyed by phase name. Skip phases without contracts.
 
 ### Step 7: Present Summary
 
