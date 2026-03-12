@@ -69,81 +69,19 @@ If proposal path is provided, read to extract:
 2. **Rollback plan**: Influences cleanup tasks.
 3. **Out-of-scope items**: Ensures tasks do not accidentally include excluded work.
 
-### Step 5: Build Dependency Graph
+### Step 5: Bottom-Up Phase Assignment
 
-Before assigning phases, build a dependency graph:
+Assign tasks to numbered phases following a strict **bottom-up** philosophy:
 
-```
-Types/Interfaces -> Business Logic -> API Handlers -> UI Components
-       |                  |                |               |
-       v                  v                v               v
-   Type Tests      Logic Tests       API Tests        UI Tests
-```
+> **Build robust base abstractions first. Make the primitives flawless so the high-level logic becomes trivial.**
 
-Rules for dependency ordering:
-- Types and interfaces have no dependencies (they come first)
-- Business logic depends on types
-- API handlers depend on business logic and types
-- UI components depend on types and may depend on API client
-- Tests depend on the code they test
-- Configuration changes (env vars, package.json) come in foundation
-- Database migrations come before code that uses new schemas
-- Cleanup tasks come last
+- Phase 1 contains the lowest-level work: types, schemas, config, shared utilities — things with zero internal dependencies.
+- Each subsequent phase builds on the previous: business logic consumes types, API/UI consumes business logic, tests consume implementations, cleanup finalizes.
+- Create as many or as few phases as the change requires. A 2-file bugfix might need 2 phases; a full-stack feature might need 6.
+- No task may reference a file created in a later phase — if it does, reorder.
+- The final phase must always include running the full verification suite and confirming proposal success criteria.
 
-### Step 6: Assign Tasks to Phases
-
-#### Phase 1: Foundation
-
-Tasks that establish the building blocks. Everything else depends on these.
-
-- Type definitions and interfaces
-- Error type variants
-- Database schema migrations
-- New dependency installation (package.json changes)
-- Configuration file updates (.env.example, config files)
-- Shared utility functions needed by multiple files
-
-#### Phase 2: Core Implementation
-
-Tasks that build the main functionality.
-
-- Business logic / service layer functions
-- Database repository functions
-- Core algorithms and data transformations
-- Validation logic
-- State management (stores, hooks)
-
-#### Phase 3: Integration and Wiring
-
-Tasks that connect components together.
-
-- API route handlers / controllers
-- Middleware (auth, validation, error handling)
-- UI components and pages
-- Provider wiring (dependency injection, context providers)
-- Event handlers and subscriptions
-
-#### Phase 4: Testing
-
-Tasks that verify the implementation.
-
-- Unit tests for types and validation (Phase 1 code)
-- Unit tests for business logic (Phase 2 code)
-- Integration tests for API endpoints (Phase 3 code)
-- UI component tests (Phase 3 code)
-- Edge case and error path tests (from spec scenarios)
-
-#### Phase 5: Cleanup
-
-Tasks that finalize the change.
-
-- Remove deprecated code identified in design
-- Update existing specs in `openspec/specs/` (merge delta specs)
-- Update documentation if affected
-- Verify all success criteria from proposal
-- Run full verification suite (typecheck, lint, test, format)
-
-### Step 7: Write Individual Tasks
+### Step 6: Write Individual Tasks
 
 Each task must follow this format:
 
@@ -191,7 +129,7 @@ Tasks use checkbox markers to track progress:
 - Re-run `/sdd:apply` for the same phase to complete `[~]` tasks before advancing to the next phase
 - A task marked `[~]` counts as 0.5 for completeness metrics
 
-### Step 8: Mark Parallelizable Tasks
+### Step 7: Mark Parallelizable Tasks
 
 Within each phase, some tasks can run in parallel. Mark them:
 
@@ -209,7 +147,7 @@ Within each phase, some tasks can run in parallel. Mark them:
 - [ ] 2.4 Modify — /abs/path/to/user.service.ts, add linkOAuthAccount method using auth.service and oauth.repository
 ```
 
-### Step 9: Add Requirement Traceability
+### Step 8: Add Requirement Traceability
 
 For each testing task, reference the spec requirement it verifies:
 
@@ -219,7 +157,7 @@ For each testing task, reference the spec requirement it verifies:
 - [ ] 4.3 Test — /abs/path/to/auth.api.test.ts, test /api/auth/oauth/callback endpoint (REQ-AUTH-001 scenario 2)
 ```
 
-### Step 10: Write tasks.md
+### Step 9: Write tasks.md
 
 Create `openspec/changes/{change_name}/tasks.md`:
 
@@ -236,7 +174,7 @@ Create `openspec/changes/{change_name}/tasks.md`:
 ## Summary
 
 - **Total Tasks**: {count}
-- **Phases**: 5
+- **Phases**: {N}
 - **Estimated Files Changed**: {count from design}
 - **Test Cases Planned**: {count from specs}
 
@@ -252,71 +190,21 @@ bun test             # Must pass all tests
 
 ---
 
-## Phase 1: Foundation ({N} tasks)
+## Phase {N}: {Phase Name} ({N} tasks)
 
-{Description of what this phase establishes}
+{Description of what this phase accomplishes}
 
-> Parallelizable: {list task numbers that can run in parallel, or "All tasks are sequential"}
+> Parallelizable: {list task numbers, or "All tasks are sequential"}
 
-- [ ] 1.1 {Action} — {file path}, {description}
-- [ ] 1.2 {Action} — {file path}, {description}
+- [ ] {N}.1 {Action} — {file path}, {description}
+- [ ] {N}.2 {Action} — {file path}, {description}
 ...
 
-**Phase 1 Checkpoint**: {What should be true after this phase completes}
+**Phase {N} Checkpoint**: {What should be true after this phase completes}
 
 ---
 
-## Phase 2: Core Implementation ({N} tasks)
-
-{Description of what this phase builds}
-
-> Parallelizable: {task numbers}
-
-- [ ] 2.1 {Action} — {file path}, {description}
-- [ ] 2.2 {Action} — {file path}, {description}
-...
-
-**Phase 2 Checkpoint**: {What should be true after this phase completes}
-
----
-
-## Phase 3: Integration and Wiring ({N} tasks)
-
-{Description of what this phase connects}
-
-> Parallelizable: {task numbers}
-
-- [ ] 3.1 {Action} — {file path}, {description}
-- [ ] 3.2 {Action} — {file path}, {description}
-...
-
-**Phase 3 Checkpoint**: {What should be true after this phase completes}
-
----
-
-## Phase 4: Testing ({N} tasks)
-
-{Description of what this phase verifies}
-
-> Parallelizable: {task numbers}
-
-- [ ] 4.1 Test — {file path}, {description} ({REQ-IDs})
-- [ ] 4.2 Test — {file path}, {description} ({REQ-IDs})
-...
-
-**Phase 4 Checkpoint**: {What should be true after this phase completes}
-
----
-
-## Phase 5: Cleanup ({N} tasks)
-
-{Description of what this phase finalizes}
-
-- [ ] 5.1 {Action} — {file path}, {description}
-- [ ] 5.2 Verify — run full verification suite (typecheck, lint, test, format)
-- [ ] 5.3 Verify — all proposal success criteria met
-
-**Phase 5 Checkpoint**: Change is complete and ready for review.
+{Repeat for each phase. The number and names of phases are determined by bottom-up analysis, not a fixed template.}
 
 ---
 
@@ -341,7 +229,7 @@ From the proposal, all must be true when tasks are complete:
 - [ ] All tests pass (`bun test`)
 ```
 
-### Step 11: Validate Task Completeness
+### Step 10: Validate Task Completeness
 
 Before returning, validate:
 
@@ -355,7 +243,7 @@ Before returning, validate:
 8. **Success criteria from proposal** are all included in the final checklist.
 9. **Cleanup phase includes spec merging** (moving delta specs to openspec/specs/ after verification).
 
-### Step 12: Present Summary
+### Step 11: Present Summary
 
 Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
@@ -372,11 +260,8 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 ### Tasks by Phase
 | Phase | Tasks | Parallelizable |
 |-------|-------|---------------|
-| 1: Foundation | {N} | {N} |
-| 2: Core | {N} | {N} |
-| 3: Integration | {N} | {N} |
-| 4: Testing | {N} | {N} |
-| 5: Cleanup | {N} | — |
+| {1}: {Name} | {N} | {N} |
+| ... | ... | ... |
 
 ### Coverage
 - **Files in design**: {N}  →  **Files with tasks**: {N}  ({coverage_percent}%)
@@ -391,7 +276,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
 1. **Tasks MUST reference specific file paths** from design.md. No vague "update the auth module" tasks.
 2. **Each task should be completable in one sdd-apply batch** -- roughly one file or one tightly related logical unit.
-3. **Phases follow strict ordering**: Foundation -> Core -> Integration -> Testing -> Cleanup. Never put a core task in foundation.
+3. **Phases follow strict bottom-up ordering.** No task may reference a file created in a later phase.
 4. **Use hierarchical numbering**: 1.1, 1.2, 2.1, 2.2. This enables precise references ("complete task 2.3").
 5. **Tasks depend on BOTH specs AND design.** Never generate tasks before both are complete.
 6. **Include testing tasks that map to spec scenarios.** Every MUST requirement needs a test task.

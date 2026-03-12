@@ -446,11 +446,10 @@ function UserProfile({ userPromise }: { userPromise: Promise<User> }) {
 Skills follow a feedback loop that makes them more complete over time:
 
 1. **Before writing code**, read the relevant SKILL.md — it is the primary source of truth for that framework
-2. **During implementation**, prefer SKILL.md over internet search. If the SKILL.md covers the topic, do not search the internet
-3. **If the SKILL.md doesn't answer the question**, search the internet — then update the SKILL.md with the finding. Internet search during implementation signals an incomplete spec
-4. **After implementation**, if new gotchas or patterns were discovered, append them to the SKILL.md
+2. **During implementation**, consult SKILL.md first but use internet search freely when needed — trust your judgment
+3. **After discoveries** (from search or implementation), update the SKILL.md so it stays complete over time
 
-This protocol is inspired by [antirez's clean room methodology](https://antirez.com/latest/0): curate documentation as a prerequisite, not a supplement. If the agent needs to search the internet during implementation, the spec is incomplete — fix the spec, not just the code. Over time, each SKILL.md converges toward completeness, and internet search during implementation drops to zero.
+This protocol is inspired by [antirez's clean room methodology](https://antirez.com/latest/0): curate documentation as a prerequisite, not a supplement. Over time, each SKILL.md converges toward completeness as discoveries are fed back into it.
 
 ### Why Lazy Loading
 

@@ -206,9 +206,8 @@ Before `/sdd:init` has run (no config.yaml exists), the orchestrator should atte
 Load framework-specific skills ONLY when working in that domain. Follow this protocol:
 
 1. **Before writing code**, read the relevant SKILL.md — it is the primary source of truth for that framework
-2. **During implementation**, prefer SKILL.md over internet search. If the SKILL.md covers the topic, do not search the internet
-3. **If the SKILL.md doesn't answer the question**, search the internet — then update the SKILL.md with the finding. Internet search during implementation signals an incomplete spec
-4. **After implementation**, if new gotchas or patterns were discovered, append them to the SKILL.md
+2. **During implementation**, consult SKILL.md first but use internet search freely when needed — trust your judgment
+3. **After discoveries** (from search or implementation), update the SKILL.md so it stays complete over time
 
 If a skill file does not exist, proceed without it.
 

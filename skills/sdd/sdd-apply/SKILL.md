@@ -218,11 +218,6 @@ Open and read the file. Then fill:
 
 Your new code MUST follow the patterns observed. Do not introduce a new style.
 
-#### 3c-bis. Check for Shared Utilities
-- Before creating a new utility type (e.g., `Result<T, E>`, validation helpers), search `src/shared/` (or the project's established shared directory) for an existing implementation.
-- If no shared `Result` type exists and the change needs one, **create it first** in `src/shared/result.ts` before any consumer module. Do not define Result types inline in feature modules.
-- If a utility is used by 2+ modules, it belongs in shared — not duplicated.
-
 #### 3d. Write Code (or Tests First if TDD)
 
 **If `--tdd` flag is set:**
@@ -274,7 +269,7 @@ In all other cases, the acceptance criteria defined in `specs/` GIVEN/WHEN/THEN 
 
 1. Use dependency injection for external resources. Modules that access DB, HTTP clients, or file system MUST accept these as constructor/factory parameters — never import a global singleton. Example: `createUserRepository(db: Database)` not `import { db } from './db'`.
 2. Aim for files under 200 lines. 600 lines is the hard maximum. If a file grows past 200 lines, consider extracting sub-components, utilities, or types into separate files. Components with inline styles or embedded sub-components SHOULD be split.
-3. Create shared utility modules before consumers — see Step 3c-bis.
+3. Extract shared utilities (used by 2+ modules) into a shared directory — never duplicate across feature modules.
 
 **Code Style**
 
@@ -467,7 +462,7 @@ Append one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` 
 11. **Security.** Never hardcode secrets. Validate external input. No `eval()` or `innerHTML`.
 12. **File size.** Aim for 200 lines per file. 600 lines hard max. Split if approaching 200.
 13. **Dependency injection.** Modules accessing external resources (DB, HTTP, FS) MUST accept them as parameters — no global singletons.
-14. **Shared utilities first.** Create shared modules (`Result`, validation, types) BEFORE the first consumer. Never define reusable types inline.
+14. **Bottom-up ordering.** Implement tasks in the order defined by tasks.md phases — base abstractions before consumers. Never define reusable types inline in feature modules.
 15. **No `console.*`.** Use the project's structured logger. Only exception: error boundaries as last resort.
 16. **Discriminated unions for state.** Multi-state objects use a discriminant field — no nullable variant-specific properties.
 17. **Fix mode is scoped.** In `mode: 'fix'`, ONLY modify files in `fixList`. No new features, no refactoring, no task progress updates. Violations of this rule cause the negotiation loop to diverge.
@@ -485,7 +480,6 @@ Append one JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` 
 | Circular dependency | Refactor to break cycle using dependency injection, note in apply-report.md |
 | File exceeds 600 lines | Split into focused modules, update imports |
 | Environment variable missing | Validate at startup with descriptive error message, never use `!` assertion |
-| No shared Result type exists | Create `src/shared/result.ts` with `ok()`/`err()` helpers before first consumer |
 | Framework skill not loaded | Apply cross-framework fallback patterns (accessibility, resilience) from this file |
 | Real-time connection drops | Implement reconnection with exponential backoff and configurable max attempts |
 | Fix mode: `fixDirection` is vague | Apply the most conservative interpretation. If unclear, add to `fixesRemaining` with `REQUIRES_HUMAN_JUDGMENT` |
