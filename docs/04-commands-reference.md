@@ -21,11 +21,10 @@ Bootstrap Spec-Driven Development for a project.
 ```
 
 **What it does:**
-- Reads `package.json`, `bun.lockb`, `tsconfig.json`, `CLAUDE.md`, `AGENTS.md`, `docker-compose.yml`
-- Detects runtime (Bun/Node/Deno/Go/Python/Rust), frameworks, database, ORM, test runner
-- Extracts conventions from `CLAUDE.md` (type strictness, error handling, testing patterns)
+- Scans manifest files, lockfiles, and config files to auto-detect the tech stack
+- Detects language, runtime, package manager, frameworks, database, ORM, test runner
+- Extracts conventions from `CLAUDE.md` if present
 - Creates `openspec/` directory structure with `config.yaml`
-- Generates `AGENTS.md` at project root if it doesn't exist (SDD context + code review rules extracted from `CLAUDE.md`)
 - Generates `contracts` section in `config.yaml` with per-phase pre/post-conditions (PARCER operational contracts)
 
 **Output:**
@@ -218,7 +217,7 @@ Semantic code review comparing implementation against specs and project rules.
 **What it checks:**
 - **Spec compliance:** Every Given/When/Then scenario covered?
 - **Design compliance:** Module boundaries, interfaces, data flow correct?
-- **AGENTS.md rules:** REJECT violations block verdict; REQUIRE violations are blocking; PREFER are advisory
+- **Convention rules:** REJECT violations block verdict; REQUIRE violations are blocking; PREFER are advisory
 - **Pattern compliance:** Naming, error handling, import style match codebase
 - **Security scan:** OWASP Top 10 patterns (injection, XSS, auth bypass, hardcoded secrets)
 
@@ -230,7 +229,7 @@ Semantic code review comparing implementation against specs and project rules.
 | SUGGESTION | PREFER not followed, minor naming, style preference | No |
 
 **v1.1 Enhancements:**
-- **Dynamic Agentic Rubric**: Before reviewing, generates a change-specific rubric from specs + design + AGENTS.md. Each criterion is scored post-review. Verdict must be consistent with rubric scores.
+- **Dynamic Agentic Rubric**: Before reviewing, generates a change-specific rubric from specs + design + project conventions. Each criterion is scored post-review. Verdict must be consistent with rubric scores.
 - **Function Tracing Table**: Every exported function touched by the change gets a row with File:Line, parameter types, return type, and verified behavior.
 - **Data Flow Analysis**: Critical data paths traced from creation through transformations to consumption, with invariants documented.
 - **Counter-Hypothesis Check**: For each critical function, actively searches for evidence the implementation could fail. Minimum one counter-hypothesis per critical function.

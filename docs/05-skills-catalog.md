@@ -19,7 +19,7 @@ Skills are loaded on demand — not all at startup.
 
 | Skill | Phase | Description | Lines |
 |---|---|---|---|
-| `sdd-init` | init | Bootstrap SDD: detect stack, create openspec/, generate config.yaml, AGENTS.md, and operational contracts | ~370 |
+| `sdd-init` | init | Bootstrap SDD: auto-detect stack, create openspec/, generate config.yaml and operational contracts | ~200 |
 | `sdd-explore` | explore | Read-only codebase investigation with risk assessment and structured exploration protocol (hypothesis-driven file analysis) | ~360 |
 | `sdd-propose` | propose | Write structured change proposal (WHAT + WHY) | ~294 |
 | `sdd-spec` | spec | Write delta specs with RFC 2119 + Given/When/Then | ~332 |

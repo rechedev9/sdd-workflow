@@ -296,7 +296,7 @@ REJECT: Magic numbers and magic strings — define named constants
 
 Rules do not exist in isolation. They are wired into the SDD pipeline at multiple points:
 
-- **`sdd-init`**: Detects `AGENTS.md` and records its path in `config.yaml`. If absent, logs a warning recommending its creation.
+- **`sdd-init`**: Detects project conventions from `CLAUDE.md` and maps them into `config.yaml`.
 - **`sdd-review`**: Loads `AGENTS.md` and checks every REJECT and REQUIRE rule against the implementation. Reports each violation with file path and line number.
 - **`sdd-verify`**: Reads `review-report.md` and counts unresolved REJECT violations. Any REJECT violation that was not resolved between review and verify causes an automatic FAIL verdict.
 - **`sdd-archive`**: Reads `review-report.md` for REJECT violations. Aborts archiving if any remain unresolved.
