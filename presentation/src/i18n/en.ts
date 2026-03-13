@@ -118,12 +118,12 @@ export const en = {
   },
   pipeline: {
     title: 'The Pipeline',
-    subtitle: '11 phases from init to archive',
+    subtitle: '11 phases \u00b7 any language, any stack',
     phases: [
       {
         name: 'init',
         description:
-          'Set up the project configuration and detect the tech stack.',
+          'Auto-detect your tech stack and generate project configuration.',
         v11: false,
       },
       {

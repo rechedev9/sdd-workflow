@@ -120,11 +120,11 @@ export const es: Translations = {
   },
   pipeline: {
     title: 'El Pipeline',
-    subtitle: '11 fases desde init hasta archive',
+    subtitle: '11 fases \u00b7 cualquier lenguaje, cualquier stack',
     phases: [
       {
         name: 'init',
-        description: 'Configura el proyecto y detecta el stack tecnológico.',
+        description: 'Detecta automáticamente tu stack tecnológico y genera la configuración del proyecto.',
         v11: false,
       },
       {
