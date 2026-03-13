@@ -149,7 +149,7 @@ export const es: Translations = {
       },
       {
         name: 'tasks',
-        description: 'Divide el diseño en una lista de implementación numerada y organizada por fases.',
+        description: 'Divide el diseño en una lista de implementación ordenada por dependencias.',
         v11: false,
       },
       {
@@ -332,7 +332,7 @@ export const es: Translations = {
         'Revisión adversarial — trazado de funciones, análisis de flujo de datos, verificación de contra-hipótesis',
         'Parada inteligente — terminación anticipada con búsqueda semántica para patrones sin salida conocidos',
         'Contratos PARCER — pre/post-condiciones formales validadas por el orquestador',
-        'Rúbricas dinámicas — criterios generados a partir de specs, diseño y AGENTS.md',
+        'Rúbricas dinámicas — criterios generados a partir de specs, diseño y project conventions',
         'Localización de fallos — diagnóstico preciso con referencias de archivo y línea',
       ],
     },

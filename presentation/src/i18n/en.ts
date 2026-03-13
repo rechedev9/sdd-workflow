@@ -153,7 +153,7 @@ export const en = {
       {
         name: 'tasks',
         description:
-          'Break the design into a numbered, phased implementation checklist.',
+          'Break the design into a dependency-ordered implementation checklist.',
         v11: false,
       },
       {
@@ -341,7 +341,7 @@ export const en = {
         'Adversarial review \u2014 function tracing, data flow analysis, counter-hypothesis check',
         'Smart EET \u2014 memory-backed early termination using semantic search for known dead-end patterns',
         'PARCER contracts \u2014 formal pre/post-conditions validated by the orchestrator',
-        'Dynamic agentic rubrics \u2014 criteria generated from specs, design, and AGENTS.md',
+        'Dynamic agentic rubrics \u2014 criteria generated from specs, design, and project conventions',
         'Fault localization \u2014 PREMISES + DIVERGENCE CLAIMS with File:Line references',
       ],
     },
