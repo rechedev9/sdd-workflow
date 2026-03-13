@@ -6,10 +6,10 @@ export const es: Translations = {
     hookLine: '147.822 líneas de TypeScript. 13 días. Un solo desarrollador.',
     hookSub: 'Esto es lo que pasa cuando dejas de hacer prompts y empiezas a orquestar.',
     title: 'SHENRON',
-    subtitle: 'Framework de Desarrollo Guiado por Especificaciones',
+    subtitle: 'Desarrollo Guiado por Especificaciones \u2014 Cualquier Stack',
     tagline: 'Reúne las specs. Invoca el código.',
     version: 'v1.1',
-    versionLabel: 'Razonamiento Semi-Formal',
+    versionLabel: 'Cualquier Stack \u00b7 Razonamiento Semi-Formal',
   },
   problem: {
     title: 'El Problema',
@@ -36,8 +36,8 @@ export const es: Translations = {
         description: 'La IA revisa su propio código — mismo autor, mismos puntos ciegos.',
       },
       {
-        title: 'Versión Incorrecta',
-        description: 'Entrenada con docs viejos, sugiere patrones obsoletos para tu stack actual.',
+        title: 'Atado a un Lenguaje',
+        description: 'Las herramientas están hardcodeadas para un lenguaje. Cambias de stack y empiezas de cero.',
       },
     ],
   },
@@ -154,7 +154,7 @@ export const es: Translations = {
       },
       {
         name: 'apply',
-        description: 'Escribe el código tarea por tarea, con verificación de build automática después de cada lote.',
+        description: 'Escribe el código siguiendo el orden bottom-up de tareas, con verificación de build automática después de cada lote.',
         v11: true,
       },
       {
@@ -407,7 +407,7 @@ export const es: Translations = {
   },
   whenToUse: {
     title: '¿Cuándo usar SDD?',
-    subtitle: 'La estructura tiene costo — no todo cambio necesita 11 fases',
+    subtitle: 'Funciona con cualquier lenguaje — la estructura escala al cambio',
     spectrum: [
       {
         level: 'Trivial',

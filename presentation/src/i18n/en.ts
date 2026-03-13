@@ -4,10 +4,10 @@ export const en = {
     hookLine: '147,822 lines of TypeScript. 13 days. One developer.',
     hookSub: 'This is what happens when you stop prompting and start orchestrating.',
     title: 'SHENRON',
-    subtitle: 'Spec-Driven Development Framework',
+    subtitle: 'Language-Agnostic Spec-Driven Development',
     tagline: 'Gather the specs. Summon the code.',
     version: 'v1.1',
-    versionLabel: 'Semi-Formal Reasoning',
+    versionLabel: 'Any Stack \u00b7 Semi-Formal Reasoning',
   },
   problem: {
     title: 'The Problem',
@@ -34,8 +34,8 @@ export const en = {
         description: 'The AI reviews its own code — same author, same blind spots.',
       },
       {
-        title: 'Wrong Version',
-        description: 'Trained on old docs, it suggests deprecated patterns for your stack.',
+        title: 'Stack Lock-in',
+        description: 'Tooling hardcodes one language. Switch stacks and you start from scratch.',
       },
     ],
   },
@@ -159,7 +159,7 @@ export const en = {
       {
         name: 'apply',
         description:
-          'Write the code, one task at a time, with automatic build verification after each batch.',
+          'Write the code following bottom-up task order, with automatic build verification after each batch.',
         v11: true,
       },
       {
@@ -416,7 +416,7 @@ export const en = {
   },
   whenToUse: {
     title: 'When to Use SDD',
-    subtitle: 'Structure has overhead \u2014 not every change needs 11 phases',
+    subtitle: 'Works with any language \u2014 structure scales to the change',
     spectrum: [
       {
         level: 'Trivial',

@@ -115,9 +115,9 @@ stored in the `openspec/` directory.
 | 3 | **propose** | Write a human-readable change proposal. Define WHAT will change and WHY. Identify scope and impact. | `openspec/changes/{name}/proposal.md` |
 | 4 | **spec** | Write delta specifications using RFC 2119 keywords (MUST/SHOULD/MAY). Define Given/When/Then scenarios for testable requirements. | `openspec/changes/{name}/specs/*/spec.md` |
 | 5 | **design** | Write technical design: HOW the change will be implemented. Architecture decisions, interfaces, data flow, component boundaries. | `openspec/changes/{name}/design.md` |
-| 6 | **tasks** | Break the design into phased, numbered implementation tasks. Each task is a concrete, verifiable unit of work. | `openspec/changes/{name}/tasks.md` |
-| 7 | **apply** | Implement code in batches, one phase at a time. Built-in build-fix loop: implement, typecheck, fix, repeat. | Modified source files + updated `openspec/changes/{name}/tasks.md` |
-| 8 | **review** | Semantic code review. Compare implementation against specs, design, and AGENTS.md rules. Flag violations. | `openspec/changes/{name}/review-report.md` |
+| 6 | **tasks** | Break the design into dependency-ordered implementation tasks using bottom-up analysis. Each task is a concrete, verifiable unit of work. | `openspec/changes/{name}/tasks.md` |
+| 7 | **apply** | Implement code following bottom-up task order. Built-in build-fix loop: implement, typecheck, fix, repeat. | Modified source files + updated `openspec/changes/{name}/tasks.md` |
+| 8 | **review** | Semantic code review. Compare implementation against specs, design, and project conventions. Flag violations. | `openspec/changes/{name}/review-report.md` |
 | 9 | **verify** | Technical quality gate: typecheck, lint, tests, static analysis, security scan. Binary pass/fail with details. | `openspec/changes/{name}/verify-report.md` |
 | 10 | **clean** | Dead code removal, duplicate elimination, simplification. Only touches code related to the change. | Modified source files + `openspec/changes/{name}/clean-report.md` |
 | 11 | **archive** | Merge delta specs into main specs. Move change artifacts to archive. Capture learnings for future sessions. | `openspec/changes/archive/{date}-{name}/` |
@@ -173,7 +173,7 @@ rubber-stamp reviews, and vague failure reports.
 |--------|------------------|--------------|
 | **Agent Teams Lite** | Context pollution — one agent tries to hold the entire project and loses coherence | The orchestrator delegates each phase to a fresh sub-agent via Claude Code's Task tool. Each sub-agent receives a clean context with only its SKILL.md and the relevant artifacts. No accumulated noise from prior phases. |
 | **Engram Persistent Memory** | Session amnesia — decisions, patterns, and bug fixes are lost when context compacts or sessions restart | SQLite + FTS5 MCP memory system. Session start calls `mem_context` to load prior decisions. Proactive `mem_save` after every decision, bug fix, and pattern discovery. Memory survives compaction, session boundaries, and even machine restarts. |
-| **Agent Review Rules** | No traceability — AI reviews its own code with no independent standard to check against | `AGENTS.md` contains machine-readable rules with RFC 2119-style prefixes (REJECT/REQUIRE/PREFER). The review sub-agent checks every rule mechanically, independent of the implementation sub-agent. |
+| **Code Review Rules** | No traceability — AI reviews its own code with no independent standard to check against | Project conventions (CLAUDE.md, config.yaml) define machine-readable rules with REJECT/REQUIRE/PREFER prefixes. The review sub-agent checks every rule mechanically, independent of the implementation sub-agent. |
 | **Framework Skills** | Framework version mistakes — models mix patterns from different versions of the same library | Lazy-loaded SKILL.md files per framework. Triggered by file extension or import detection. Each skill contains version-specific patterns, banned APIs, and correct idioms for that exact version. |
 
 ### Agent Teams Lite — In Detail
@@ -222,22 +222,19 @@ The protocol is proactive: Claude saves memories immediately after decisions, no
 asked. Topic keys use families like `architecture/*`, `bug/*`, `decision/*`, and
 `pattern/*` to organize entries and support upserts instead of duplicates.
 
-### Agent Review Rules — In Detail
+### Code Review Rules — In Detail
 
-The AGENTS.md file contains rules with RFC 2119-inspired keyword prefixes:
+Project conventions (from CLAUDE.md) and config.yaml define rules with RFC 2119-inspired keyword prefixes:
 
 ```markdown
 ## Code Quality Rules
 
-- REJECT: any use of `any` type in production code
 - REJECT: empty catch blocks without logging
 - REQUIRE: explicit return types on all exported functions
-- REQUIRE: Result<T, E> pattern for fallible operations
-- PREFER: async/await over .then() chains for multi-step flows
 - PREFER: immutable patterns with local mutation exceptions
 ```
 
-During the review phase, the sub-agent reads AGENTS.md and mechanically checks each rule
+During the review phase, the sub-agent reads project conventions and mechanically checks each rule
 against the implementation. REJECT violations are hard failures. REQUIRE violations need
 justification. PREFER violations are noted but not blocking. This creates a
 machine-readable code standard that the AI enforces consistently.
@@ -337,14 +334,6 @@ AI agents tend to read files without purpose and review code without rigor. Semi
 | **Experience-Driven Early Termination (EET)** | apply | EET framework (Jan 2026) | Build-fix loops stuck in known dead-end patterns, wasting tokens |
 | **Dynamic Agentic Rubric** | review | Agentic Rubrics + LLM-as-Judge (2026) | Reviews anchored to generic best practices instead of change-specific requirements |
 | **PARCER Operational Contracts** | init + orchestrator | PARCER governance framework (Mar 2026) | Phases launching without required inputs, inconsistent outputs |
-
-### AGENTS.md Auto-Generation
-
-`/sdd:init` now generates an `AGENTS.md` file when one doesn't exist. This file serves dual purpose:
-- **AI code review rules** (REJECT/REQUIRE/PREFER) — extracted from your `CLAUDE.md` conventions
-- **SDD global context** — so any AI agent (not just Claude Code) understands your project's SDD architecture, `openspec/` structure, and build commands
-
-See [08-advanced.md](docs/08-advanced.md) for implementation details.
 
 ---
 
@@ -495,7 +484,7 @@ conversation that is about to be garbage collected.
    └─ Sub-agent sees only tasks + spec + design + target files
 
 5. /sdd:continue
-   └─ review: Checks code against specs and AGENTS.md rules
+   └─ review: Checks code against specs and project conventions
    └─ verify: typecheck pass, lint pass, tests pass
    └─ clean: Removes unused imports, dead code from migration
    └─ archive: Specs merged, change archived with learnings
@@ -610,7 +599,7 @@ build validation, code simplification, refactor cleaning, environment diagnostic
 | [04 - Commands Reference](docs/04-commands-reference.md) | Full command reference with options and usage examples |
 | [05 - Skills Catalog](docs/05-skills-catalog.md) | How framework skills work, how to create new ones, skill anatomy |
 | [06 - Comparisons](docs/06-comparisons.md) | SDD vs standard workflows, tradeoffs, and when to use each approach |
-| [07 - Configuration](docs/07-configuration.md) | `openspec/config.yaml`, CLAUDE.md setup, AGENTS.md rules, MCP config |
+| [07 - Configuration](docs/07-configuration.md) | `openspec/config.yaml`, CLAUDE.md setup, review rules, MCP config |
 | [08 - Advanced](docs/08-advanced.md) | Advanced usage, customization, and extending SDD — Semi-Formal Reasoning, EET, Agentic Rubrics, PARCER Contracts |
 | [CLAUDE.md Snippet](claude-md-snippet.md) | Ready-to-paste orchestrator protocol for your project's CLAUDE.md |
 
@@ -719,7 +708,7 @@ your-project/
           archive-manifest.md
           ...               # All phase artifacts preserved
   CLAUDE.md                 # Project instructions + SDD protocol
-  AGENTS.md                 # Review rules (REJECT/REQUIRE/PREFER)
+  CLAUDE.md                 # Project conventions + review rules (REJECT/REQUIRE/PREFER)
 ```
 
 ---

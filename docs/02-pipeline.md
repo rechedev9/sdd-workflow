@@ -1,4 +1,4 @@
-# The SDD Pipeline: 11 Phases from Idea to Archive
+# The SDD Pipeline: 11 Language-Agnostic Phases from Idea to Archive
 
 ## Introduction
 
@@ -44,7 +44,7 @@ Note that spec and design are parallel branches that both depend on proposal.md 
 | design  | /sdd:continue    | proposal.md                        | design.md                                    |
 | tasks   | /sdd:continue    | spec + design                      | tasks.md                                     |
 | apply   | /sdd:apply       | tasks + design + specs             | source code, updated tasks.md                |
-| review  | /sdd:review      | source code, specs, design, AGENTS.md | review-report.md                          |
+| review  | /sdd:review      | source code, specs, design, conventions | review-report.md                          |
 | verify  | /sdd:verify      | source code, tasks, specs          | verify-report.md                             |
 | clean   | /sdd:clean       | source code, verify-report         | clean-report.md                              |
 | archive | /sdd:archive     | all artifacts, verify-report       | archived change, updated openspec/specs/     |
@@ -58,11 +58,10 @@ Note that spec and design are parallel branches that both depend on proposal.md 
 **Purpose**: Bootstrap SDD for a project — detect stack, create the `openspec/` directory, and generate `config.yaml`.
 
 **What the sub-agent does**:
-- Reads `package.json`, `bun.lockb`, `tsconfig.json`, `CLAUDE.md`, `AGENTS.md`, `docker-compose.yml`, and similar root-level configuration files
-- Detects runtime (Bun, Node, Deno, Go, Python, Rust) and framework(s) in use (Next.js, Express, Django, etc.)
-- Identifies database technology and ORM if present (Postgres + Drizzle, MySQL + Prisma, SQLite + Kysely, etc.)
-- Extracts project conventions from `CLAUDE.md`: type strictness rules, error handling patterns, testing patterns, banned constructs
-- Records the presence and path of `AGENTS.md` if it exists (used later by sdd-review)
+- Scans manifest files, lockfiles, and config files to auto-detect the tech stack
+- Detects language, runtime, package manager, and framework(s) in use
+- Identifies database technology and ORM if present
+- Extracts project conventions from `CLAUDE.md` if it exists
 - Creates the `openspec/` directory tree: `openspec/`, `openspec/specs/`, `openspec/changes/`, `openspec/changes/archive/`
 - Writes `config.yaml` with all detected information
 
@@ -73,39 +72,26 @@ Note that spec and design are parallel branches that both depend on proposal.md 
 
 **Output artifact**: `openspec/config.yaml`
 
-**v1.1 Enhancements**: Two additions: (1) **AGENTS.md Auto-Generation** (Step 5b) — if no AGENTS.md exists, sdd-init generates one combining AI code review rules (REJECT/REQUIRE/PREFER extracted from CLAUDE.md) with SDD global context (pipeline overview, openspec/ directory purpose, build commands). (2) **PARCER Operational Contracts** — config.yaml now includes a `contracts` section with formal pre/post-conditions for every phase, validated by the orchestrator before launching sub-agents.
+**v1.1 Enhancements**: **PARCER Operational Contracts** — config.yaml now includes a `contracts` section with formal pre/post-conditions for every phase, validated by the orchestrator before launching sub-agents.
 
-**Example config.yaml**:
+**Example config.yaml** (auto-detected for a TypeScript/Bun project — values vary by stack):
 ```yaml
 project:
   name: my-saas-app
   root: /Users/dev/projects/my-saas-app
 
-runtime:
-  name: bun
-  version: "1.1.0"
+stack:
+  language: typescript
+  runtime: bun
 
-frameworks:
-  - next.js@15
-  - react@19
-
-database:
-  engine: postgresql
-  orm: drizzle
+commands:
+  typecheck: bun run typecheck
+  lint: bun run lint
+  test: bun test
+  format_check: bun run format:check
 
 conventions:
-  type_strictness:
-    banned: ["any", "as Type", "@ts-ignore", "@ts-expect-error"]
-    allowed: ["as const", "satisfies", "unknown"]
-  error_handling: result-pattern
-  test_runner: bun:test
-  test_extension: .test.ts
-  max_file_lines: 800
-  max_nesting: 3
-
-agents_md: ./AGENTS.md
-specs_dir: ./openspec/specs
-changes_dir: ./openspec/changes
+  # Mapped from CLAUDE.md if present
 ```
 
 ---
@@ -273,13 +259,13 @@ Then the response body MUST be identical to REQ-AUTH-001 scenario response
 **What the sub-agent does**:
 - Documents architecture decisions with alternatives that were considered and rejected
 - Draws ASCII data flow diagrams showing the path through the system for key scenarios
-- Writes TypeScript interface definitions — actual compilable types, not pseudocode
+- Writes type/interface definitions in the project's language — actual compilable types, not pseudocode
 - Produces a file changes table listing every file that will be created, modified, or deleted, with absolute paths
 - Maps each design decision back to spec requirements (REQ-AUTH-001 → LoginService.authenticate())
 - Writes a testing strategy: which test types (unit, integration, E2E) cover which spec requirements
 
 **Key rules**:
-- Interface definitions must be compilable TypeScript. They will be copy-pasted into implementation.
+- Interface/type definitions must be valid in the project's language. They will be copy-pasted into implementation.
 - The file changes table must be exhaustive. Files not in the table should not be modified during apply.
 - Design decisions must reference the spec requirement they satisfy.
 
@@ -391,18 +377,18 @@ interface SessionToken {
 - Before modifying any file: reads the existing file to understand its structure, naming patterns, and import style
 - Uses spec scenarios as acceptance criteria: if implementing a function, the scenarios for that function are the definition of correct behavior
 - Marks tasks `[x]` as completed in tasks.md immediately after implementing them
-- Runs a build-fix loop after each batch:
-  1. `bun run typecheck` — fix type errors
-  2. `bun run lint` — fix lint violations
-  3. `bun test` — fix failing tests
-  4. `bun run format:check` — fix formatting
+- Runs a build-fix loop after each batch using commands from config.yaml:
+  1. Typecheck — fix type errors
+  2. Lint — fix lint violations
+  3. Test — fix failing tests
+  4. Format check — fix formatting
   - Maximum 5 fix attempts per error before escalating to the user
 - Supports `--tdd` flag: writes a failing test first, confirms it fails, then implements the code to make it pass
 - Supports `--phase N` flag to run only a specific phase (e.g., `--phase 2` for Core only)
 - Supports `--fix-only` flag to only run the build-fix loop without writing new code
 
 **Key rules**:
-- Never suppresses type errors. No `any`, no `as Type` assertions, no `@ts-ignore`, no `@ts-expect-error`.
+- Never suppresses type errors or compiler warnings. Follow the strictest settings available for the project's language.
 - If the design contradicts the spec, follow the spec and note the deviation in a comment in tasks.md.
 - Never modifies files not listed in the design's file changes table without explicit justification.
 - If a build-fix loop exceeds 5 attempts for the same error, stop and report the issue rather than trying increasingly creative workarounds.
@@ -427,10 +413,10 @@ interface SessionToken {
 
 **Design compliance**:
 - Are module boundaries respected (no direct DB access outside repositories)?
-- Do implemented interfaces match the TypeScript interfaces in design.md?
+- Do implemented interfaces match the type definitions in design.md?
 - Does the data flow match the ASCII diagram in design.md?
 
-**AGENTS.md rule enforcement**:
+**Convention rule enforcement**:
 - **REJECT violations** — any match causes an immediate FAILED verdict. The review report lists the exact violation, the rule, and the file/line.
 - **REQUIRE violations** — missing required elements cause a FAILED verdict.
 - **PREFER violations** — noted as advisory items in the report, do not block the verdict.
@@ -453,7 +439,7 @@ interface SessionToken {
 
 **Output artifact**: `openspec/changes/{name}/review-report.md`
 
-**v1.1 Enhancements**: Two additions: (1) **Dynamic Agentic Rubric** (Step 2b) — before reviewing code, the agent generates a change-specific rubric from specs, design.md, and AGENTS.md, then scores each criterion post-review. This anchors evaluation to actual requirements. (2) **Semi-Formal Certificate** (Steps 3h–3j) — function tracing table, data flow analysis, and counter-hypothesis check force the agent to trace every function signature, map data flow with invariants, and actively search for evidence the implementation could fail.
+**v1.1 Enhancements**: Two additions: (1) **Dynamic Agentic Rubric** (Step 2b) — before reviewing code, the agent generates a change-specific rubric from specs, design.md, and project conventions, then scores each criterion post-review. This anchors evaluation to actual requirements. (2) **Semi-Formal Certificate** (Steps 3h–3j) — function tracing table, data flow analysis, and counter-hypothesis check force the agent to trace every function signature, map data flow with invariants, and actively search for evidence the implementation could fail.
 
 **Example review-report.md excerpt**:
 ```markdown
@@ -474,7 +460,7 @@ interface SessionToken {
 
 ### PREFER Advisory
 
-- [ ] Consider branded type `UserId` instead of `string` for user.id (AGENTS.md:PREFER-003)
+- [ ] Consider branded type `UserId` instead of `string` for user.id (PREFER-003)
 ```
 
 ---
@@ -485,21 +471,21 @@ interface SessionToken {
 
 **What the sub-agent runs**:
 
-**Build checks**:
-- `bun run typecheck` — zero type errors required
-- `bun run lint` — zero lint violations required
-- `bun run format:check` — zero formatting violations required
-- `bun test` — all tests pass, no test failures
+**Build checks** (commands sourced from config.yaml):
+- Typecheck — zero type errors required
+- Lint — zero lint violations required
+- Format check — zero formatting violations required
+- Test — all tests pass, no test failures
 
 **Static analysis** (code-level pattern scan):
-- Banned constructs: `any`, type assertions (`as Type`), compiler suppressions (`@ts-ignore`, `@ts-expect-error`), non-null assertions (`!`)
+- Banned constructs as defined by the project's conventions and language strictness settings
 - Each violation is reported with file path and line number
 
 **Security scan**:
 - Hardcoded secrets (regex patterns for common API key formats, passwords in strings)
-- Injection risks (string-concatenated queries, `eval()`, `new Function()`)
-- XSS vectors (`innerHTML`, `dangerouslySetInnerHTML` with non-static content)
-- Dependency audit: `bun audit` or equivalent
+- Injection risks (string-concatenated queries, dynamic code execution with untrusted input)
+- Language-specific vulnerability patterns (XSS for web frontends, SQL injection for backends, etc.)
+- Dependency audit using the project's package manager
 
 **Completeness check**:
 - Tasks completion percentage: `[x]` tasks / total tasks
@@ -551,7 +537,7 @@ interface SessionToken {
   - `x !== null && x !== undefined ? x : defaultValue` → `x ?? defaultValue`
   - `arr.filter(fn).length > 0` → `arr.some(fn)`
   - Nested ternaries → early returns or switch expressions
-- Verifies after each removal: runs `bun run typecheck` and `bun test` to confirm nothing broke
+- Verifies after each removal: runs typecheck and test commands to confirm nothing broke
 
 **Scope boundaries** — clean is limited to:
 - Files listed in the design's file changes table
@@ -566,7 +552,7 @@ interface SessionToken {
 
 **Key rules**:
 - Clean runs after verify has passed. If verify-report is FAIL, clean is blocked.
-- Every cleanup must be followed immediately by `bun run typecheck && bun test` to confirm no regressions.
+- Every cleanup must be followed immediately by running typecheck and test commands to confirm no regressions.
 - If a cleanup introduces a test failure, it is reverted rather than fixed.
 
 **Output artifact**: `openspec/changes/{name}/clean-report.md`
