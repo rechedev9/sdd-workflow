@@ -33,14 +33,12 @@ User runs `/sdd:init`. The project root is the current working directory. Flags:
 
 ### Step 2: Detect Technology Stack
 
-Scan the project root for manifest files, lockfiles, and config files. Detect:
+Scan the project root for manifest files, lockfiles, and config files. If no manifest file is found (`package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, or equivalent), report an error and suggest manual configuration. Detect:
 
 1. **Language, runtime, and package manager**
 2. **Frameworks** (frontend, backend, ORM)
 3. **Test runner, linter, and formatter**
 4. **Build/check commands** (from scripts or build system)
-
-Also read `CLAUDE.md` (conventions) if it exists.
 
 ### Step 3: Detect Architecture Patterns
 
@@ -48,13 +46,8 @@ Determine:
 
 1. **Monorepo vs single-package** (workspace configs, multiple build targets)
 2. **Frontend/backend split** (separate entry points, directory structure)
-3. **Database and ORM** (from dependencies and infrastructure config)
 
-### Step 4: Capture Conventions
-
-Map conventions from `CLAUDE.md` (if present) into the `config.yaml` `conventions` section.
-
-### Step 5: Create Directory Structure
+### Step 4: Create Directory Structure
 
 Create the following directories and files:
 
@@ -69,8 +62,7 @@ openspec/
       .gitkeep
 ```
 
-
-### Step 6: Generate config.yaml
+### Step 5: Generate config.yaml
 
 Generate `openspec/config.yaml` with the following sections:
 
@@ -103,13 +95,13 @@ contracts:
   # and merge here. Re-run /sdd:init to regenerate.
 ```
 
-The `commands` block is the most critical output — all downstream phases read it. Detect commands from `CLAUDE.md`, manifest scripts, Makefile targets, or ecosystem conventions.
+The `commands` block is the most critical output — all downstream phases read it. Detect commands from `CLAUDE.md`, manifest scripts, Makefile targets, or ecosystem conventions. Also map conventions from `CLAUDE.md` (if present) into the config. Never include secrets or environment variable values — only reference variable names.
 
-### Step 6b: Assemble PARCER Contracts
+### Step 5b: Assemble PARCER Contracts
 
 Populate the `contracts` section by scanning `~/.claude/skills/sdd/sdd-*/SKILL.md` files. For each file with a `## PARCER Contract` section, extract the YAML block and merge it into `contracts:` keyed by phase name. Skip phases without contracts.
 
-### Step 7: Present Summary
+### Step 6: Present Summary
 
 Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
@@ -135,27 +127,3 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
 **Next step**: Run `/sdd:explore <topic>` to investigate an area, or `/sdd:new <change-name> "<intent>"` to start a change.
 ```
-
-If already initialized and `--force` was not set: output a short note that `openspec/` already exists and suggest `/sdd:new` to start a change.
-If `--dry-run` was set: output what would be created without having written any files.
-
-## Rules and Constraints
-
-1. **Read-only analysis of the project** -- only create files inside `openspec/`.
-2. **Never modify existing project files** -- no changes to `package.json`, `tsconfig.json`, etc.
-3. **If `openspec/` already exists and `force` is false**, do not overwrite. Read and report state.
-4. **Support monorepo detection** -- Bun workspaces, npm workspaces, pnpm workspaces, Turborepo, Nx.
-5. **The `config.yaml` must capture ALL conventions from `CLAUDE.md`** if it exists. Do not skip any rules.
-6. **Use absolute paths** in all output references.
-7. **If `dry_run` is true**, present a summary describing what would be created without actually writing files.
-8. **Timestamp all generated files** with ISO 8601 format.
-9. **Never include secrets or environment variable values** in config.yaml -- only reference variable names.
-10. **If detection is uncertain**, include a `warnings` list in the summary output explaining what could not be auto-detected.
-
-## Error Handling
-
-- If the project root does not exist: return `status: error` with message.
-- If no `package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, or equivalent is found: return `status: error` with message suggesting manual configuration.
-- If file read fails: log the file path and continue with partial detection.
-- All errors must include the phase name (`init`) and a human-readable message.
-
