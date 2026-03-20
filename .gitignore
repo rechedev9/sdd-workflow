@@ -22,3 +22,8 @@ scripts/
 
 # Go build
 sdd-cli/bin/
+
+# Internal planning docs (not distributed)
+roadmap.md
+TODOS.md
+*.txt
