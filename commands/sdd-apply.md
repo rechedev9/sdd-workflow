@@ -95,9 +95,3 @@ sdd write <name> apply
 
 Loop: get context -> sub-agent -> promote for each incomplete phase. Stop if any task is BLOCKED.
 
-## Why build-check per task?
-
-- **Cost:** ~0 tokens (it's a shell command the sub-agent runs)
-- **Benefit:** Errors caught at the source, not 3 phases later
-- **Without it:** A typo in task 2 cascades into 8 errors by task 6, and the sub-agent wastes tokens debugging the cascade instead of the typo
-- **With it:** Each task is verified green before moving on. If task 3 breaks, you know it's task 3's code, not a cascade from task 1
