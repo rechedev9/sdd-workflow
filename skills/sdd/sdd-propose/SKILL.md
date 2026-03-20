@@ -2,7 +2,7 @@
 name: sdd-propose
 description: >
   Create a change proposal from exploration analysis. Produces proposal.md with intent, scope, approach, risks, and rollback plan.
-  Trigger: When user runs /sdd:new or after sdd-explore completes successfully.
+  Trigger: When user runs /sdd-new or after sdd-explore completes successfully.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **propose** phase inline. A proposal is the human-readable
 
 ## Activation
 
-User runs `/sdd:new <change-name> "<intent>"`. The change name must be kebab-case. Reads `openspec/changes/{changeName}/exploration.md` if it exists.
+User runs `/sdd-new <change-name> "<intent>"`. The change name must be kebab-case. Reads `openspec/changes/{changeName}/exploration.md` if it exists.
 
 ## Execution Steps
 
@@ -89,7 +89,7 @@ data:
   message: "Cannot write proposal — {N} blocking question(s) require your input. Please answer and re-invoke."
 ```
 
-Present these questions to the user. When they provide answers, re-run `/sdd:new` with the answers incorporated.
+Present these questions to the user. When they provide answers, re-run `/sdd-new` with the answers incorporated.
 
 #### 2b-3. Incorporate Answers
 
@@ -283,7 +283,7 @@ If blocking clarification questions exist (status: PARTIAL), output the question
 {If warnings: ### ⚠ Warnings\n{warnings list}\n}
 {If large change: ### ⚠ Size Warning\nThis change is large. Consider splitting into: {split suggestions}\n}
 
-**Next step**: Review `openspec/changes/{change_name}/proposal.md`. When satisfied, run `/sdd:spec` and `/sdd:design` (these can run in parallel, each in its own session).
+**Next step**: Review `openspec/changes/{change_name}/proposal.md`. When satisfied, run `/sdd-spec` and `/sdd-design` (these can run in parallel, each in its own session).
 ```
 
 **On PARTIAL (blocking questions):**
@@ -298,7 +298,7 @@ Cannot write proposal — {N} blocking question(s) require your input.
 - **Options**: A: {option} → {consequence} | B: {option} → {consequence}
 - **Recommendation**: {default}
 
-Re-run `/sdd:new {change_name} "<intent>"` after answering.
+Re-run `/sdd-new {change_name} "<intent>"` after answering.
 ```
 
 ## Rules and Constraints

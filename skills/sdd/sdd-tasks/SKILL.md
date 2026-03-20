@@ -2,7 +2,7 @@
 name: sdd-tasks
 description: >
   Break design into phased, numbered implementation checklist. Tasks are grouped by phase and small enough for one session.
-  Trigger: When both sdd-spec and sdd-design are complete, or when user runs /sdd:continue.
+  Trigger: When both sdd-spec and sdd-design are complete, or when user runs /sdd-continue.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **tasks** phase inline. You transform the technical design
 
 ## Activation
 
-User runs `/sdd:continue` after both spec and design are complete. Reads `openspec/changes/{changeName}/design.md`, all spec files in `openspec/changes/{changeName}/specs/`, and `proposal.md` for context.
+User runs `/sdd-continue` after both spec and design are complete. Reads `openspec/changes/{changeName}/design.md`, all spec files in `openspec/changes/{changeName}/specs/`, and `proposal.md` for context.
 
 ## Prerequisites
 
@@ -101,7 +101,7 @@ Action verbs: Create (new file), Add (to existing file), Modify (change signatur
 
 - `[ ]` Pending — not started
 - `[x]` Complete — fully implemented and verified
-- `[~]` Partial — started but not finished. Remaining work listed in apply-report.md. Counts as 0.5 for metrics. Re-run `/sdd:apply` for the same phase before advancing.
+- `[~]` Partial — started but not finished. Remaining work listed in apply-report.md. Counts as 0.5 for metrics. Re-run `/sdd-apply` for the same phase before advancing.
 
 ### Step 7: Mark Parallelizable Tasks
 
@@ -231,7 +231,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
 {If warnings: ### ⚠ Warnings\n- {warning}\n}
 
-**Next step**: Review `openspec/changes/{change_name}/tasks.md`. When ready, run `/sdd:apply --phase 1` to begin implementation (start a fresh session with `/clear` first).
+**Next step**: Review `openspec/changes/{change_name}/tasks.md`. When ready, run `/sdd-apply --phase 1` to begin implementation (start a fresh session with `/clear` first).
 ```
 
 ## Rules and Constraints

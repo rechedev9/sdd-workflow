@@ -1,4 +1,4 @@
-# /sdd:explore — Investigate Codebase
+# /sdd-explore — Investigate Codebase
 
 Read-only exploration of a codebase area or idea. Produces analysis with risk assessment. Does not modify state.
 
@@ -58,6 +58,6 @@ sdd write <change-name> explore
 2. Affected areas table (file path, impact)
 3. Recommendation
 4. Risks
-5. Suggested next step: `/sdd:new <name>` to start a change based on this exploration
+5. Suggested next step: `/sdd-new <name>` to start a change based on this exploration
 
 Do not ask questions during execution. Run autonomously and report.

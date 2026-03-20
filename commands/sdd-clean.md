@@ -1,4 +1,4 @@
-# /sdd:clean — Dead Code Removal & Simplification
+# /sdd-clean — Dead Code Removal & Simplification
 
 Remove dead code, consolidate duplicates, simplify complexity in files touched by the change.
 
@@ -23,7 +23,7 @@ This assembles: review report issues, affected file contents, and the sdd-clean 
 ### Step 2: Validate
 
 Check that verify-report.md exists in the change directory and shows PASS or PASS WITH WARNINGS.
-If FAIL, refuse and suggest `/sdd:verify --fix` first.
+If FAIL, refuse and suggest `/sdd-verify --fix` first.
 
 ### Step 3: Launch sub-agent
 
@@ -56,7 +56,7 @@ sdd write <name> clean
 2. Lines removed
 3. Complexity improvements
 4. Build status after cleanup
-5. Next step: `/sdd:archive {change-name}`
+5. Next step: `/sdd-archive {change-name}`
 
 ### Dry-Run Mode
 

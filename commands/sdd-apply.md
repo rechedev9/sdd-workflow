@@ -1,4 +1,4 @@
-# /sdd:apply — Implement Code
+# /sdd-apply — Implement Code
 
 Write actual code following the specs and design. Works one task batch at a time from tasks.md.
 
@@ -56,7 +56,7 @@ sdd write <name> apply
 1. Tasks completed count
 2. Build status (typecheck, lint, tests)
 3. Any deviations from design
-4. Next step: `/sdd:apply` again if tasks remain, or `/sdd:review` if all done
+4. Next step: `/sdd-apply` again if tasks remain, or `/sdd-review` if all done
 
 ### Step 5: If --all mode
 

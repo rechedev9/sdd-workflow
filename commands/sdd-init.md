@@ -1,4 +1,4 @@
-# /sdd:init — Bootstrap Spec-Driven Development
+# /sdd-init — Bootstrap Spec-Driven Development
 
 Initialize SDD in the current project. Detects tech stack and creates the `openspec/` directory structure.
 
@@ -21,6 +21,6 @@ Parse the JSON output from stdout. Show the user:
 1. Detected tech stack (language, build tool, manifests)
 2. Created directory structure
 3. Config.yaml location
-4. Recommended next step: `/sdd:new <change-name> <description>`
+4. Recommended next step: `/sdd-new <change-name> <description>`
 
 If it fails, show the error from stderr JSON and suggest fixes (e.g., "no manifest found — create a go.mod/package.json first").

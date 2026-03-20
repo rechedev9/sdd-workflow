@@ -1,4 +1,4 @@
-# /sdd:review — Semantic Code Review
+# /sdd-review — Semantic Code Review
 
 Compare implementation against specs, design, and project rules. Reports issues but does NOT fix them.
 
@@ -53,5 +53,5 @@ sdd write <name> review
 4. **Design deviations**
 5. **Suggestions** (PREFER, non-blocking)
 6. Next step:
-   - If PASS: `/sdd:verify {change-name}`
-   - If FAIL: `/sdd:apply --fix-only {change-name}` then re-review
+   - If PASS: `/sdd-verify {change-name}`
+   - If FAIL: `/sdd-apply --fix-only {change-name}` then re-review

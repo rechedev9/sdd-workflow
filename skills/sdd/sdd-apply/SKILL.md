@@ -2,7 +2,7 @@
 name: sdd-apply
 description: >
   Implement code following specs and design. Works in batches (one phase at a time). Includes build-fix loop.
-  Trigger: When user runs /sdd:apply or after sdd-tasks completes.
+  Trigger: When user runs /sdd-apply or after sdd-tasks completes.
 license: MIT
 metadata:
   version: "2.0"
@@ -147,7 +147,7 @@ Present a markdown summary, then STOP.
 {If manual review: ### Manual Review Required\n- {file}: {reason}}
 
 **Artifact**: `apply-report.md`
-**Next step**: {/sdd:apply --phase {N+1} | /sdd:review | manual fix needed}
+**Next step**: {/sdd-apply --phase {N+1} | /sdd-review | manual fix needed}
 ```
 
 ---

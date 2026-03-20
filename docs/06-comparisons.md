@@ -80,7 +80,7 @@ Problems discovered later:
 ### SDD Workflow
 
 ```
-/sdd:new add-csv-export "Export workout data as CSV files"
+/sdd-new add-csv-export "Export workout data as CSV files"
 ```
 
 **Phase: explore**
@@ -285,7 +285,7 @@ Nobody wrote down the investigation path. Nobody will prevent this next time.
 ### SDD Workflow
 
 ```
-/sdd:explore "random user logouts — investigate auth session flow"
+/sdd-explore "random user logouts — investigate auth session flow"
 ```
 
 The explore sub-agent performs a structured investigation:
@@ -329,7 +329,7 @@ mem_save({
 ```
 
 ```
-/sdd:new fix-session-ttl-mismatch "Fix JWT/Redis TTL mismatch causing random logouts"
+/sdd-new fix-session-ttl-mismatch "Fix JWT/Redis TTL mismatch causing random logouts"
 
 propose:
   Root cause: documented (TTL mismatch, not race condition)
@@ -419,7 +419,7 @@ Problem 4 — test coverage gap:
 ### SDD Workflow
 
 ```
-/sdd:explore "auth module structure — preparing for split"
+/sdd-explore "auth module structure — preparing for split"
 ```
 
 The explore sub-agent uses Grep to find all consumers, not just the ones that are obvious:
@@ -467,7 +467,7 @@ Risk summary:
 The explore report is presented to the user before any code is written.
 
 ```
-/sdd:new refactor-auth-split "Split auth module into auth-session, auth-oauth, auth-tokens"
+/sdd-new refactor-auth-split "Split auth module into auth-session, auth-oauth, auth-tokens"
 
 propose:
   Scope IN:
@@ -576,7 +576,7 @@ Author: "I don't know, different sessions"
 
 ```
 Day 1 (Session 1):
-/sdd:new add-billing-module "Add Stripe-based subscription billing"
+/sdd-new add-billing-module "Add Stripe-based subscription billing"
 ```
 
 **Phase: explore**
@@ -643,7 +643,7 @@ mem_context("billing stripe") loads:
 → "Error handling: Result<T,E> — no throws from services"
 → "Log prefix: [billing]"
 
-/sdd:apply add-billing-module --phase 2
+/sdd-apply add-billing-module --phase 2
 
 apply sub-agent reads design.md (single source of truth):
 → subscription.service.ts: uses Result<T,E> (consistent)

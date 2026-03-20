@@ -1,4 +1,4 @@
-# /sdd:verify — Technical Quality Gate
+# /sdd-verify — Technical Quality Gate
 
 Run typecheck, lint, and tests. This is a **zero-token** operation when all checks pass — runs entirely in Go.
 
@@ -30,7 +30,7 @@ This runs build/lint/test commands from config.yaml in sequence, writes `verify-
   echo "# Verify Report\n\nAll checks passed." > openspec/changes/{change-name}/.pending/verify.md
   sdd write <name> verify
   ```
-- Suggest next step: `/sdd:clean {change-name}`
+- Suggest next step: `/sdd-clean {change-name}`
 
 **If failed:**
 - Show verify-report.md with error details (command, exit code, first 30 error lines)
@@ -39,7 +39,7 @@ This runs build/lint/test commands from config.yaml in sequence, writes `verify-
   2. Re-run `sdd verify <name>`
   3. Max 3 fix-verify cycles
   4. Report final status
-- Otherwise suggest: `/sdd:apply --fix-only {change-name}` then re-verify
+- Otherwise suggest: `/sdd-apply --fix-only {change-name}` then re-verify
 
 ### Step 3: If --fix mode
 

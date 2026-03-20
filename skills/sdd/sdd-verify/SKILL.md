@@ -2,7 +2,7 @@
 name: sdd-verify
 description: >
   Technical quality gate. Runs build checks, tests, static analysis, security audit. Compares implementation completeness against tasks/specs.
-  Trigger: When user runs /sdd:verify or after sdd-review passes.
+  Trigger: When user runs /sdd-verify or after sdd-review passes.
 license: MIT
 metadata:
   version: "2.0"
@@ -10,11 +10,11 @@ metadata:
 
 # SDD Verify — Technical Quality Gate
 
-You are executing the **verify** phase inline. Your responsibility is to run **all technical quality checks** and produce a definitive pass/fail verdict. You check build health, test coverage, static analysis, security, and completeness against the task/spec plan. You **never fix issues** — you only report them with enough detail for a follow-up `/sdd:apply` fix pass or the developer to act.
+You are executing the **verify** phase inline. Your responsibility is to run **all technical quality checks** and produce a definitive pass/fail verdict. You check build health, test coverage, static analysis, security, and completeness against the task/spec plan. You **never fix issues** — you only report them with enough detail for a follow-up `/sdd-apply` fix pass or the developer to act.
 
 ## Activation
 
-User runs `/sdd:verify [--fuzz]`. Reads `tasks.md`, spec files, `design.md`, and optionally `review-report.md` from disk.
+User runs `/sdd-verify [--fuzz]`. Reads `tasks.md`, spec files, `design.md`, and optionally `review-report.md` from disk.
 
 ## Inputs
 
@@ -27,7 +27,7 @@ Read from disk:
 | `specs/` | `openspec/changes/{changeName}/specs/` |
 | `design.md` | `openspec/changes/{changeName}/design.md` |
 | `review-report.md` | `openspec/changes/{changeName}/review-report.md` (optional, if review ran) |
-| `--fuzz` flag | Passed via CLI when user runs `/sdd:verify --fuzz` |
+| `--fuzz` flag | Passed via CLI when user runs `/sdd-verify --fuzz` |
 
 ---
 
@@ -298,10 +298,10 @@ Present a markdown summary to the user, then STOP:
 
 **Artifact**: `openspec/changes/{changeName}/verify-report.md`
 
-{If PASS: **Next step**: Run `/sdd:clean` to remove dead code, or `/sdd:archive` to close the change.}
-{If PASS_WITH_WARNINGS: **Next step**: Review warnings above. Run `/sdd:clean` or `/sdd:archive` when satisfied.}
-{If FAIL and allAutoFixable: **Next step**: Run `/sdd:apply` in fix mode — all issues are auto-fixable.}
-{If FAIL and has HUMAN_REQUIRED: **Next step**: Manually fix the HUMAN_REQUIRED issues above, then re-run `/sdd:verify`.}
+{If PASS: **Next step**: Run `/sdd-clean` to remove dead code, or `/sdd-archive` to close the change.}
+{If PASS_WITH_WARNINGS: **Next step**: Review warnings above. Run `/sdd-clean` or `/sdd-archive` when satisfied.}
+{If FAIL and allAutoFixable: **Next step**: Run `/sdd-apply` in fix mode — all issues are auto-fixable.}
+{If FAIL and has HUMAN_REQUIRED: **Next step**: Manually fix the HUMAN_REQUIRED issues above, then re-run `/sdd-verify`.}
 ```
 
 ---

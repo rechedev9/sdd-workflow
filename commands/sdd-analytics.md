@@ -1,4 +1,4 @@
-# /sdd:analytics — Quality Analytics (Post-MVP)
+# /sdd-analytics — Quality Analytics (Post-MVP)
 
 Analyze the quality timeline for a change. This command is a **post-MVP stub**.
 

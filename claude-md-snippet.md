@@ -27,15 +27,15 @@ Use these slash commands (they use the `sdd` CLI under the hood):
 
 | Command | Description |
 |---------|-------------|
-| `/sdd:init` | Detect stack, create openspec/ (zero tokens) |
-| `/sdd:new <name> [desc]` | Start new change (explore + propose) |
-| `/sdd:continue [name]` | Run next dependency-ready phase |
-| `/sdd:ff <name>` | Fast-forward all planning phases |
-| `/sdd:apply [name]` | Implement code (`--tdd`, `--phase N`, `--fix-only`) |
-| `/sdd:review [name]` | Semantic code review against specs |
-| `/sdd:verify [name]` | Run build/lint/test (zero tokens if green) |
-| `/sdd:clean [name]` | Dead code removal + simplification |
-| `/sdd:archive [name]` | Archive completed change (zero tokens) |
+| `/sdd-init` | Detect stack, create openspec/ (zero tokens) |
+| `/sdd-new <name> [desc]` | Start new change (explore + propose) |
+| `/sdd-continue [name]` | Run next dependency-ready phase |
+| `/sdd-ff <name>` | Fast-forward all planning phases |
+| `/sdd-apply [name]` | Implement code (`--tdd`, `--phase N`, `--fix-only`) |
+| `/sdd-review [name]` | Semantic code review against specs |
+| `/sdd-verify [name]` | Run build/lint/test (zero tokens if green) |
+| `/sdd-clean [name]` | Dead code removal + simplification |
+| `/sdd-archive [name]` | Archive completed change (zero tokens) |
 
 ### CLI Commands (direct use)
 
@@ -84,14 +84,14 @@ After the sub-agent returns, promote with `sdd write <name> <phase>`.
 ### Trigger Detection
 
 Recognize intent and suggest the appropriate command:
-- "Add a feature..." / "I want to..." → `/sdd:new <name>`
-- "Continue" / "Next step" → `/sdd:continue`
-- "Fast forward" / "Plan everything" → `/sdd:ff`
-- "Implement" → `/sdd:apply`
-- "Review" → `/sdd:review`
-- "Verify" / "Test" → `/sdd:verify`
-- "Archive" / "Close" → `/sdd:archive`
-- "Explore" / "Investigate" → `/sdd:explore <topic>`
+- "Add a feature..." / "I want to..." → `/sdd-new <name>`
+- "Continue" / "Next step" → `/sdd-continue`
+- "Fast forward" / "Plan everything" → `/sdd-ff`
+- "Implement" → `/sdd-apply`
+- "Review" → `/sdd-review`
+- "Verify" / "Test" → `/sdd-verify`
+- "Archive" / "Close" → `/sdd-archive`
+- "Explore" / "Investigate" → `/sdd-explore <topic>`
 
 ### Utility Commands (standalone)
 

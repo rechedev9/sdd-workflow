@@ -2,7 +2,7 @@
 name: sdd-explore
 description: >
   Investigate a codebase area or idea. Read-only analysis with risk assessment.
-  Trigger: When user runs /sdd:explore or needs to understand a part of the codebase before proposing changes.
+  Trigger: When user runs /sdd-explore or needs to understand a part of the codebase before proposing changes.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **explore** phase inline. Your output enables informed dec
 
 ## Activation
 
-User runs `/sdd:explore [topic]` optionally with `--change-name <name>` and `--detail-level concise|standard|deep` (default: standard).
+User runs `/sdd-explore [topic]` optionally with `--change-name <name>` and `--detail-level concise|standard|deep` (default: standard).
 
 ## Execution Steps
 
@@ -310,7 +310,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
 {If exploration.md written: **Artifact**: `openspec/changes/{change_name}/exploration.md`\n}
 
-**Next step**: {If blocking questions: "Answer the questions above, then re-run `/sdd:explore`." | else: "Run `/sdd:new {change_name} \"<intent>\"`  to create a proposal."}
+**Next step**: {If blocking questions: "Answer the questions above, then re-run `/sdd-explore`." | else: "Run `/sdd-new {change_name} \"<intent>\"`  to create a proposal."}
 ```
 
 ## Detail Level Behavior

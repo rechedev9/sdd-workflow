@@ -82,7 +82,7 @@ Phase:  apply (in progress)
   [ ] review-report.md
   [ ] verify-report.md
   [ ] clean-report.md
-Next: continue apply or run /sdd:apply to resume
+Next: continue apply or run /sdd-apply to resume
 ```
 
 State is derived entirely from filesystem artifact presence — no database, no lockfile.
@@ -220,14 +220,14 @@ These commands drive the SDD pipeline. They follow the phase order: init → exp
 
 Each slash command delegates to `sdd` for deterministic work and invokes Claude sub-agents for reasoning work. The split is noted for each command.
 
-### `/sdd:init`
+### `/sdd-init`
 
 Bootstrap Spec-Driven Development for a project.
 
 ```
-/sdd:init
-/sdd:init --force       # Re-initialize, overwriting existing config
-/sdd:init --dry-run     # Preview what would be created without writing
+/sdd-init
+/sdd-init --force       # Re-initialize, overwriting existing config
+/sdd-init --dry-run     # Preview what would be created without writing
 ```
 
 **Under the hood:** Calls `sdd init`. Pure Go — zero token cost.
@@ -247,14 +247,14 @@ openspec/
 
 ---
 
-### `/sdd:explore <topic>`
+### `/sdd-explore <topic>`
 
 Investigate a codebase area before proposing changes.
 
 ```
-/sdd:explore "how does authentication work?"
-/sdd:explore "payment flow — preparing to add Stripe"
-/sdd:explore "why is the dashboard slow?" --detail deep
+/sdd-explore "how does authentication work?"
+/sdd-explore "payment flow — preparing to add Stripe"
+/sdd-explore "why is the dashboard slow?" --detail deep
 ```
 
 **Arguments:**
@@ -287,14 +287,14 @@ Investigate a codebase area before proposing changes.
 
 ---
 
-### `/sdd:new <name> [description]`
+### `/sdd-new <name> [description]`
 
 Start a new SDD change (exploration + proposal in sequence).
 
 ```
-/sdd:new add-csv-export
-/sdd:new add-csv-export Export workout data as CSV files
-/sdd:new fix-session-ttl Fix JWT/Redis TTL mismatch causing random logouts
+/sdd-new add-csv-export
+/sdd-new add-csv-export Export workout data as CSV files
+/sdd-new fix-session-ttl Fix JWT/Redis TTL mismatch causing random logouts
 ```
 
 **Arguments:**
@@ -302,7 +302,7 @@ Start a new SDD change (exploration + proposal in sequence).
 - `[description]` — Intent description (prompted if omitted)
 
 **Under the hood:**
-1. `sdd init` check — validates `openspec/` exists (suggests `/sdd:init` if not)
+1. `sdd init` check — validates `openspec/` exists (suggests `/sdd-init` if not)
 2. `sdd context {name} explore` — assembles explore context
 3. Claude sub-agent (Sonnet) → writes `exploration.md`
 4. Shows exploration summary → asks for approval
@@ -314,17 +314,17 @@ Start a new SDD change (exploration + proposal in sequence).
 - `openspec/changes/{name}/exploration.md`
 - `openspec/changes/{name}/proposal.md`
 
-**Next step:** `/sdd:continue {name}` to generate specs + design.
+**Next step:** `/sdd-continue {name}` to generate specs + design.
 
 ---
 
-### `/sdd:continue [name]`
+### `/sdd-continue [name]`
 
 Run the next dependency-ready phase for a change.
 
 ```
-/sdd:continue
-/sdd:continue add-csv-export
+/sdd-continue
+/sdd-continue add-csv-export
 ```
 
 **Arguments:**
@@ -334,7 +334,7 @@ Run the next dependency-ready phase for a change.
 
 | Artifacts present | Next phase | Executor |
 |---|---|---|
-| (none) | Suggests `/sdd:new` | — |
+| (none) | Suggests `/sdd-new` | — |
 | `exploration.md` only | propose | Claude (Sonnet) |
 | `proposal.md` | spec + design (parallel) | Claude (Sonnet + Opus) |
 | `specs/` + `design.md` | tasks | Claude (Sonnet) |
@@ -350,13 +350,13 @@ Run the next dependency-ready phase for a change.
 
 ---
 
-### `/sdd:ff <name> [description]`
+### `/sdd-ff <name> [description]`
 
 Fast-forward all planning phases without stopping for approvals.
 
 ```
-/sdd:ff add-dark-mode
-/sdd:ff add-dark-mode Add dark mode toggle to settings page
+/sdd-ff add-dark-mode
+/sdd-ff add-dark-mode Add dark mode toggle to settings page
 ```
 
 **Under the hood (sequential):**
@@ -375,17 +375,17 @@ Fast-forward all planning phases without stopping for approvals.
 
 ---
 
-### `/sdd:apply [name] [flags]`
+### `/sdd-apply [name] [flags]`
 
 Implement code following specs and design, one phase at a time.
 
 ```
-/sdd:apply add-csv-export
-/sdd:apply add-csv-export --phase 1
-/sdd:apply add-csv-export --phase 2
-/sdd:apply add-csv-export --tdd
-/sdd:apply add-csv-export --fix-only
-/sdd:apply add-csv-export --dry-run
+/sdd-apply add-csv-export
+/sdd-apply add-csv-export --phase 1
+/sdd-apply add-csv-export --phase 2
+/sdd-apply add-csv-export --tdd
+/sdd-apply add-csv-export --fix-only
+/sdd-apply add-csv-export --dry-run
 ```
 
 **Flags:**
@@ -426,12 +426,12 @@ bun run format:check → auto-format affected files
 
 ---
 
-### `/sdd:review [name]`
+### `/sdd-review [name]`
 
 Semantic code review comparing implementation against specs and project rules.
 
 ```
-/sdd:review add-csv-export
+/sdd-review add-csv-export
 ```
 
 **Under the hood:**
@@ -461,16 +461,16 @@ Semantic code review comparing implementation against specs and project rules.
 
 **Output:** `openspec/changes/{name}/review-report.md` with PASSED/FAILED verdict.
 
-**Note:** This agent never fixes issues — it reports only. Fixes go back to `/sdd:apply --fix-only`.
+**Note:** This agent never fixes issues — it reports only. Fixes go back to `/sdd-apply --fix-only`.
 
 ---
 
-### `/sdd:verify [name]`
+### `/sdd-verify [name]`
 
 Technical quality gate — build health, static analysis, security, completeness.
 
 ```
-/sdd:verify add-csv-export
+/sdd-verify add-csv-export
 ```
 
 **Under the hood:** Calls `sdd verify {name}` directly. Pure Go — zero token cost.
@@ -519,12 +519,12 @@ For complex test failures requiring semantic interpretation, `sdd` may invoke a 
 
 ---
 
-### `/sdd:clean [name]`
+### `/sdd-clean [name]`
 
 Dead code removal, duplicate elimination, simplification.
 
 ```
-/sdd:clean add-csv-export
+/sdd-clean add-csv-export
 ```
 
 **Under the hood:**
@@ -557,12 +557,12 @@ Dead code removal, duplicate elimination, simplification.
 
 ---
 
-### `/sdd:archive [name]`
+### `/sdd-archive [name]`
 
 Close a completed change — merge specs, archive artifacts, capture learnings.
 
 ```
-/sdd:archive add-csv-export
+/sdd-archive add-csv-export
 ```
 
 **Under the hood:** Calls `sdd archive {name}`. Primarily Go — zero token cost for the core operations. Optional learnings extraction may invoke a Claude sub-agent.
@@ -586,12 +586,12 @@ Close a completed change — merge specs, archive artifacts, capture learnings.
 
 ---
 
-### `/sdd:analytics [name]`
+### `/sdd-analytics [name]`
 
 Analyze quality trends from phase delta tracking data.
 
 ```
-/sdd:analytics add-csv-export
+/sdd-analytics add-csv-export
 ```
 
 **Under the hood:** Calls `sdd timeline {name}` for the raw data, then invokes a Claude sub-agent (Sonnet) to produce the trend analysis narrative.

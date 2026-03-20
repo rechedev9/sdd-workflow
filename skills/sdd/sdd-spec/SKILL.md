@@ -2,7 +2,7 @@
 name: sdd-spec
 description: >
   Write delta specifications (ADDED/MODIFIED/REMOVED requirements) with Given/When/Then scenarios using RFC 2119 keywords.
-  Trigger: When user runs /sdd:continue after proposal is approved, or after sdd-propose completes.
+  Trigger: When user runs /sdd-continue after proposal is approved, or after sdd-propose completes.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **spec** phase inline. Specifications define WHAT the syst
 
 ## Activation
 
-User runs `/sdd:continue` or `/sdd:spec` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md` and `openspec/specs/` for existing context.
+User runs `/sdd-continue` or `/sdd-spec` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md` and `openspec/specs/` for existing context.
 
 ## Execution Steps
 
@@ -283,7 +283,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 {If consistency issues: ### ⚠ Consistency Issues\n- {issue}\n}
 {If warnings: ### ⚠ Warnings\n- {warning}\n}
 
-**Next step**: Review the spec files in your editor. When satisfied, proceed to `/sdd:design` (if not already running in parallel) and then `/sdd:tasks` once both spec and design are complete.
+**Next step**: Review the spec files in your editor. When satisfied, proceed to `/sdd-design` (if not already running in parallel) and then `/sdd-tasks` once both spec and design are complete.
 ```
 
 ## Rules and Constraints

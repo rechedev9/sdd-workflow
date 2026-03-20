@@ -399,7 +399,7 @@ Skills are just markdown files with structured instructions. You can create new 
 ### 1. Use the skill-creator skill
 
 ```
-/sdd:explore "create a skill for [your framework]"
+/sdd-explore "create a skill for [your framework]"
 ```
 
 Or load the skill-creator directly:
@@ -573,14 +573,14 @@ openspec/changes/
   archive/
 ```
 
-Use change names explicitly with `/sdd:continue`:
+Use change names explicitly with `/sdd-continue`:
 
 ```
-/sdd:continue add-csv-export
-/sdd:continue fix-session-ttl
+/sdd-continue add-csv-export
+/sdd-continue fix-session-ttl
 ```
 
-Without a name, `/sdd:continue` prompts you to pick from active changes.
+Without a name, `/sdd-continue` prompts you to pick from active changes.
 
 ### Blocking changes
 
@@ -628,7 +628,7 @@ AGENTS.md rules are enforced by `sdd-review`. For automated enforcement in CI, c
 
 ```bash
 # After implementing and verifying:
-# /sdd:review writes review-report.md
+# /sdd-review writes review-report.md
 # Check the verdict:
 grep "Status: FAILED" openspec/changes/*/review-report.md && exit 1 || exit 0
 ```
@@ -667,12 +667,12 @@ For trivial changes, you can skip phases that add overhead:
 
 ```
 # Skip explore for small, well-understood changes:
-/sdd:new fix-typo --no-explore
+/sdd-new fix-typo --no-explore
 
 # Skip clean for urgent patches:
-/sdd:apply fix-session-ttl
+/sdd-apply fix-session-ttl
 sdd verify --change fix-session-ttl
-/sdd:archive fix-session-ttl  # Skip clean
+/sdd-archive fix-session-ttl  # Skip clean
 ```
 
 The orchestrator respects phase skips — missing artifacts mean that phase was intentionally omitted.
@@ -825,7 +825,7 @@ The primary project conventions file. Keep it in the repo:
 
 `openspec/specs/` contains the living specifications for your system. Check them into git:
 - They document WHAT the system does (not HOW — that's the code)
-- They evolve as requirements change (via `/sdd:archive` which merges delta specs)
+- They evolve as requirements change (via `/sdd-archive` which merges delta specs)
 - They serve as onboarding material for new team members
 
 ### PR workflow with SDD
@@ -833,21 +833,21 @@ The primary project conventions file. Keep it in the repo:
 Typical team workflow:
 
 ```
-1. /sdd:new feature-name "Intent description"
+1. /sdd-new feature-name "Intent description"
    → exploration.md, proposal.md
 
 2. Team reviews proposal.md in PR (not code yet — just the plan)
 
-3. /sdd:continue feature-name
+3. /sdd-continue feature-name
    → spec.md, design.md (parallel)
 
 4. Team reviews spec.md and design.md
    "Do these specs match what we want to build?"
 
-5. /sdd:apply feature-name --phase 1
+5. /sdd-apply feature-name --phase 1
    → implements foundation tasks
 
-6. /sdd:review feature-name
+6. /sdd-review feature-name
    → checks against specs and AGENTS.md
 
 7. sdd verify --change feature-name
@@ -856,7 +856,7 @@ Typical team workflow:
 8. /commit-push-pr
    → PR created with full context (proposal → spec → design → implementation)
 
-9. /sdd:archive feature-name
+9. /sdd-archive feature-name
    → specs merged into openspec/specs/
 ```
 
@@ -873,8 +873,8 @@ SDD adds structure and overhead. Not every change needs all 11 phases.
 | Typo fix | Direct edit — no SDD |
 | One-line bug fix | Direct edit — no SDD |
 | Config change | Direct edit — no SDD |
-| Simple feature (1-2 files) | `/sdd:ff` (fast-forward, no pauses) |
-| Standard feature (3-10 files) | Full SDD with `/sdd:new` + `/sdd:continue` |
+| Simple feature (1-2 files) | `/sdd-ff` (fast-forward, no pauses) |
+| Standard feature (3-10 files) | Full SDD with `/sdd-new` + `/sdd-continue` |
 | Complex feature (10+ files) | Full SDD + consider splitting into smaller changes |
 | Multi-session feature | Full SDD with Engram memory enabled |
 | Security-sensitive change | Full SDD + careful AGENTS.md rules |

@@ -2,7 +2,7 @@
 name: sdd-clean
 description: >
   Three-pass code cleanup: dead code removal, duplication & reuse analysis, and quality & efficiency review.
-  Runs after verify passes. Trigger: When user runs /sdd:clean or after sdd-verify passes.
+  Runs after verify passes. Trigger: When user runs /sdd-clean or after sdd-verify passes.
 license: MIT
 metadata:
   version: "3.0"
@@ -14,7 +14,7 @@ You are executing the **clean** phase inline. Your responsibility is to clean up
 
 ## Activation
 
-User runs `/sdd:clean`. Reads `tasks.md` and `verify-report.md` from disk. Aborts if verify verdict is FAIL.
+User runs `/sdd-clean`. Reads `tasks.md` and `verify-report.md` from disk. Aborts if verify verdict is FAIL.
 
 ## Inputs
 
@@ -262,8 +262,8 @@ Present a markdown summary to the user, then STOP:
 
 **Artifact**: `openspec/changes/{changeName}/clean-report.md`
 
-{If SUCCESS: **Next step**: Run `/sdd:archive` to close the change and merge delta specs into main specs.}
-{If ERROR: The cleanup was aborted — verify verdict was FAIL. Fix first, then re-run `/sdd:clean`.}
+{If SUCCESS: **Next step**: Run `/sdd-archive` to close the change and merge delta specs into main specs.}
+{If ERROR: The cleanup was aborted — verify verdict was FAIL. Fix first, then re-run `/sdd-clean`.}
 ```
 
 ---

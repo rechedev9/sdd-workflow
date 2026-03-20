@@ -2,7 +2,7 @@
 name: sdd-review
 description: >
   Semantic code review comparing implementation against specs, design, and AGENTS.md rules. Reports issues but does NOT fix them.
-  Trigger: When user runs /sdd:review or after sdd-apply completes all phases.
+  Trigger: When user runs /sdd-review or after sdd-apply completes all phases.
 license: MIT
 metadata:
   version: "2.0"
@@ -10,11 +10,11 @@ metadata:
 
 # SDD Review — Semantic Code Review
 
-You are executing the **review** phase inline. Your responsibility is **semantic code review** — verifying that the implementation correctly satisfies specs, follows design constraints, and obeys project rules. You report issues but **never fix them**. Fixes are the responsibility of a follow-up `/sdd:apply` pass or the developer.
+You are executing the **review** phase inline. Your responsibility is **semantic code review** — verifying that the implementation correctly satisfies specs, follows design constraints, and obeys project rules. You report issues but **never fix them**. Fixes are the responsibility of a follow-up `/sdd-apply` pass or the developer.
 
 ## Activation
 
-User runs `/sdd:review`. Reads `apply-report.md`, `design.md`, spec files, and `AGENTS.md` from disk.
+User runs `/sdd-review`. Reads `apply-report.md`, `design.md`, spec files, and `AGENTS.md` from disk.
 
 ## Inputs
 
@@ -237,9 +237,9 @@ Present a markdown summary to the user, then STOP:
 
 **Artifact**: `openspec/changes/{changeName}/review-report.md`
 
-{If PASSED: **Next step**: Run `/sdd:verify` to run the technical quality gate.}
-{If FAILED and allAutoFixable: **Next step**: Run `/sdd:apply` in fix mode — all issues are auto-fixable. Then re-run `/sdd:review`.}
-{If FAILED and has HUMAN_REQUIRED: **Next step**: Review the HUMAN_REQUIRED issues above. Fix manually, then re-run `/sdd:review`.}
+{If PASSED: **Next step**: Run `/sdd-verify` to run the technical quality gate.}
+{If FAILED and allAutoFixable: **Next step**: Run `/sdd-apply` in fix mode — all issues are auto-fixable. Then re-run `/sdd-review`.}
+{If FAILED and has HUMAN_REQUIRED: **Next step**: Review the HUMAN_REQUIRED issues above. Fix manually, then re-run `/sdd-review`.}
 ```
 
 ---

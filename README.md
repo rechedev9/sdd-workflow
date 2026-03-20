@@ -60,9 +60,9 @@ The installer sets up skills, slash commands, and (if Go is available) builds th
 ```bash
 cd your-project
 claude
-/sdd:init            # Detect stack, create openspec/
-/sdd:new my-feature "What I want to build"
-/sdd:continue        # Repeat until archive
+/sdd-init            # Detect stack, create openspec/
+/sdd-new my-feature "What I want to build"
+/sdd-continue        # Repeat until archive
 ```
 
 ---
@@ -168,15 +168,15 @@ sdd <command> [arguments]
 
 | Slash Command | What it does |
 |---------------|-------------|
-| `/sdd:init` | Runs `sdd init`, shows results |
-| `/sdd:new <name> <desc>` | `sdd new` → Claude explores → `sdd write` → Claude proposes → `sdd write` |
-| `/sdd:continue [name]` | `sdd status` → `sdd context` → Claude reasons → `sdd write` |
-| `/sdd:ff <name>` | Fast-forward: explore → propose → spec+design (parallel) → tasks |
-| `/sdd:apply [name]` | `sdd context apply` → Claude implements → `sdd write` |
-| `/sdd:review [name]` | `sdd context review` → Claude reviews → `sdd write` |
-| `/sdd:verify [name]` | `sdd verify` (zero tokens if green) |
-| `/sdd:clean [name]` | `sdd context clean` → Claude cleans → `sdd write` |
-| `/sdd:archive [name]` | `sdd archive` (zero tokens) |
+| `/sdd-init` | Runs `sdd init`, shows results |
+| `/sdd-new <name> <desc>` | `sdd new` → Claude explores → `sdd write` → Claude proposes → `sdd write` |
+| `/sdd-continue [name]` | `sdd status` → `sdd context` → Claude reasons → `sdd write` |
+| `/sdd-ff <name>` | Fast-forward: explore → propose → spec+design (parallel) → tasks |
+| `/sdd-apply [name]` | `sdd context apply` → Claude implements → `sdd write` |
+| `/sdd-review [name]` | `sdd context review` → Claude reviews → `sdd write` |
+| `/sdd-verify [name]` | `sdd verify` (zero tokens if green) |
+| `/sdd-clean [name]` | `sdd context clean` → Claude cleans → `sdd write` |
+| `/sdd-archive [name]` | `sdd archive` (zero tokens) |
 
 ---
 
@@ -284,14 +284,14 @@ your-project/
 
 ```
 Trivial change     →  Just edit the file
-Small change       →  /sdd:explore + manual edit
-Medium change      →  /sdd:ff + /sdd:apply + /sdd:verify
+Small change       →  /sdd-explore + manual edit
+Medium change      →  /sdd-ff + /sdd-apply + /sdd-verify
 Large change       →  Full 11-phase pipeline
 Architecture       →  Full pipeline + extra review cycles
 ```
 
 Skip SDD for: one-line fixes, trivial additions, prototyping, pure research.
-Use `/sdd:ff` for: medium changes, clear requirements, 3-10 files.
+Use `/sdd-ff` for: medium changes, clear requirements, 3-10 files.
 Use full pipeline for: architecture changes, cross-cutting concerns, high-risk code.
 
 ---

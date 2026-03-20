@@ -335,7 +335,7 @@ All SKILL.md files use YAML frontmatter. The format is unchanged from the pre-CL
 name: sdd-apply
 description: >
   Implement code following specs and design. Works in batches.
-  Trigger: When user runs /sdd:apply or after sdd-tasks completes.
+  Trigger: When user runs /sdd-apply or after sdd-tasks completes.
 license: MIT
 metadata:
   version: "1.0"

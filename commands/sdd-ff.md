@@ -1,9 +1,9 @@
-# /sdd:ff — Fast-Forward All Planning Phases
+# /sdd-ff — Fast-Forward All Planning Phases
 
 Runs all planning phases sequentially without stopping for approval: explore -> propose -> spec + design (parallel) -> tasks.
 
 ## Arguments
-$ARGUMENTS — Change name (required). Optionally prepend intent: `/sdd:ff add-dark-mode Add dark mode toggle to settings`
+$ARGUMENTS — Change name (required). Optionally prepend intent: `/sdd-ff add-dark-mode Add dark mode toggle to settings`
 
 ## Execution
 
@@ -124,11 +124,11 @@ Show consolidated view:
 3. **Specs**: Requirements count
 4. **Design**: Key architecture decisions
 5. **Tasks**: Phase count + task count
-6. **Ready for**: `/sdd:apply {change-name}`
+6. **Ready for**: `/sdd-apply {change-name}`
 
 ## Important
 
 - Fast-forward is for experienced users who trust the planning pipeline
 - All artifacts are still created — nothing is skipped, just approvals
 - If any phase fails, STOP and report the error
-- The user can review all artifacts before running `/sdd:apply`
+- The user can review all artifacts before running `/sdd-apply`

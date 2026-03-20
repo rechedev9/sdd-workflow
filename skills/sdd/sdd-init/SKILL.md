@@ -2,7 +2,7 @@
 name: sdd-init
 description: >
   Bootstrap Spec-Driven Development for a project. Detects tech stack, creates openspec/ directory structure, and generates config.yaml.
-  Trigger: When user runs /sdd:init or starts SDD for the first time in a project.
+  Trigger: When user runs /sdd-init or starts SDD for the first time in a project.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **init** phase inline. Your job is to detect the project's
 
 ## Activation
 
-User runs `/sdd:init`. The project root is the current working directory. Flags:
+User runs `/sdd-init`. The project root is the current working directory. Flags:
 - `--force`: Overwrite existing `openspec/`
 - `--dry-run`: Report what would be created without writing files
 
@@ -92,7 +92,7 @@ commands:
 contracts:
   # Auto-assembled from PARCER Contract blocks in each phase's SKILL.md.
   # Scan ~/.claude/skills/sdd/sdd-*/SKILL.md for ## PARCER Contract sections
-  # and merge here. Re-run /sdd:init to regenerate.
+  # and merge here. Re-run /sdd-init to regenerate.
 ```
 
 The `commands` block is the most critical output — all downstream phases read it. Detect commands from `CLAUDE.md`, manifest scripts, Makefile targets, or ecosystem conventions. Also map conventions from `CLAUDE.md` (if present) into the config. Never include secrets or environment variable values — only reference variable names.
@@ -125,5 +125,5 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 
 {If warnings: ### ⚠ Warnings\n- {warning}\n}
 
-**Next step**: Run `/sdd:explore <topic>` to investigate an area, or `/sdd:new <change-name> "<intent>"` to start a change.
+**Next step**: Run `/sdd-explore <topic>` to investigate an area, or `/sdd-new <change-name> "<intent>"` to start a change.
 ```

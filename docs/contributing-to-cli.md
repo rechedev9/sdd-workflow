@@ -68,7 +68,7 @@ When changing what an assembler outputs (new sections, removed sections):
 ```bash
 sdd init --force        # if openspec/ already exists
 sdd new my-improvement "description"
-# ... run pipeline via /sdd:continue ...
+# ... run pipeline via /sdd-continue ...
 sdd verify my-improvement
 sdd archive my-improvement
 ```

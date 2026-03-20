@@ -1,10 +1,10 @@
-# /sdd:new — Start a New SDD Change
+# /sdd-new — Start a New SDD Change
 
 Creates a new change and runs exploration + proposal with user approval between phases.
 
 ## Arguments
 $ARGUMENTS — Change name (kebab-case, required), followed by description.
-Example: `/sdd:new add-csv-export Export workout data as CSV files`
+Example: `/sdd-new add-csv-export Export workout data as CSV files`
 
 ## Execution
 
@@ -78,4 +78,4 @@ sdd write <name> propose
 
 Show the user the proposal summary with: Intent, Scope, Approach, Risks, Rollback plan.
 
-Ask: "Approve proposal? Next step: `/sdd:continue {change-name}` to generate specs + design."
+Ask: "Approve proposal? Next step: `/sdd-continue {change-name}` to generate specs + design."

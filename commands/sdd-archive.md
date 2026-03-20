@@ -1,4 +1,4 @@
-# /sdd:archive — Close Completed Change
+# /sdd-archive — Close Completed Change
 
 Archive the change directory and generate a manifest. This is a **zero-token** operation — runs entirely in Go.
 
@@ -29,7 +29,7 @@ Parse the JSON output. Show:
 ### Step 3: Suggest next actions
 
 - Commit and create PR for this change
-- `/sdd:new <name>` — Start the next change
+- `/sdd-new <name>` — Start the next change
 
 ## Archive Contents
 

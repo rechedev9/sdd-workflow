@@ -2,7 +2,7 @@
 name: sdd-design
 description: >
   Create technical design document capturing HOW the change is implemented. Architecture decisions, data flow, interfaces.
-  Trigger: When user runs /sdd:continue after proposal is approved, or after sdd-propose completes.
+  Trigger: When user runs /sdd-continue after proposal is approved, or after sdd-propose completes.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **design** phase inline. While the proposal captures WHAT 
 
 ## Activation
 
-User runs `/sdd:continue` or `/sdd:design` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md`, existing spec files if present, and `exploration.md` if available.
+User runs `/sdd-continue` or `/sdd-design` after the proposal is approved. Reads `openspec/changes/{changeName}/proposal.md`, existing spec files if present, and `exploration.md` if available.
 
 ## Execution Steps
 
@@ -288,7 +288,7 @@ Present a markdown summary to the user, then STOP. Do not proceed automatically.
 {If open questions: ### Open Questions ({N})\n{questions — must be resolved before implementation}\n}
 {If warnings: ### ⚠ Warnings\n- {warning}\n}
 
-**Next step**: Review `openspec/changes/{change_name}/design.md`. When both design and spec are complete, run `/sdd:tasks` to generate the implementation checklist.
+**Next step**: Review `openspec/changes/{change_name}/design.md`. When both design and spec are complete, run `/sdd-tasks` to generate the implementation checklist.
 ```
 
 ## Rules and Constraints

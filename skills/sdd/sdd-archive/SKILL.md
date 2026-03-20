@@ -2,7 +2,7 @@
 name: sdd-archive
 description: >
   Close a completed change. Merge delta specs into main specs, move change folder to archive, capture learnings.
-  Trigger: When user runs /sdd:archive or after sdd-verify passes with no CRITICAL issues.
+  Trigger: When user runs /sdd-archive or after sdd-verify passes with no CRITICAL issues.
 license: MIT
 metadata:
   version: "1.0"
@@ -14,7 +14,7 @@ You are executing the **archive** phase inline. Your responsibility is to **clos
 
 ## Activation
 
-User runs `/sdd:archive`. Reads `proposal.md`, `verify-report.md`, and optionally `review-report.md` from disk. Aborts if verify verdict is FAIL with no clean-report override.
+User runs `/sdd-archive`. Reads `proposal.md`, `verify-report.md`, and optionally `review-report.md` from disk. Aborts if verify verdict is FAIL with no clean-report override.
 
 ## Inputs
 
@@ -275,7 +275,7 @@ Present a markdown summary to the user, then STOP:
 ### Archive Location
 `openspec/changes/archive/{change_name}/`
 
-**The SDD pipeline for `{change_name}` is complete.** Run `/sdd:analytics {change_name}` to view quality metrics for this change.
+**The SDD pipeline for `{change_name}` is complete.** Run `/sdd-analytics {change_name}` to view quality metrics for this change.
 ```
 
 If aborted (`ERROR`): output a short message explaining why (FAIL verdict, unresolved REJECT violations, etc.) and what to fix before retrying.

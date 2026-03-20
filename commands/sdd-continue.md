@@ -1,4 +1,4 @@
-# /sdd:continue — Run Next SDD Phase
+# /sdd-continue — Run Next SDD Phase
 
 Automatically detects which phase is next for a change and runs it.
 
@@ -23,7 +23,7 @@ If change name provided, use it. Otherwise:
 sdd list
 ```
 
-If multiple active changes, list them and ask user to pick one. If zero, suggest `/sdd:new`.
+If multiple active changes, list them and ask user to pick one. If zero, suggest `/sdd-new`.
 
 Then get current phase:
 
@@ -100,7 +100,7 @@ Agent(
 ```
 
 3. Promote: `sdd write <name> apply`
-4. If more incomplete tasks remain, suggest `/sdd:continue` again. Otherwise suggest `/sdd:review`.
+4. If more incomplete tasks remain, suggest `/sdd-continue` again. Otherwise suggest `/sdd-review`.
 
 ---
 
@@ -121,7 +121,7 @@ Agent(
 )
 ```
 3. Promote: `sdd write <name> review`
-4. Present verdict. If PASS: suggest `/sdd:verify`. If FAIL: suggest `/sdd:apply --fix-only`.
+4. Present verdict. If PASS: suggest `/sdd-verify`. If FAIL: suggest `/sdd-apply --fix-only`.
 
 ---
 
@@ -138,9 +138,9 @@ Parse JSON output. If passed, advance state:
 sdd write <name> verify
 ```
 
-Present verify-report.md summary. Suggest `/sdd:clean` next.
+Present verify-report.md summary. Suggest `/sdd-clean` next.
 
-If failed, show errors and suggest `/sdd:apply --fix-only`.
+If failed, show errors and suggest `/sdd-apply --fix-only`.
 
 ---
 
@@ -161,7 +161,7 @@ Agent(
 )
 ```
 3. Promote: `sdd write <name> clean`
-4. Suggest `/sdd:archive`.
+4. Suggest `/sdd-archive`.
 
 ---
 
@@ -173,7 +173,7 @@ Agent(
 sdd archive <name>
 ```
 
-Parse JSON output. Show archive location and manifest. Suggest `/sdd:new` for next change or committing the work.
+Parse JSON output. Show archive location and manifest. Suggest `/sdd-new` for next change or committing the work.
 
 ### Step 3: Present results and suggest next step
 

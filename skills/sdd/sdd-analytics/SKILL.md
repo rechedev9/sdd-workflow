@@ -3,7 +3,7 @@ name: sdd-analytics
 description: >
   Quality analytics from phase delta tracking data. Reads quality-timeline.jsonl files, computes deltas between
   consecutive phases, and generates markdown reports showing quality curves, phase value rankings, and insights.
-  Trigger: When user runs /sdd:analytics [name] with --mode single|aggregate|compare.
+  Trigger: When user runs /sdd-analytics [name] with --mode single|aggregate|compare.
 license: MIT
 metadata:
   version: "1.0"
@@ -15,7 +15,7 @@ You are executing the **analytics** phase inline. Your responsibility is to **re
 
 ## Activation
 
-User runs `/sdd:analytics [change-name] [--mode single|aggregate|compare]`. Reads `quality-timeline.jsonl` from disk.
+User runs `/sdd-analytics [change-name] [--mode single|aggregate|compare]`. Reads `quality-timeline.jsonl` from disk.
 
 ## Inputs
 

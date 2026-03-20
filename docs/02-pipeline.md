@@ -49,17 +49,17 @@ The assembled context includes a **Context Cascade** — a cumulative decision l
 
 ```mermaid
 flowchart TD
-    A[/sdd:init/] --> B[/sdd:explore/]
-    B --> C[/sdd:new — propose/]
-    C --> D[/sdd:continue — spec/]
-    C --> E[/sdd:continue — design/]
+    A[/sdd-init/] --> B[/sdd-explore/]
+    B --> C[/sdd-new — propose/]
+    C --> D[/sdd-continue — spec/]
+    C --> E[/sdd-continue — design/]
     D --> F[tasks]
     E --> F
-    F --> G[/sdd:apply/]
-    G --> H[/sdd:review/]
-    H --> I[/sdd:verify/]
-    I --> J[/sdd:clean/]
-    J --> K[/sdd:archive/]
+    F --> G[/sdd-apply/]
+    G --> H[/sdd-review/]
+    H --> I[/sdd-verify/]
+    I --> J[/sdd-clean/]
+    J --> K[/sdd-archive/]
 ```
 
 Note that spec and design are parallel branches that both depend on proposal.md and both feed into tasks. All other phases are sequential.
@@ -68,17 +68,17 @@ Note that spec and design are parallel branches that both depend on proposal.md 
 
 | Phase   | Command          | Input                              | Output Artifact                              |
 |---------|------------------|------------------------------------|----------------------------------------------|
-| init    | /sdd:init        | Project root                       | openspec/config.yaml                         |
-| explore | /sdd:explore     | config.yaml, topic                 | exploration.md                               |
-| propose | /sdd:new         | exploration.md                     | proposal.md                                  |
-| spec    | /sdd:continue    | proposal.md                        | specs/*/spec.md                              |
-| design  | /sdd:continue    | proposal.md                        | design.md                                    |
-| tasks   | /sdd:continue    | spec + design                      | tasks.md                                     |
-| apply   | /sdd:apply       | tasks + design + specs             | source code, updated tasks.md                |
-| review  | /sdd:review      | source code, specs, design, conventions | review-report.md                          |
-| verify  | /sdd:verify      | source code, tasks, specs          | verify-report.md                             |
-| clean   | /sdd:clean       | source code, verify-report         | clean-report.md                              |
-| archive | /sdd:archive     | all artifacts, verify-report       | archived change, updated openspec/specs/     |
+| init    | /sdd-init        | Project root                       | openspec/config.yaml                         |
+| explore | /sdd-explore     | config.yaml, topic                 | exploration.md                               |
+| propose | /sdd-new         | exploration.md                     | proposal.md                                  |
+| spec    | /sdd-continue    | proposal.md                        | specs/*/spec.md                              |
+| design  | /sdd-continue    | proposal.md                        | design.md                                    |
+| tasks   | /sdd-continue    | spec + design                      | tasks.md                                     |
+| apply   | /sdd-apply       | tasks + design + specs             | source code, updated tasks.md                |
+| review  | /sdd-review      | source code, specs, design, conventions | review-report.md                          |
+| verify  | /sdd-verify      | source code, tasks, specs          | verify-report.md                             |
+| clean   | /sdd-clean       | source code, verify-report         | clean-report.md                              |
+| archive | /sdd-archive     | all artifacts, verify-report       | archived change, updated openspec/specs/     |
 
 ---
 
@@ -720,9 +720,9 @@ The spec merge and file move operations are entirely Go. The binary performs ato
 
 ---
 
-## Shortcut: /sdd:continue
+## Shortcut: /sdd-continue
 
-After each phase completes, run `/sdd:continue` (or `/sdd:continue {change-name}` if multiple active changes exist) to detect what phase is next and run it automatically.
+After each phase completes, run `/sdd-continue` (or `/sdd-continue {change-name}` if multiple active changes exist) to detect what phase is next and run it automatically.
 
 State detection is performed by `sdd` — the binary reads the existing artifacts in `openspec/changes/{name}/` to determine current phase state:
 
@@ -735,18 +735,18 @@ openspec/changes/add-login-endpoint/
   tasks.md          ← exists → tasks done, next: apply
 ```
 
-When both spec and design are needed (the parallel branch), `/sdd:continue` launches both as simultaneous Task tool calls and waits for both to complete before proceeding to tasks.
+When both spec and design are needed (the parallel branch), `/sdd-continue` launches both as simultaneous Task tool calls and waits for both to complete before proceeding to tasks.
 
 If the orchestrator detects a failed phase (e.g., review-report.md with FAILED verdict), it reports the failure and asks for user instruction rather than blindly proceeding.
 
 ---
 
-## Shortcut: /sdd:ff
+## Shortcut: /sdd-ff
 
 Fast-forward all planning phases without stopping for user approval at each step:
 
 ```
-/sdd:ff add-dark-mode Add dark mode toggle to settings page
+/sdd-ff add-dark-mode Add dark mode toggle to settings page
 ```
 
 This runs explore → propose → spec + design (parallel) → tasks all at once, producing a complete, ready-to-implement plan in a single command. The user reviews the final `tasks.md` and approves before any code is written.
@@ -827,7 +827,7 @@ Every sub-agent returns a structured envelope to the orchestrator. After each re
 - **Observational, never blocking** — If envelope parsing fails, a minimal snapshot (`changeName`, `phase`, `timestamp`, `agentStatus`) is written and the pipeline continues.
 - **Planning phases produce sparse snapshots** — explore/propose/spec/design/tasks populate only `agentStatus` and completion counts. All other fields are `null`. This is correct and expected.
 - **One line per phase** — Each phase append produces exactly one JSON line. Multi-batch `sdd-apply` produces one line per batch with `phaseSpecific.batch` recording the batch number.
-- **Analytics** — Run `/sdd:analytics {name}` to compute trends: build health progression, issue density by phase, completeness curves, and phase timing.
+- **Analytics** — Run `/sdd-analytics {name}` to compute trends: build health progression, issue density by phase, completeness curves, and phase timing.
 
 ---
 
