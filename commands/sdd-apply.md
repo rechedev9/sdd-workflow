@@ -1,17 +1,13 @@
 # /sdd-apply — Implement Code
 
-Write actual code following the specs and design. Works one task batch at a time from tasks.md. Each task is verified with a build check immediately after implementation — errors are caught and fixed inline, not accumulated for later.
-
 ## Arguments
 $ARGUMENTS — Optional: change name. Flags:
 - `--phase N` — Implement only phase N from tasks.md
-- `--tdd` — Write tests FIRST, then implementation
+- `--tdd` — Write tests first, then implementation
 - `--all` — Implement all remaining phases sequentially
-- `--fix-only` — Only run build-fix loop on existing code (no new implementation)
+- `--fix-only` — Only run build-fix loop on existing code
 
 ## Execution
-
-You are the SDD Orchestrator.
 
 ### Step 1: Get apply context
 
@@ -19,60 +15,30 @@ You are the SDD Orchestrator.
 sdd context <name> apply
 ```
 
-This assembles: current incomplete task from tasks.md, completed tasks summary, design constraints, specs, and the sdd-apply SKILL.md instructions.
-
 ### Step 2: Launch sub-agent
 
 ```
 Agent(
   description: 'sdd-apply for {change-name}',
-  # Opus — production code quality
   prompt: '{context from sdd context output}
 
   Implement the next incomplete task. Use Edit/Write tools to modify project files.
   Mode: {normal|tdd|fix-only}
   Batch: {phase N if specified, else next incomplete}
 
-  ## BUILD-CHECK PROTOCOL (mandatory after EACH task)
-
-  After implementing each task, you MUST run the build command before moving
-  to the next task. This catches errors immediately instead of accumulating them.
-
-  For each task:
+  BUILD-CHECK PROTOCOL (mandatory after EACH task):
   1. Implement the task
-  2. Run the build/typecheck command from config.yaml:
-     - Go: `go build ./...`
-     - TypeScript: `npx tsc --noEmit`
-     - Python: `python -m py_compile {file}`
-     - Rust: `cargo check`
-  3. If build FAILS:
-     - Read the error output completely
-     - Fix the error (it is almost always in the code you just wrote)
-     - Re-run build to confirm fix
-     - Max 3 fix attempts per task. If still failing, mark task as BLOCKED
-       and report the error — do NOT move to the next task
-  4. If build PASSES: mark task [x] in tasks.md and move to next task
+  2. Run build command from config.yaml (go build ./... | npx tsc --noEmit | python -m py_compile {file} | cargo check)
+  3. If FAILS: read full error, fix, re-run. Max 3 attempts. If still failing, mark BLOCKED and stop.
+  4. If PASSES: mark task [x] and move to next task
 
-  After all tasks in the batch are complete (or one is blocked):
-  - Run the full verification suite: build + lint + tests
-  - Report results per command
+  After batch complete: run full suite (build + lint + tests) and report results.
 
-  Write updated tasks.md (with completed items marked [x]) to:
+  Write updated tasks.md (completed items marked [x]) to:
   File: openspec/changes/{change-name}/.pending/apply.md
 
-  ## WHAT TO REPORT
-
-  For each task completed, report:
-  - Task name
-  - Files modified
-  - Build check: PASS or FAIL (with fix attempts if any)
-
-  At the end, report:
-  - Tasks completed: N/M
-  - Tasks blocked: N (with error details)
-  - Final build status: PASS/FAIL
-  - Final lint status: PASS/FAIL
-  - Final test status: PASS/FAIL
+  Report per task: name, files modified, build check result.
+  Report at end: tasks completed N/M, blocked N, final build/lint/test status.
 
   Follow the SKILL instructions exactly.'
 )
@@ -86,12 +52,11 @@ sdd write <name> apply
 
 ### Step 4: Present results
 
-1. Tasks completed count (with per-task build status)
-2. Any blocked tasks (with error details)
+1. Tasks completed (with per-task build status)
+2. Blocked tasks (with error details)
 3. Final build/lint/test status
-4. Next step: `/sdd-apply` again if tasks remain, or `/sdd-review` if all done
+4. Next: `/sdd-apply` if tasks remain, `/sdd-review` if all done
 
 ### Step 5: If --all mode
 
 Loop: get context -> sub-agent -> promote for each incomplete phase. Stop if any task is BLOCKED.
-

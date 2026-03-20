@@ -1,20 +1,15 @@
 # /sdd-new — Start a New SDD Change
 
-Creates a new change and runs exploration + proposal with user approval between phases.
-
 ## Arguments
 $ARGUMENTS — Change name (kebab-case, required), followed by description.
-Example: `/sdd-new add-csv-export Export workout data as CSV files`
 
 ## Execution
-
-You are the SDD Orchestrator. You manage the flow and delegate to sub-agents.
 
 ### Step 1: Parse arguments
 
 - First word: change name (kebab-case)
 - Remaining text: intent description
-- If no description provided, ask the user for a brief intent
+- If no description, ask user for a brief intent
 
 ### Step 2: Create change + get explore context
 
@@ -22,11 +17,7 @@ You are the SDD Orchestrator. You manage the flow and delegate to sub-agents.
 sdd new <name> "<description>"
 ```
 
-This creates the change directory, initial state, and prints explore context to stdout. The context includes the SKILL.md instructions, project info, and file tree.
-
 ### Step 3: Run exploration
-
-Launch a sub-agent with the explore context from Step 2:
 
 ```
 Agent(
@@ -34,20 +25,18 @@ Agent(
   model: 'sonnet',
   prompt: '{explore context from sdd new output}
 
-  Write your exploration findings to the pending artifact:
-  File: openspec/changes/{change-name}/.pending/explore.md
-
+  Write exploration to: openspec/changes/{change-name}/.pending/explore.md
   Follow the SKILL instructions exactly.'
 )
 ```
 
-### Step 4: Promote exploration + present results
+### Step 4: Promote + present
 
 ```bash
 sdd write <name> explore
 ```
 
-Show the user the exploration summary. Ask: "Proceed to proposal?"
+Show exploration summary. Ask: "Proceed to proposal?"
 
 ### Step 5: Get propose context + run proposal
 
@@ -55,27 +44,22 @@ Show the user the exploration summary. Ask: "Proceed to proposal?"
 sdd context <name> propose
 ```
 
-Launch a sub-agent with the propose context:
-
 ```
 Agent(
   description: 'sdd-propose for {change-name}',
-  # Opus — proposal quality shapes the entire pipeline
   prompt: '{propose context from sdd context output}
 
-  Write your proposal to the pending artifact:
-  File: openspec/changes/{change-name}/.pending/propose.md
-
+  Write proposal to: openspec/changes/{change-name}/.pending/propose.md
   Follow the SKILL instructions exactly.'
 )
 ```
 
-### Step 6: Promote proposal + present results
+### Step 6: Promote + present
 
 ```bash
 sdd write <name> propose
 ```
 
-Show the user the proposal summary with: Intent, Scope, Approach, Risks, Rollback plan.
+Show: Intent, Scope, Approach, Risks, Rollback plan.
 
-Ask: "Approve proposal? Next step: `/sdd-continue {change-name}` to generate specs + design."
+Ask: "Approve proposal? Next step: `/sdd-continue {change-name}`"

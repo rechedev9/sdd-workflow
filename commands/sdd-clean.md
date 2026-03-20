@@ -1,7 +1,5 @@
 # /sdd-clean — Dead Code Removal & Simplification
 
-Remove dead code, consolidate duplicates, simplify complexity in files touched by the change.
-
 ## Arguments
 $ARGUMENTS — Optional: change name. Flags:
 - `--dry-run` — Report what would be removed without making changes
@@ -10,19 +8,15 @@ $ARGUMENTS — Optional: change name. Flags:
 
 ## Execution
 
-You are the SDD Orchestrator.
-
 ### Step 1: Get clean context
 
 ```bash
 sdd context <name> clean
 ```
 
-This assembles: review report issues, affected file contents, and the sdd-clean SKILL.md instructions.
-
 ### Step 2: Validate
 
-Check that verify-report.md exists in the change directory and shows PASS or PASS WITH WARNINGS.
+Check that verify-report.md exists and shows PASS or PASS WITH WARNINGS.
 If FAIL, refuse and suggest `/sdd-verify --fix` first.
 
 ### Step 3: Launch sub-agent
@@ -37,8 +31,7 @@ Agent(
   Scope: {path or "change-only"}
 
   Clean up code in files modified by this change. Remove dead code, consolidate duplicates, simplify.
-  Write clean-report.md to:
-  File: openspec/changes/{change-name}/.pending/clean.md
+  Write clean-report.md to: openspec/changes/{change-name}/.pending/clean.md
 
   Follow the SKILL instructions exactly.'
 )
@@ -60,4 +53,4 @@ sdd write <name> clean
 
 ### Dry-Run Mode
 
-When `--dry-run`: list changes without applying, categorize by risk (SAFE/CAREFUL/RISKY), ask user to approve before running without --dry-run.
+List changes without applying. Categorize by risk (SAFE/CAREFUL/RISKY). Ask user to approve before running without `--dry-run`.

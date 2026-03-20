@@ -1,7 +1,5 @@
 # /sdd-explore — Investigate Codebase
 
-Read-only exploration of a codebase area or idea. Produces analysis with risk assessment. Does not modify state.
-
 ## Arguments
 $ARGUMENTS — Topic or question to explore (required). Flags:
 - `--deep` — Deep analysis with more detail
@@ -10,16 +8,14 @@ $ARGUMENTS — Topic or question to explore (required). Flags:
 
 ## Execution
 
-You are the SDD Orchestrator.
-
 ### Step 1: Get explore context
 
-If `--for <change-name>` is provided:
+If `--for <change-name>`:
 ```bash
 sdd context <change-name> explore
 ```
 
-Otherwise, this is a standalone exploration — run directly without `sdd context`.
+Otherwise, standalone exploration — skip `sdd context`.
 
 ### Step 2: Launch sub-agent
 
@@ -29,7 +25,6 @@ Agent(
   model: 'sonnet',
   prompt: '{context from sdd context if available, otherwise:}
 
-  You are an SDD exploration sub-agent.
   Project: {current working directory}
   Topic: {extracted topic}
   Detail level: {concise|standard|deep}
@@ -46,7 +41,7 @@ Agent(
 )
 ```
 
-### Step 3: If associated with a change, promote
+### Step 3: If --for, promote
 
 ```bash
 sdd write <change-name> explore
@@ -58,6 +53,6 @@ sdd write <change-name> explore
 2. Affected areas table (file path, impact)
 3. Recommendation
 4. Risks
-5. Suggested next step: `/sdd-new <name>` to start a change based on this exploration
+5. Suggested next step: `/sdd-new <name>`
 
-Do not ask questions during execution. Run autonomously and report.
+Run autonomously and report. Do not ask questions during execution.
