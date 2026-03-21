@@ -85,7 +85,7 @@ func main() {
 				r,
 				debug.Stack(),
 			)
-			if err := os.WriteFile(name, []byte(content), 0644); err != nil {
+			if err := os.WriteFile(name, []byte(content), 0o644); err != nil {
 				slog.Error("panic recovered; failed to write crash log", "error", err)
 			} else {
 				slog.Error("panic recovered", "crash_log", name)

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -74,7 +75,7 @@ func resolveChangeDir(name string) (string, error) {
 
 // gitHeadSHA returns the current HEAD SHA in dir.
 func gitHeadSHA(dir string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -85,7 +86,7 @@ func gitHeadSHA(dir string) (string, error) {
 
 // gitDiffFiles returns files changed between ref and the working tree.
 func gitDiffFiles(dir, ref string) ([]string, error) {
-	cmd := exec.Command("git", "diff", "--name-only", ref)
+	cmd := exec.CommandContext(context.Background(), "git", "diff", "--name-only", ref)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

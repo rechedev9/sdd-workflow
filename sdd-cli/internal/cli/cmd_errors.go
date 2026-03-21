@@ -14,8 +14,8 @@ import (
 func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 	jsonOut := false
 	for _, arg := range args {
-		switch {
-		case arg == "--json":
+		switch arg {
+		case "--json":
 			jsonOut = true
 		default:
 			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))

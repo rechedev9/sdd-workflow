@@ -54,8 +54,8 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 
 	var b strings.Builder
 	b.WriteString("# Archive Manifest\n\n")
-	b.WriteString(fmt.Sprintf("**Change:** %s\n", changeName))
-	b.WriteString(fmt.Sprintf("**Archived:** %s\n\n", time.Now().UTC().Format(time.RFC3339)))
+	fmt.Fprintf(&b, "**Change:** %s\n", changeName)
+	fmt.Fprintf(&b, "**Archived:** %s\n\n", time.Now().UTC().Format(time.RFC3339))
 
 	b.WriteString("## Artifacts\n\n")
 
@@ -79,10 +79,10 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 		if e.IsDir() && name == "specs" {
 			specEntries, _ := os.ReadDir(filepath.Join(archivePath, "specs"))
 			specCount = len(specEntries)
-			b.WriteString(fmt.Sprintf("- `specs/` (%d files)\n", specCount))
+			fmt.Fprintf(&b, "- `specs/` (%d files)\n", specCount)
 			continue
 		}
-		b.WriteString(fmt.Sprintf("- `%s`\n", name))
+		fmt.Fprintf(&b, "- `%s`\n", name)
 		if phaseArtifacts[name] {
 			completed++
 		}
@@ -93,8 +93,8 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 
 	// Summary section.
 	b.WriteString("\n## Summary\n\n")
-	b.WriteString(fmt.Sprintf("- **Completed phases:** %d\n", completed))
-	b.WriteString(fmt.Sprintf("- **Spec files:** %d\n", specCount))
+	fmt.Fprintf(&b, "- **Completed phases:** %d\n", completed)
+	fmt.Fprintf(&b, "- **Spec files:** %d\n", specCount)
 
 	return fsutil.AtomicWrite(manifestPath, []byte(b.String()))
 }

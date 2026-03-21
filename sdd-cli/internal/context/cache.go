@@ -284,7 +284,7 @@ func recordMetrics(changeDir string, m *contextMetrics) {
 		return
 	}
 
-	_ = os.MkdirAll(cacheDir(changeDir), 0o755) // best-effort dir creation
+	_ = os.MkdirAll(cacheDir(changeDir), 0o755)          // best-effort dir creation
 	_ = fsutil.AtomicWrite(metricsPath(changeDir), data) // best-effort metrics persistence
 }
 

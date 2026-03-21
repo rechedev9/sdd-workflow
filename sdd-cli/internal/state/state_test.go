@@ -61,10 +61,10 @@ func TestValidTransitions(t *testing.T) {
 
 func TestInvalidTransitions(t *testing.T) {
 	tests := []struct {
-		name      string
-		setup     func(*State)
-		target    Phase
-		wantErr   error
+		name    string
+		setup   func(*State)
+		target  Phase
+		wantErr error
 	}{
 		{"propose without explore", nil, PhasePropose, ErrPrerequisitesNotMet},
 		{"spec without propose", func(s *State) {

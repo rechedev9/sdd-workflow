@@ -27,7 +27,7 @@ import (
 // See internal/phase/registry.go for the canonical definitions.
 
 var (
-	ErrInvalidTransition = errors.New("invalid phase transition")
+	ErrInvalidTransition   = errors.New("invalid phase transition")
 	ErrPrerequisitesNotMet = errors.New("prerequisites not met")
 	ErrAlreadyCompleted    = errors.New("phase already completed")
 	ErrCorruptState        = errors.New("corrupt state file")

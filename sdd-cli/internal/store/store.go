@@ -85,7 +85,7 @@ func Open(path string) (*Store, error) {
 		"PRAGMA busy_timeout=5000",
 	}
 	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
+		if _, err := db.ExecContext(context.Background(), p); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("store: pragma %q: %w", p, err)
 		}

@@ -174,13 +174,13 @@ func WriteReport(report *Report, changeDir string) error {
 
 	var buf bytes.Buffer
 	buf.WriteString("# Verify Report\n\n")
-	buf.WriteString(fmt.Sprintf("**Timestamp:** %s\n\n", report.Timestamp.Format(time.RFC3339)))
+	fmt.Fprintf(&buf, "**Timestamp:** %s\n\n", report.Timestamp.Format(time.RFC3339))
 
 	if report.Passed {
 		buf.WriteString("**Status:** PASSED\n\n")
 		buf.WriteString("All commands passed.\n\n")
 	} else {
-		buf.WriteString(fmt.Sprintf("**Status:** FAILED (%d command(s) failed)\n\n", report.FailedCount()))
+		fmt.Fprintf(&buf, "**Status:** FAILED (%d command(s) failed)\n\n", report.FailedCount())
 	}
 
 	for _, res := range report.Results {
@@ -188,10 +188,10 @@ func WriteReport(report *Report, changeDir string) error {
 		if !res.Passed {
 			icon = "FAIL"
 		}
-		buf.WriteString(fmt.Sprintf("## %s — %s\n\n", res.Name, icon))
-		buf.WriteString(fmt.Sprintf("- **Command:** `%s`\n", res.Command))
-		buf.WriteString(fmt.Sprintf("- **Duration:** %s\n", res.Duration.Round(time.Millisecond)))
-		buf.WriteString(fmt.Sprintf("- **Exit code:** %d\n", res.ExitCode))
+		fmt.Fprintf(&buf, "## %s — %s\n\n", res.Name, icon)
+		fmt.Fprintf(&buf, "- **Command:** `%s`\n", res.Command)
+		fmt.Fprintf(&buf, "- **Duration:** %s\n", res.Duration.Round(time.Millisecond))
+		fmt.Fprintf(&buf, "- **Exit code:** %d\n", res.ExitCode)
 
 		if res.TimedOut {
 			buf.WriteString("- **Timed out:** yes\n")
@@ -202,7 +202,7 @@ func WriteReport(report *Report, changeDir string) error {
 			if len(lines) > 0 {
 				buf.WriteString("\n**Error output:**\n\n```\n")
 				for i, line := range lines {
-					buf.WriteString(fmt.Sprintf("%3d: %s\n", i+1, line))
+					fmt.Fprintf(&buf, "%3d: %s\n", i+1, line)
 				}
 				buf.WriteString("```\n")
 			}

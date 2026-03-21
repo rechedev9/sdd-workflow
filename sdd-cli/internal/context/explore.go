@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
@@ -67,7 +68,7 @@ func AssembleExplore(w io.Writer, p *Params) error {
 
 // gitFileTree runs git ls-files and returns the output.
 func gitFileTree(projectDir string) (string, error) {
-	cmd := exec.Command("git", "ls-files")
+	cmd := exec.CommandContext(context.Background(), "git", "ls-files")
 	cmd.Dir = projectDir
 	out, err := cmd.Output()
 	if err != nil {
