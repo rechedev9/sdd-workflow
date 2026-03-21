@@ -11,7 +11,7 @@ import (
 var commands = []string{
 	"init", "new", "context", "write", "status", "list",
 	"verify", "archive", "diff", "health", "dump", "doctor",
-	"errors", "completion", "version", "help",
+	"errors", "dashboard", "completion", "version", "help",
 }
 
 func runCompletion(args []string, stdout io.Writer, stderr io.Writer) error {

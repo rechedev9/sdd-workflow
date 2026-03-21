@@ -53,6 +53,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runDoctor(rest, stdout, stderr)
 	case "errors":
 		return runErrors(rest, stdout, stderr)
+	case "dashboard":
+		return runDashboard(rest, stdout, stderr)
 	case "completion":
 		return runCompletion(rest, stdout, stderr)
 	case "--version", "version":
@@ -98,6 +100,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  dump <name>       Dump full debug state as JSON")
 	fmt.Fprintln(w, "  errors            List recorded verify failures, grouped by pattern")
 	fmt.Fprintln(w, "  doctor            Diagnose config, cache, skills, and tools")
+	fmt.Fprintln(w, "  dashboard         Live ops dashboard on localhost")
 	fmt.Fprintln(w, "  completion <sh>   Generate shell completions (bash, zsh, fish)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Other:")
@@ -290,6 +293,19 @@ Setup:
   fish    sdd completion fish > ~/.config/fish/completions/sdd.fish
 
 Exit:   0 success, 2 usage`,
+
+	"dashboard": `sdd dashboard — Live ops dashboard
+
+Usage: sdd dashboard [--port PORT]
+
+Starts a local HTTP server serving a live ops dashboard with KPI cards,
+pipeline progress, and error log. Polls the SQLite store for telemetry.
+
+Flags:
+  --port, -p   Port to listen on (default: 8811, range: 1024-65535)
+
+Output: JSON with command, status, and URL. Server runs until interrupted.
+Exit:   0 success (after shutdown), 1 error, 2 usage`,
 
 	"archive": `sdd archive — Archive completed change
 
