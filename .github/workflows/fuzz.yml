@@ -1,0 +1,51 @@
+name: Fuzz
+
+on:
+  push:
+    branches: [master]
+    paths: [sdd-cli/**]
+  pull_request:
+    branches: [master]
+    paths: [sdd-cli/**]
+  schedule:
+    - cron: "0 3 * * *" # nightly at 03:00 UTC
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdd-cli
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { pkg: "./internal/context", func: "FuzzExtractDecisions" }
+          - { pkg: "./internal/context", func: "FuzzExtractFirst" }
+          - { pkg: "./internal/context", func: "FuzzExtractCompletedTasks" }
+          - { pkg: "./internal/context", func: "FuzzExtractCurrentTask" }
+          - { pkg: "./internal/state", func: "FuzzStateLoad" }
+          - { pkg: "./internal/config", func: "FuzzConfigLoad" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: sdd-cli/go.sum
+
+      - name: Fuzz ${{ matrix.target.func }}
+        run: |
+          FUZZTIME="30s"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            FUZZTIME="5m"
+          fi
+          go test -fuzz="^${{ matrix.target.func }}$" -fuzztime="$FUZZTIME" ${{ matrix.target.pkg }}
+
+      - name: Upload crash corpus
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus-${{ matrix.target.func }}
+          path: sdd-cli/**/testdata/fuzz/
+          retention-days: 30
