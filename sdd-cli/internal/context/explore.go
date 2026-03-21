@@ -5,25 +5,40 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // AssembleExplore builds context for the explore phase.
 // Includes: file tree (via git ls-files), config summary, sdd-explore SKILL.md.
 func AssembleExplore(w io.Writer, p *Params) error {
-	// Load skill.
-	skill, err := loadSkill(p.SkillsPath, "sdd-explore")
-	if err != nil {
-		return err
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-explore") },
+		func() ([]byte, error) {
+			ft, err := gitFileTree(p.ProjectDir)
+			return []byte(ft), err
+		},
+		func() ([]byte, error) {
+			return []byte(loadManifestContents(p.ProjectDir, p.Config.Stack.Manifests)), nil
+		},
 	}
 
-	// Get file tree.
-	fileTree, err := gitFileTree(p.ProjectDir)
-	if err != nil {
-		// Fallback: note that git ls-files failed.
-		fileTree = fmt.Sprintf("(git ls-files unavailable: %v)", err)
+	ls := csync.NewLazySlice(loaders)
+	if err := ls.LoadAll(); err != nil {
+		if _, e := ls.Get(0); e != nil {
+			return e // skill is critical
+		}
 	}
 
-	// Write assembled context.
+	skill, _ := ls.Get(0)
+	fileTreeData, ftErr := ls.Get(1)
+	manifests, _ := ls.Get(2)
+
+	fileTree := string(fileTreeData)
+	if ftErr != nil {
+		fileTree = fmt.Sprintf("(git ls-files unavailable: %v)", ftErr)
+	}
+
 	writeSection(w, "SKILL", skill)
 
 	writeSectionStr(w, "PROJECT", fmt.Sprintf(
@@ -43,9 +58,8 @@ func AssembleExplore(w io.Writer, p *Params) error {
 
 	writeSectionStr(w, "FILE TREE", fileTree)
 
-	// Load actual manifest contents for dependency/version context.
-	if manifests := loadManifestContents(p.ProjectDir, p.Config.Stack.Manifests); manifests != "" {
-		writeSectionStr(w, "MANIFESTS", manifests)
+	if len(manifests) > 0 {
+		writeSection(w, "MANIFESTS", manifests)
 	}
 
 	return nil

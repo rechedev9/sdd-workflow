@@ -3,14 +3,73 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strings"
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli"
 )
 
+// startProfile starts CPU and/or heap profiling based on mode.
+// Returns a cleanup function that stops profiling and closes files.
+// mode: "cpu", "mem", "all", or "" (no-op).
+func startProfile(mode string, stderr *os.File) func() {
+	if mode == "" {
+		return func() {}
+	}
+
+	var closers []func()
+
+	if mode == "cpu" || mode == "all" {
+		f, err := os.Create("sdd-cpu.prof")
+		if err != nil {
+			fmt.Fprintf(stderr, "sdd: cannot create cpu profile: %v\n", err)
+		} else {
+			if err := pprof.StartCPUProfile(f); err != nil {
+				fmt.Fprintf(stderr, "sdd: cannot start cpu profile: %v\n", err)
+				f.Close()
+			} else {
+				closers = append(closers, func() {
+					pprof.StopCPUProfile()
+					f.Close()
+				})
+			}
+		}
+	}
+
+	if mode == "mem" || mode == "all" {
+		closers = append(closers, func() {
+			f, err := os.Create("sdd-mem.prof")
+			if err != nil {
+				fmt.Fprintf(stderr, "sdd: cannot create mem profile: %v\n", err)
+				return
+			}
+			defer f.Close()
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				fmt.Fprintf(stderr, "sdd: cannot write mem profile: %v\n", err)
+			}
+		})
+	}
+
+	if mode != "cpu" && mode != "mem" && mode != "all" {
+		fmt.Fprintf(stderr, "sdd: unknown SDD_PPROF value %q (use cpu, mem, or all)\n", mode)
+		return func() {}
+	}
+
+	return func() {
+		for _, c := range closers {
+			c()
+		}
+	}
+}
+
 func main() {
+	stopProfile := startProfile(os.Getenv("SDD_PPROF"), os.Stderr)
+	defer stopProfile()
+
 	defer func() {
 		if r := recover(); r != nil {
 			ts := time.Now()

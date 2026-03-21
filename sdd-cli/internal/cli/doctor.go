@@ -140,6 +140,14 @@ func checkBuildTools(cfg *config.Config) CheckResult {
 	return CheckResult{Name: "build_tools", Status: "pass", Message: "all build commands found"}
 }
 
+func checkPprof() CheckResult {
+	val := os.Getenv("SDD_PPROF")
+	if val == "" {
+		return CheckResult{Name: "pprof", Status: "pass", Message: "SDD_PPROF not set (no profiling)"}
+	}
+	return CheckResult{Name: "pprof", Status: "pass", Message: fmt.Sprintf("SDD_PPROF=%s", val)}
+}
+
 func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 	jsonOut := false
 	for _, arg := range args {
@@ -166,6 +174,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		checkOrphanedPending(changesDir),
 		checkSkillsPath(cfg),
 		checkBuildTools(cfg),
+		checkPprof(),
 	}
 
 	if jsonOut {

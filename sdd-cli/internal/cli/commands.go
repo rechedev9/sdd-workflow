@@ -16,9 +16,17 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/verify"
 )
+
+// newBroker creates and wires a broker with default subscribers.
+func newBroker(stderr io.Writer, verbosity int) *events.Broker {
+	broker := events.NewBroker(stderr)
+	sddctx.RegisterSubscribers(broker, stderr, verbosity)
+	return broker
+}
 
 // staleThreshold is the duration after which a change is considered abandoned.
 // Changes inactive longer than this are flagged as stale.
@@ -162,6 +170,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Run explore assembler to stdout.
+	broker := newBroker(stderr, int(verbosity))
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  name,
@@ -171,6 +180,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		SkillsPath:  cfg.SkillsPath,
 		Stderr:      stderr,
 		Verbosity:   int(verbosity),
+		Broker:      broker,
 	}
 
 	if err := sddctx.Assemble(stdout, state.PhaseExplore, p); err != nil {
@@ -226,6 +236,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "context", fmt.Errorf("load state: %w", err))
 	}
 
+	broker := newBroker(stderr, int(verbosity))
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  st.Name,
@@ -235,6 +246,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		SkillsPath:  cfg.SkillsPath,
 		Stderr:      stderr,
 		Verbosity:   int(verbosity),
+		Broker:      broker,
 	}
 
 	// Choose target writer: buffer for JSON mode, stdout otherwise.
@@ -334,11 +346,23 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "write", fmt.Errorf("load state: %w", err))
 	}
 
+	broker := newBroker(stderr, 0)
+	prevPhase := string(st.CurrentPhase)
+
 	// Promote pending artifact.
 	promoted, err := artifacts.Promote(changeDir, phase)
 	if err != nil {
 		return errs.WriteError(stderr, "write", err)
 	}
+
+	broker.Emit(events.Event{
+		Type: events.ArtifactPromoted,
+		Payload: events.ArtifactPromotedPayload{
+			Change:     name,
+			Phase:      string(phase),
+			PromotedTo: promoted,
+		},
+	})
 
 	// Advance state.
 	if err := st.Advance(phase); err != nil {
@@ -349,6 +373,15 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err := state.Save(st, statePath); err != nil {
 		return errs.WriteError(stderr, "write", err)
 	}
+
+	broker.Emit(events.Event{
+		Type: events.StateAdvanced,
+		Payload: events.StateAdvancedPayload{
+			Change:    name,
+			FromPhase: prevPhase,
+			ToPhase:   string(st.CurrentPhase),
+		},
+	})
 
 	out := struct {
 		Command      string `json:"command"`

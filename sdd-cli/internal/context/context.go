@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
@@ -33,8 +34,9 @@ type Params struct {
 	ProjectDir  string
 	Config      *config.Config
 	SkillsPath  string
-	Stderr      io.Writer // for metrics output; nil = discard
-	Verbosity int       // -1=quiet, 0=default, 1=verbose, 2=debug
+	Stderr    io.Writer      // for metrics output; nil = discard
+	Verbosity int           // -1=quiet, 0=default, 1=verbose, 2=debug
+	Broker    *events.Broker // event broker; nil = no events
 }
 
 // dispatchers maps phases to their assembler functions.
@@ -51,7 +53,8 @@ var dispatchers = map[state.Phase]Assembler{
 
 // Assemble resolves the phase and runs the appropriate assembler.
 // Uses content-hash caching to skip assembly if inputs haven't changed.
-// Prints metrics to p.Stderr and enforces a size guard.
+// Emits events via p.Broker for metrics, caching, and stderr output.
+// Enforces a size guard on assembled context.
 func Assemble(w io.Writer, phase state.Phase, p *Params) error {
 	fn, ok := dispatchers[phase]
 	if !ok {
@@ -65,9 +68,35 @@ func Assemble(w io.Writer, phase state.Phase, p *Params) error {
 	if cached, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath); ok {
 		size := len(cached)
 		w.Write(cached)
-		emitMetrics(p.Stderr, p.ChangeDir, phaseStr, size, true, start, p.Verbosity)
+
+		p.Broker.Emit(events.Event{
+			Type: events.CacheHit,
+			Payload: events.CacheHitPayload{
+				Phase: phaseStr,
+				Bytes: size,
+			},
+		})
+
+		p.Broker.Emit(events.Event{
+			Type: events.PhaseAssembled,
+			Payload: events.PhaseAssembledPayload{
+				Phase:      phaseStr,
+				Bytes:      size,
+				Tokens:     estimateTokens(size),
+				Cached:     true,
+				DurationMs: time.Since(start).Milliseconds(),
+				ChangeDir:  p.ChangeDir,
+				SkillsPath: p.SkillsPath,
+			},
+		})
+
 		return nil
 	}
+
+	p.Broker.Emit(events.Event{
+		Type:    events.CacheMiss,
+		Payload: events.CacheMissPayload{Phase: phaseStr},
+	})
 
 	// Assemble into buffer for caching + size check.
 	var buf bytes.Buffer
@@ -88,30 +117,21 @@ func Assemble(w io.Writer, phase state.Phase, p *Params) error {
 	content := buf.Bytes()
 	w.Write(content)
 
-	// Cache for next time (best-effort).
-	_ = saveContextCache(p.ChangeDir, phaseStr, p.SkillsPath, content)
+	p.Broker.Emit(events.Event{
+		Type: events.PhaseAssembled,
+		Payload: events.PhaseAssembledPayload{
+			Phase:      phaseStr,
+			Bytes:      size,
+			Tokens:     estimateTokens(size),
+			Cached:     false,
+			DurationMs: time.Since(start).Milliseconds(),
+			ChangeDir:  p.ChangeDir,
+			SkillsPath: p.SkillsPath,
+			Content:    content,
+		},
+	})
 
-	emitMetrics(p.Stderr, p.ChangeDir, phaseStr, size, false, start, p.Verbosity)
 	return nil
-}
-
-// emitMetrics writes context metrics to stderr and records cumulative metrics.
-func emitMetrics(stderr io.Writer, changeDir, phase string, size int, cached bool, start time.Time, verbosity int) {
-	m := &contextMetrics{
-		Phase:      phase,
-		Bytes:      size,
-		Tokens:     estimateTokens(size),
-		Cached:     cached,
-		DurationMs: time.Since(start).Milliseconds(),
-	}
-
-	// Record to cumulative metrics file (best-effort).
-	recordMetrics(changeDir, m)
-
-	if stderr == nil {
-		return
-	}
-	writeMetrics(stderr, m, verbosity)
 }
 
 // AssembleConcurrent assembles multiple phases in parallel and writes
@@ -146,7 +166,7 @@ func AssembleConcurrent(w io.Writer, phases []state.Phase, p *Params) error {
 
 	wg.Wait()
 
-	// Write successes in order, collect errors. Partial output is intentional.
+	// Write successes in order, collect errors.
 	// Partial output is intentional — better than nothing for the sub-agent.
 	var errs []string
 	for i, r := range results {

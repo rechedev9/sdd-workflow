@@ -3,26 +3,48 @@ package context
 import (
 	"fmt"
 	"io"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // AssembleClean builds context for the clean phase.
 // Includes: verify-report.md, tasks.md, design.md, specs, cumulative summary,
 // sdd-clean SKILL.md.
 func AssembleClean(w io.Writer, p *Params) error {
-	skill, err := loadSkill(p.SkillsPath, "sdd-clean")
-	if err != nil {
-		return err
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-clean") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "verify-report.md") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		func() ([]byte, error) {
+			s, err := loadSpecs(p.ChangeDir)
+			if err != nil {
+				return nil, nil // non-fatal
+			}
+			return []byte(s), nil
+		},
 	}
 
-	verifyReport, err := loadArtifact(p.ChangeDir, "verify-report.md")
-	if err != nil {
-		return fmt.Errorf("clean requires verify-report artifact: %w", err)
+	ls := csync.NewLazySlice(loaders)
+	if err := ls.LoadAll(); err != nil {
+		if _, e := ls.Get(0); e != nil {
+			return e
+		}
+		if _, e := ls.Get(1); e != nil {
+			return fmt.Errorf("clean requires verify-report artifact: %w", e)
+		}
+		if _, e := ls.Get(2); e != nil {
+			return fmt.Errorf("clean requires tasks artifact: %w", e)
+		}
 	}
 
-	tasks, err := loadArtifact(p.ChangeDir, "tasks.md")
-	if err != nil {
-		return fmt.Errorf("clean requires tasks artifact: %w", err)
-	}
+	skill, _ := ls.Get(0)
+	verifyReport, _ := ls.Get(1)
+	tasks, _ := ls.Get(2)
+	summary, _ := ls.Get(3)
+	design, _ := ls.Get(4)
+	specs, _ := ls.Get(5)
 
 	writeSection(w, "SKILL", skill)
 
@@ -31,21 +53,19 @@ func AssembleClean(w io.Writer, p *Params) error {
 		p.ChangeName, p.Description,
 	))
 
-	// Cumulative context so cleanup has full picture.
-	if summary := buildSummary(p.ChangeDir, p); summary != "" {
-		writeSectionStr(w, "PIPELINE CONTEXT", summary)
+	if len(summary) > 0 {
+		writeSection(w, "PIPELINE CONTEXT", summary)
 	}
 
 	writeSection(w, "VERIFY REPORT", verifyReport)
 	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(string(tasks)))
 	writeSection(w, "TASKS", tasks)
 
-	// Design and specs — clean needs to know what was intended to justify removals.
-	if design, err := loadArtifact(p.ChangeDir, "design.md"); err == nil {
+	if len(design) > 0 {
 		writeSection(w, "DESIGN", design)
 	}
-	if specs, err := loadSpecs(p.ChangeDir); err == nil {
-		writeSection(w, "SPECIFICATIONS", []byte(specs))
+	if len(specs) > 0 {
+		writeSection(w, "SPECIFICATIONS", specs)
 	}
 
 	return nil

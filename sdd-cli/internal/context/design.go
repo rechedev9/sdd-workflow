@@ -6,26 +6,40 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // AssembleDesign builds context for the design phase.
 // Includes: spec files (MUST/SHOULD requirements), proposal.md, sdd-design SKILL.md.
 func AssembleDesign(w io.Writer, p *Params) error {
-	skill, err := loadSkill(p.SkillsPath, "sdd-design")
-	if err != nil {
-		return err
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-design") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
+		func() ([]byte, error) {
+			s, err := loadSpecs(p.ChangeDir)
+			return []byte(s), err
+		},
+		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
 	}
 
-	proposal, err := loadArtifact(p.ChangeDir, "proposal.md")
-	if err != nil {
-		return fmt.Errorf("design requires proposal artifact: %w", err)
+	ls := csync.NewLazySlice(loaders)
+	if err := ls.LoadAll(); err != nil {
+		if _, e := ls.Get(0); e != nil {
+			return e
+		}
+		if _, e := ls.Get(1); e != nil {
+			return fmt.Errorf("design requires proposal artifact: %w", e)
+		}
+		if _, e := ls.Get(2); e != nil {
+			return fmt.Errorf("design requires spec artifacts: %w", e)
+		}
 	}
 
-	// Load spec files from specs/ directory.
-	specs, err := loadSpecs(p.ChangeDir)
-	if err != nil {
-		return fmt.Errorf("design requires spec artifacts: %w", err)
-	}
+	skill, _ := ls.Get(0)
+	proposal, _ := ls.Get(1)
+	specs, _ := ls.Get(2)
+	summary, _ := ls.Get(3)
 
 	writeSection(w, "SKILL", skill)
 
@@ -34,15 +48,14 @@ func AssembleDesign(w io.Writer, p *Params) error {
 		p.ChangeName, p.Description,
 	))
 
-	// Cumulative context so design decisions are grounded.
 	writeSectionStr(w, "PROJECT", projectContext(p))
 
-	if summary := buildSummary(p.ChangeDir, p); summary != "" {
-		writeSectionStr(w, "PIPELINE CONTEXT", summary)
+	if len(summary) > 0 {
+		writeSection(w, "PIPELINE CONTEXT", summary)
 	}
 
 	writeSection(w, "PROPOSAL", proposal)
-	writeSection(w, "SPECIFICATIONS", []byte(specs))
+	writeSection(w, "SPECIFICATIONS", specs)
 
 	return nil
 }

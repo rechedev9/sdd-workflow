@@ -5,37 +5,60 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // AssembleReview builds context for the review phase.
 // Includes: spec files, design.md, git diff of changed files, sdd-review SKILL.md.
 // Optionally includes AGENTS.md / CLAUDE.md if present.
 func AssembleReview(w io.Writer, p *Params) error {
-	skill, err := loadSkill(p.SkillsPath, "sdd-review")
-	if err != nil {
-		return err
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-review") },
+		func() ([]byte, error) {
+			s, err := loadSpecs(p.ChangeDir)
+			return []byte(s), err
+		},
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		func() ([]byte, error) {
+			d, err := gitDiff(p.ProjectDir)
+			if err != nil {
+				return []byte(fmt.Sprintf("(git diff unavailable: %v)", err)), nil
+			}
+			return []byte(d), nil
+		},
+		func() ([]byte, error) {
+			rules, err := loadProjectRules(p.ProjectDir)
+			if err != nil {
+				return nil, nil // non-fatal
+			}
+			return rules, nil
+		},
 	}
 
-	specs, err := loadSpecs(p.ChangeDir)
-	if err != nil {
-		return fmt.Errorf("review requires spec artifacts: %w", err)
+	ls := csync.NewLazySlice(loaders)
+	if err := ls.LoadAll(); err != nil {
+		if _, e := ls.Get(0); e != nil {
+			return e
+		}
+		if _, e := ls.Get(1); e != nil {
+			return fmt.Errorf("review requires spec artifacts: %w", e)
+		}
+		if _, e := ls.Get(2); e != nil {
+			return fmt.Errorf("review requires design artifact: %w", e)
+		}
+		if _, e := ls.Get(3); e != nil {
+			return fmt.Errorf("review requires tasks artifact: %w", e)
+		}
 	}
 
-	design, err := loadArtifact(p.ChangeDir, "design.md")
-	if err != nil {
-		return fmt.Errorf("review requires design artifact: %w", err)
-	}
-
-	tasks, err := loadArtifact(p.ChangeDir, "tasks.md")
-	if err != nil {
-		return fmt.Errorf("review requires tasks artifact: %w", err)
-	}
-
-	// Get git diff of uncommitted changes.
-	diff, err := gitDiff(p.ProjectDir)
-	if err != nil {
-		diff = fmt.Sprintf("(git diff unavailable: %v)", err)
-	}
+	skill, _ := ls.Get(0)
+	specs, _ := ls.Get(1)
+	design, _ := ls.Get(2)
+	tasks, _ := ls.Get(3)
+	diff, _ := ls.Get(4)
+	rules, _ := ls.Get(5)
 
 	writeSection(w, "SKILL", skill)
 
@@ -44,14 +67,15 @@ func AssembleReview(w io.Writer, p *Params) error {
 		p.ChangeName, p.Description,
 	))
 
-	writeSection(w, "SPECIFICATIONS", []byte(specs))
+	writeSection(w, "SPECIFICATIONS", specs)
 	writeSection(w, "DESIGN", design)
 	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(string(tasks)))
 	writeSection(w, "TASKS", tasks)
-	writeSectionStr(w, "GIT DIFF", diff)
+	if len(diff) > 0 {
+		writeSection(w, "GIT DIFF", diff)
+	}
 
-	// Load project rules if present (AGENTS.md or CLAUDE.md).
-	if rules, err := loadProjectRules(p.ProjectDir); err == nil {
+	if len(rules) > 0 {
 		writeSection(w, "PROJECT RULES", rules)
 	}
 

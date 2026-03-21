@@ -4,33 +4,47 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // AssembleApply builds context for the apply phase.
 // Includes: tasks.md (current incomplete task only), design.md, spec files,
 // sdd-apply SKILL.md.
 func AssembleApply(w io.Writer, p *Params) error {
-	skill, err := loadSkill(p.SkillsPath, "sdd-apply")
-	if err != nil {
-		return err
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-apply") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		func() ([]byte, error) {
+			s, err := loadSpecs(p.ChangeDir)
+			return []byte(s), err
+		},
+		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
 	}
 
-	tasksRaw, err := loadArtifact(p.ChangeDir, "tasks.md")
-	if err != nil {
-		return fmt.Errorf("apply requires tasks artifact: %w", err)
+	ls := csync.NewLazySlice(loaders)
+	if err := ls.LoadAll(); err != nil {
+		if _, e := ls.Get(0); e != nil {
+			return e
+		}
+		if _, e := ls.Get(1); e != nil {
+			return fmt.Errorf("apply requires tasks artifact: %w", e)
+		}
+		if _, e := ls.Get(2); e != nil {
+			return fmt.Errorf("apply requires design artifact: %w", e)
+		}
+		if _, e := ls.Get(3); e != nil {
+			return fmt.Errorf("apply requires spec artifacts: %w", e)
+		}
 	}
 
-	design, err := loadArtifact(p.ChangeDir, "design.md")
-	if err != nil {
-		return fmt.Errorf("apply requires design artifact: %w", err)
-	}
+	skill, _ := ls.Get(0)
+	tasksRaw, _ := ls.Get(1)
+	design, _ := ls.Get(2)
+	specs, _ := ls.Get(3)
+	summary, _ := ls.Get(4)
 
-	specs, err := loadSpecs(p.ChangeDir)
-	if err != nil {
-		return fmt.Errorf("apply requires spec artifacts: %w", err)
-	}
-
-	// Extract the current incomplete task to minimize context.
 	currentTask := extractCurrentTask(string(tasksRaw))
 	completedSummary := extractCompletedTasks(string(tasksRaw))
 
@@ -41,15 +55,14 @@ func AssembleApply(w io.Writer, p *Params) error {
 		p.ChangeName, p.Description,
 	))
 
-	// Cumulative context so apply knows what's already been done.
-	if summary := buildSummary(p.ChangeDir, p); summary != "" {
-		writeSectionStr(w, "PIPELINE CONTEXT", summary)
+	if len(summary) > 0 {
+		writeSection(w, "PIPELINE CONTEXT", summary)
 	}
 
 	writeSectionStr(w, "COMPLETED TASKS", completedSummary)
 	writeSectionStr(w, "CURRENT TASK", currentTask)
 	writeSection(w, "DESIGN", design)
-	writeSection(w, "SPECIFICATIONS", []byte(specs))
+	writeSection(w, "SPECIFICATIONS", specs)
 
 	return nil
 }

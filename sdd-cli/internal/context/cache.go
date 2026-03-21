@@ -312,7 +312,6 @@ func recordMetrics(changeDir string, m *contextMetrics) {
 	}
 }
 
-// LoadPipelineMetrics reads the cumulative metrics file, or creates a new one.
 // LoadPipelineMetrics reads the cumulative metrics file for a change.
 // Exported for use by sdd health command.
 func LoadPipelineMetrics(changeDir string) *PipelineMetrics {
