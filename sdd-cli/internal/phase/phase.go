@@ -10,6 +10,7 @@ package phase
 
 import (
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
@@ -52,14 +53,14 @@ type Phase struct {
 // Read-only after first Get()/All()/AllNames() call.
 type Registry struct {
 	phases []Phase
-	sealed bool
+	sealed atomic.Bool
 }
 
 // Register appends a Phase to the registry.
 // Panics if called after the registry is sealed.
 // Panics if p.Name is empty or already registered.
 func (r *Registry) Register(p Phase) {
-	if r.sealed {
+	if r.sealed.Load() {
 		panic("phase: Register called on sealed registry")
 	}
 	if p.Name == "" {
@@ -77,7 +78,7 @@ func (r *Registry) Register(p Phase) {
 // Used by context package init() to wire assemblers without import cycles.
 // Panics if sealed or if the phase name is not found.
 func (r *Registry) SetAssembler(name string, fn Assembler) {
-	if r.sealed {
+	if r.sealed.Load() {
 		panic("phase: SetAssembler called on sealed registry")
 	}
 	for i := range r.phases {
@@ -92,7 +93,7 @@ func (r *Registry) SetAssembler(name string, fn Assembler) {
 // Get returns the Phase descriptor for the given name.
 // Seals the registry on first call.
 func (r *Registry) Get(name string) (Phase, bool) {
-	r.sealed = true
+	r.sealed.Store(true)
 	for _, p := range r.phases {
 		if p.Name == name {
 			return p, true
@@ -104,7 +105,7 @@ func (r *Registry) Get(name string) (Phase, bool) {
 // All returns a copy of the ordered phase slice.
 // Seals the registry.
 func (r *Registry) All() []Phase {
-	r.sealed = true
+	r.sealed.Store(true)
 	out := make([]Phase, len(r.phases))
 	copy(out, r.phases)
 	return out
@@ -113,7 +114,7 @@ func (r *Registry) All() []Phase {
 // AllNames returns phase names in pipeline order.
 // Seals the registry.
 func (r *Registry) AllNames() []string {
-	r.sealed = true
+	r.sealed.Store(true)
 	names := make([]string, len(r.phases))
 	for i, p := range r.phases {
 		names[i] = p.Name

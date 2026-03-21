@@ -11,11 +11,7 @@ install: build
 	cp bin/sdd ~/.local/bin/sdd
 
 test:
-	@if command -v gcc >/dev/null 2>&1; then \
-		CGO_ENABLED=1 go test -race ./...; \
-	else \
-		go test ./...; \
-	fi
+	CGO_ENABLED=1 go test -race ./...
 
 lint:
 	golangci-lint run ./...
