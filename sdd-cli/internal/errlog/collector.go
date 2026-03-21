@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 )
 
 const (
@@ -76,13 +78,7 @@ func Record(cwd string, entry ErrorEntry) {
 
 	dir := filepath.Dir(LogPath(cwd))
 	_ = os.MkdirAll(dir, 0o755)
-	tmp := LogPath(cwd) + ".tmp"
-	if os.WriteFile(tmp, data, 0o644) != nil {
-		return
-	}
-	if os.Rename(tmp, LogPath(cwd)) != nil {
-		os.Remove(tmp)
-	}
+	_ = fsutil.AtomicWrite(LogPath(cwd), data)
 }
 
 // RecurringFingerprints returns fingerprints seen >= threshold times with their counts.

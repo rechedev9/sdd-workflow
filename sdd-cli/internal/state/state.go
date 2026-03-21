@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 )
 
@@ -146,15 +147,7 @@ func Save(s *State, path string) error {
 		return fmt.Errorf("create state directory: %w", err)
 	}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("write temp state: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp) // best-effort cleanup
-		return fmt.Errorf("rename temp state: %w", err)
-	}
-	return nil
+	return fsutil.AtomicWrite(path, data)
 }
 
 // Load reads state from path. Returns the state or an error.

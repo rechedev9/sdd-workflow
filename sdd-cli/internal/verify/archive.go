@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 )
 
 // ArchiveResult holds the outcome of an archive operation.
@@ -94,14 +96,5 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 	b.WriteString(fmt.Sprintf("- **Completed phases:** %d\n", completed))
 	b.WriteString(fmt.Sprintf("- **Spec files:** %d\n", specCount))
 
-	// Atomic write: temp file + rename.
-	tmp := manifestPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o644); err != nil {
-		return fmt.Errorf("write archive manifest: %w", err)
-	}
-	if err := os.Rename(tmp, manifestPath); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("rename archive manifest: %w", err)
-	}
-	return nil
+	return fsutil.AtomicWrite(manifestPath, []byte(b.String()))
 }

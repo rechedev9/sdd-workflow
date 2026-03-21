@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 )
 
 // DefaultTimeout is the per-command timeout.
@@ -209,14 +210,5 @@ func WriteReport(report *Report, changeDir string) error {
 		buf.WriteString("\n")
 	}
 
-	// Atomic write: temp file + rename.
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("write verify report: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("rename verify report: %w", err)
-	}
-	return nil
+	return fsutil.AtomicWrite(path, buf.Bytes())
 }

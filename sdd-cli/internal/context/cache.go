@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 )
 
@@ -184,27 +185,10 @@ func saveContextCache(changeDir, phaseName, skillsPath string, content []byte) e
 	hash := inputHash(changeDir, inputs, skillsPath, phaseName)
 	hashWithTS := fmt.Sprintf("%s|%d", hash, time.Now().Unix())
 
-	hashPath := hashCachePath(changeDir, phaseName)
-	tmp := hashPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(hashWithTS), 0o644); err != nil {
-		return fmt.Errorf("write hash cache: %w", err)
+	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), []byte(hashWithTS)); err != nil {
+		return err
 	}
-	if err := os.Rename(tmp, hashPath); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("rename hash cache: %w", err)
-	}
-
-	ctxPath := contextCachePath(changeDir, phaseName)
-	tmp = ctxPath + ".tmp"
-	if err := os.WriteFile(tmp, content, 0o644); err != nil {
-		return fmt.Errorf("write context cache: %w", err)
-	}
-	if err := os.Rename(tmp, ctxPath); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("rename context cache: %w", err)
-	}
-
-	return nil
+	return fsutil.AtomicWrite(contextCachePath(changeDir, phaseName), content)
 }
 
 // estimateTokens provides a rough token estimate from byte count.
@@ -301,14 +285,7 @@ func recordMetrics(changeDir string, m *contextMetrics) {
 	}
 
 	_ = os.MkdirAll(cacheDir(changeDir), 0o755)
-	mp := metricsPath(changeDir)
-	tmp := mp + ".tmp"
-	if os.WriteFile(tmp, data, 0o644) != nil {
-		return
-	}
-	if os.Rename(tmp, mp) != nil {
-		os.Remove(tmp)
-	}
+	_ = fsutil.AtomicWrite(metricsPath(changeDir), data)
 }
 
 // LoadPipelineMetrics reads the cumulative metrics file for a change.

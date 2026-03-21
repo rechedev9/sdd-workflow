@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -131,15 +133,7 @@ func Save(cfg *Config, path string) error {
 		return fmt.Errorf("create config directory: %w", err)
 	}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("write temp config: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("rename temp config: %w", err)
-	}
-	return nil
+	return fsutil.AtomicWrite(path, data)
 }
 
 func defaultSkillsPath() string {
