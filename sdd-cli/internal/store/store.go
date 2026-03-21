@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -135,4 +136,138 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// InsertPhaseEvent stores a phase execution record. Timestamp is stored as
+// RFC 3339 TEXT.
+func (s *Store) InsertPhaseEvent(ctx context.Context, e PhaseEvent) error {
+	cached := 0
+	if e.Cached {
+		cached = 1
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO phase_events (timestamp, change, phase, bytes, tokens, cached, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.Timestamp.Format(time.RFC3339), e.Change, e.Phase,
+		e.Bytes, e.Tokens, cached, e.DurationMs,
+	)
+	if err != nil {
+		return fmt.Errorf("store: insert phase event: %w", err)
+	}
+	return nil
+}
+
+// InsertVerifyEvent stores a verify command result. ErrorLines is serialised
+// as a JSON array of strings.
+func (s *Store) InsertVerifyEvent(ctx context.Context, e VerifyEvent) error {
+	lines := e.ErrorLines
+	if lines == nil {
+		lines = []string{}
+	}
+	linesJSON, err := json.Marshal(lines)
+	if err != nil {
+		return fmt.Errorf("store: marshal error lines: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO verify_events (timestamp, change, command_name, command, exit_code, error_lines, fingerprint)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.Timestamp.Format(time.RFC3339), e.Change, e.CommandName,
+		e.Command, e.ExitCode, string(linesJSON), e.Fingerprint,
+	)
+	if err != nil {
+		return fmt.Errorf("store: insert verify event: %w", err)
+	}
+	return nil
+}
+
+// TokenSummary computes aggregate token stats across all phase events and
+// an error count from verify_events. Returns zero values on an empty DB.
+func (s *Store) TokenSummary(ctx context.Context) (*TokenStats, error) {
+	var stats TokenStats
+
+	var totalTokens sql.NullInt64
+	var totalRows sql.NullInt64
+	var cachedRows sql.NullInt64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(tokens), 0),
+		        COUNT(*),
+		        COALESCE(SUM(CASE WHEN cached = 1 THEN 1 ELSE 0 END), 0)
+		 FROM phase_events`,
+	).Scan(&totalTokens, &totalRows, &cachedRows)
+	if err != nil {
+		return nil, fmt.Errorf("store: token summary: %w", err)
+	}
+
+	stats.TotalTokens = int(totalTokens.Int64)
+	if totalRows.Int64 > 0 {
+		stats.CacheHitPct = float64(cachedRows.Int64) / float64(totalRows.Int64) * 100
+	}
+
+	err = s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM verify_events`,
+	).Scan(&stats.ErrorCount)
+	if err != nil {
+		return nil, fmt.Errorf("store: token summary error count: %w", err)
+	}
+
+	return &stats, nil
+}
+
+// PhaseTokensByChange returns per-change token totals, grouped by change name.
+func (s *Store) PhaseTokensByChange(ctx context.Context) ([]ChangeTokens, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT change, SUM(tokens) FROM phase_events GROUP BY change ORDER BY change`)
+	if err != nil {
+		return nil, fmt.Errorf("store: phase tokens by change: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ChangeTokens
+	for rows.Next() {
+		var ct ChangeTokens
+		if err := rows.Scan(&ct.Change, &ct.Tokens); err != nil {
+			return nil, fmt.Errorf("store: scan change tokens: %w", err)
+		}
+		result = append(result, ct)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: change tokens rows: %w", err)
+	}
+	return result, nil
+}
+
+// RecentErrors returns the most recent verify events, newest first.
+// It parses the JSON error_lines column to extract FirstLine.
+func (s *Store) RecentErrors(ctx context.Context, limit int) ([]ErrorRow, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT timestamp, command_name, command, exit_code, change, fingerprint, error_lines
+		 FROM verify_events
+		 ORDER BY timestamp DESC
+		 LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: recent errors: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]ErrorRow, 0)
+	for rows.Next() {
+		var r ErrorRow
+		var linesJSON string
+		if err := rows.Scan(&r.Timestamp, &r.CommandName, &r.Command,
+			&r.ExitCode, &r.Change, &r.Fingerprint, &linesJSON); err != nil {
+			return nil, fmt.Errorf("store: scan error row: %w", err)
+		}
+		var lines []string
+		if err := json.Unmarshal([]byte(linesJSON), &lines); err != nil {
+			return nil, fmt.Errorf("store: unmarshal error lines: %w", err)
+		}
+		if len(lines) > 0 {
+			r.FirstLine = lines[0]
+		}
+		result = append(result, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: error rows: %w", err)
+	}
+	return result, nil
 }
