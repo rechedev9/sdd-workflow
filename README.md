@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="SDD Logo" width="200">
+  <img src="assets/logo.png" alt="SHENRON — Spec-Driven Development" width="720">
 </p>
 
 <h1 align="center">SDD — Spec-Driven Development</h1>
