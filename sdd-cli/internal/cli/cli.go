@@ -55,6 +55,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runErrors(rest, stdout, stderr)
 	case "dashboard":
 		return runDashboard(rest, stdout, stderr)
+	case "quickstart":
+		return runQuickstart(rest, stdout, stderr)
 	case "completion":
 		return runCompletion(rest, stdout, stderr)
 	case "--version", "version":
@@ -100,6 +102,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  dump <name>       Dump full debug state as JSON")
 	fmt.Fprintln(w, "  errors            List recorded verify failures, grouped by pattern")
 	fmt.Fprintln(w, "  doctor            Diagnose config, cache, skills, and tools")
+	fmt.Fprintln(w, "  quickstart        Skip planning phases — jump to apply with existing spec")
 	fmt.Fprintln(w, "  dashboard         Live ops dashboard on localhost")
 	fmt.Fprintln(w, "  completion <sh>   Generate shell completions (bash, zsh, fish)")
 	fmt.Fprintln(w)
@@ -306,6 +309,27 @@ Flags:
 
 Output: JSON with command, status, and URL. Server runs until interrupted.
 Exit:   0 success (after shutdown), 1 error, 2 usage`,
+
+	"quickstart": `sdd quickstart — Skip planning, jump to apply
+
+Usage: sdd quickstart <name> "<description>" --spec <path>
+
+Creates a new change with explore, propose, spec, design, and tasks
+phases pre-completed using the provided spec file. The change starts
+at the apply phase, ready for implementation.
+
+Use this when you already have a reviewed design spec and don't need
+the LLM to run through planning phases.
+
+Arguments:
+  name          Change name (kebab-case)
+  description   Brief intent description
+
+Flags:
+  --spec <path> Path to an existing design/spec document (required)
+
+Output: JSON with change info, skipped phases, and current phase (apply).
+Exit:   0 success, 1 error, 2 usage`,
 
 	"archive": `sdd archive — Archive completed change
 
