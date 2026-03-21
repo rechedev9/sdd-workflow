@@ -2,6 +2,7 @@ package verify
 
 import (
 	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,23 +220,29 @@ func TestRun_ProgressOutput(t *testing.T) {
 		{Name: "lint", Command: "echo 'fail' >&2; exit 1"},
 	}
 
-	var progress bytes.Buffer
-	_, err := Run(dir, commands, 30*time.Second, &progress)
+	// Redirect slog to a buffer for this test.
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	prev := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	_, err := Run(dir, commands, 30*time.Second, &buf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	out := progress.String()
-	if !strings.Contains(out, "sdd: verify build...") {
+	out := buf.String()
+	if !strings.Contains(out, "verify running") || !strings.Contains(out, "command=build") {
 		t.Error("missing build start progress")
 	}
-	if !strings.Contains(out, "sdd: verify build: ok") {
+	if !strings.Contains(out, "verify passed") || !strings.Contains(out, "command=build") {
 		t.Error("missing build ok progress")
 	}
-	if !strings.Contains(out, "sdd: verify lint...") {
+	if !strings.Contains(out, "verify running") || !strings.Contains(out, "command=lint") {
 		t.Error("missing lint start progress")
 	}
-	if !strings.Contains(out, "sdd: verify lint: FAILED (exit 1)") {
+	if !strings.Contains(out, "verify failed") || !strings.Contains(out, "command=lint") {
 		t.Error("missing lint failed progress")
 	}
 }

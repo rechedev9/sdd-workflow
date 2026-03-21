@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -225,9 +226,8 @@ type contextMetrics struct {
 	DurationMs int64
 }
 
-// writeMetrics prints context metrics to stderr.
-// and appends to the cumulative metrics log for the change.
-func writeMetrics(w io.Writer, m *contextMetrics, verbosity int) {
+// writeMetrics logs context metrics via slog.
+func writeMetrics(_ io.Writer, m *contextMetrics, verbosity int) {
 	if verbosity < 0 {
 		return
 	}
@@ -235,13 +235,12 @@ func writeMetrics(w io.Writer, m *contextMetrics, verbosity int) {
 	if m.Cached {
 		source = "cached"
 	}
-	// Oracle-style: ↑context Δtokens
-	fmt.Fprintf(w, "sdd: phase=%s ↑%s Δ%dK tokens %dms (%s)\n",
-		m.Phase,
-		formatBytes(m.Bytes),
-		m.Tokens/1000,
-		m.DurationMs,
-		source,
+	slog.Info("phase assembled",
+		"phase", m.Phase,
+		"bytes", m.Bytes,
+		"tokens_k", m.Tokens/1000,
+		"duration_ms", m.DurationMs,
+		"source", source,
 	)
 }
 

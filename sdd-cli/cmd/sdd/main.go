@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -10,12 +11,13 @@ import (
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/sddlog"
 )
 
 // startProfile starts CPU and/or heap profiling based on mode.
 // Returns a cleanup function that stops profiling and closes files.
 // mode: "cpu", "mem", "all", or "" (no-op).
-func startProfile(mode string, stderr *os.File) func() {
+func startProfile(mode string) func() {
 	if mode == "" {
 		return func() {}
 	}
@@ -25,10 +27,10 @@ func startProfile(mode string, stderr *os.File) func() {
 	if mode == "cpu" || mode == "all" {
 		f, err := os.Create("sdd-cpu.prof")
 		if err != nil {
-			fmt.Fprintf(stderr, "sdd: cannot create cpu profile: %v\n", err)
+			slog.Error("cannot create cpu profile", "error", err)
 		} else {
 			if err := pprof.StartCPUProfile(f); err != nil {
-				fmt.Fprintf(stderr, "sdd: cannot start cpu profile: %v\n", err)
+				slog.Error("cannot start cpu profile", "error", err)
 				f.Close()
 			} else {
 				closers = append(closers, func() {
@@ -43,19 +45,19 @@ func startProfile(mode string, stderr *os.File) func() {
 		closers = append(closers, func() {
 			f, err := os.Create("sdd-mem.prof")
 			if err != nil {
-				fmt.Fprintf(stderr, "sdd: cannot create mem profile: %v\n", err)
+				slog.Error("cannot create mem profile", "error", err)
 				return
 			}
 			defer f.Close()
 			runtime.GC()
 			if err := pprof.WriteHeapProfile(f); err != nil {
-				fmt.Fprintf(stderr, "sdd: cannot write mem profile: %v\n", err)
+				slog.Error("cannot write mem profile", "error", err)
 			}
 		})
 	}
 
 	if mode != "cpu" && mode != "mem" && mode != "all" {
-		fmt.Fprintf(stderr, "sdd: unknown SDD_PPROF value %q (use cpu, mem, or all)\n", mode)
+		slog.Warn("unknown SDD_PPROF value", "value", mode)
 		return func() {}
 	}
 
@@ -67,7 +69,10 @@ func startProfile(mode string, stderr *os.File) func() {
 }
 
 func main() {
-	stopProfile := startProfile(os.Getenv("SDD_PPROF"), os.Stderr)
+	closeLog := sddlog.Init(os.Stderr)
+	defer closeLog()
+
+	stopProfile := startProfile(os.Getenv("SDD_PPROF"))
 	defer stopProfile()
 
 	defer func() {
@@ -81,9 +86,9 @@ func main() {
 				debug.Stack(),
 			)
 			if err := os.WriteFile(name, []byte(content), 0644); err != nil {
-				fmt.Fprintf(os.Stderr, "sdd: panic recovered; failed to write crash log: %v\n", err)
+				slog.Error("panic recovered; failed to write crash log", "error", err)
 			} else {
-				fmt.Fprintf(os.Stderr, "sdd: panic recovered; crash log written to %s\n", name)
+				slog.Error("panic recovered", "crash_log", name)
 			}
 			os.Exit(3)
 		}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +85,7 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 		}
 
 		if progress != nil {
-			fmt.Fprintf(progress, "sdd: verify %s...\n", spec.Name)
+			slog.Info("verify running", "command", spec.Name)
 		}
 
 		result := runOne(workDir, spec, timeout)
@@ -92,11 +93,11 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 
 		if progress != nil {
 			if result.Passed {
-				fmt.Fprintf(progress, "sdd: verify %s: ok (%s)\n", spec.Name, result.Duration.Round(time.Millisecond))
+				slog.Info("verify passed", "command", spec.Name, "duration", result.Duration.Round(time.Millisecond))
 			} else if result.TimedOut {
-				fmt.Fprintf(progress, "sdd: verify %s: TIMEOUT (%s)\n", spec.Name, timeout)
+				slog.Error("verify timeout", "command", spec.Name, "timeout", timeout)
 			} else {
-				fmt.Fprintf(progress, "sdd: verify %s: FAILED (exit %d)\n", spec.Name, result.ExitCode)
+				slog.Error("verify failed", "command", spec.Name, "exit_code", result.ExitCode)
 			}
 		}
 

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -113,7 +114,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	if cfg.Version != 0 && cfg.Version != ConfigVersion {
-		fmt.Fprintf(os.Stderr, "warning: config version %d differs from supported version %d\n", cfg.Version, ConfigVersion)
+		slog.Warn("config version mismatch", "have", cfg.Version, "want", ConfigVersion)
 	}
 	return &cfg, nil
 }

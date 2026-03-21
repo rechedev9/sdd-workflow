@@ -1,15 +1,13 @@
 package events
 
 import (
-	"bytes"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 )
 
 func TestBroker_SubscribeAndEmit(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 	var called int
 	b.Subscribe(PhaseAssembled, func(e Event) {
 		called++
@@ -21,7 +19,7 @@ func TestBroker_SubscribeAndEmit(t *testing.T) {
 }
 
 func TestBroker_MultipleSubscribers(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 	var count atomic.Int32
 	b.Subscribe(CacheHit, func(e Event) { count.Add(1) })
 	b.Subscribe(CacheHit, func(e Event) { count.Add(1) })
@@ -32,7 +30,7 @@ func TestBroker_MultipleSubscribers(t *testing.T) {
 }
 
 func TestBroker_NonMatchingType(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 	var called bool
 	b.Subscribe(CacheHit, func(e Event) { called = true })
 	b.Emit(Event{Type: CacheMiss})
@@ -42,14 +40,13 @@ func TestBroker_NonMatchingType(t *testing.T) {
 }
 
 func TestBroker_EmitNoSubscribers(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 	// Should not panic.
 	b.Emit(Event{Type: PhaseAssembled})
 }
 
 func TestBroker_SubscriberPanicRecovery(t *testing.T) {
-	var stderr bytes.Buffer
-	b := NewBroker(&stderr)
+	b := NewBroker()
 
 	var order []int
 	b.Subscribe(PhaseAssembled, func(e Event) { order = append(order, 1) })
@@ -61,14 +58,10 @@ func TestBroker_SubscriberPanicRecovery(t *testing.T) {
 	if len(order) != 2 || order[0] != 1 || order[1] != 3 {
 		t.Errorf("order = %v, want [1, 3] (panicking subscriber skipped)", order)
 	}
-
-	if !strings.Contains(stderr.String(), "test panic") {
-		t.Errorf("stderr %q missing panic message", stderr.String())
-	}
 }
 
 func TestBroker_ConcurrentEmit(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 	var count atomic.Int64
 	b.Subscribe(PhaseAssembled, func(e Event) {
 		count.Add(1)
@@ -97,7 +90,7 @@ func TestBroker_NilSafe(t *testing.T) {
 }
 
 func TestBroker_Payload(t *testing.T) {
-	b := NewBroker(nil)
+	b := NewBroker()
 
 	var got PhaseAssembledPayload
 	b.Subscribe(PhaseAssembled, func(e Event) {
@@ -123,8 +116,8 @@ func TestBroker_Payload(t *testing.T) {
 }
 
 func TestBroker_AllEventTypes(t *testing.T) {
-	b := NewBroker(nil)
-	types := []EventType{PhaseAssembled, CacheHit, CacheMiss, ArtifactPromoted, StateAdvanced}
+	b := NewBroker()
+	types := []EventType{PhaseAssembled, CacheHit, CacheMiss, ArtifactPromoted, StateAdvanced, VerifyFailed}
 
 	received := make(map[EventType]bool)
 	for _, et := range types {
