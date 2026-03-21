@@ -21,14 +21,27 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/verify"
 )
 
 // newBroker creates and wires a broker with default subscribers.
-func newBroker(stderr io.Writer, verbosity int) *events.Broker {
+// db may be nil — SQLite subscribers are skipped when nil.
+func newBroker(stderr io.Writer, verbosity int, db *store.Store) *events.Broker {
 	broker := events.NewBroker()
 	sddctx.RegisterSubscribers(broker, stderr, verbosity)
+	store.RegisterSubscribers(broker, db)
 	return broker
+}
+
+// tryOpenStore opens the SQLite store best-effort. Returns nil if unavailable.
+func tryOpenStore(cwd string) *store.Store {
+	path := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
+	db, err := store.Open(path)
+	if err != nil {
+		return nil
+	}
+	return db
 }
 
 // staleThreshold is the duration after which a change is considered abandoned.
@@ -173,7 +186,11 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Run explore assembler to stdout.
-	broker := newBroker(stderr, int(verbosity))
+	db := tryOpenStore(cwd)
+	if db != nil {
+		defer db.Close()
+	}
+	broker := newBroker(stderr, int(verbosity), db)
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  name,
@@ -239,7 +256,11 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "context", fmt.Errorf("load state: %w", err))
 	}
 
-	broker := newBroker(stderr, int(verbosity))
+	db := tryOpenStore(cwd)
+	if db != nil {
+		defer db.Close()
+	}
+	broker := newBroker(stderr, int(verbosity), db)
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  st.Name,
@@ -349,7 +370,12 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "write", fmt.Errorf("load state: %w", err))
 	}
 
-	broker := newBroker(stderr, 0)
+	cwd, _ := os.Getwd()
+	db := tryOpenStore(cwd)
+	if db != nil {
+		defer db.Close()
+	}
+	broker := newBroker(stderr, 0, db)
 	prevPhase := string(st.CurrentPhase)
 
 	// Promote pending artifact.
@@ -634,7 +660,11 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Emit VerifyFailed event for error collection.
 	if !report.Passed {
-		broker := newBroker(stderr, 0)
+		db := tryOpenStore(cwd)
+		if db != nil {
+			defer db.Close()
+		}
+		broker := newBroker(stderr, 0, db)
 		var failedCmds []events.VerifyFailedCommand
 		for _, r := range report.Results {
 			if !r.Passed {
