@@ -51,6 +51,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runDump(rest, stdout, stderr)
 	case "doctor":
 		return runDoctor(rest, stdout, stderr)
+	case "errors":
+		return runErrors(rest, stdout, stderr)
 	case "--version", "version":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -92,6 +94,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  diff <name>       List files changed since 'sdd new' was run")
 	fmt.Fprintln(w, "  health <name>     Pipeline health: progress, cache stats, warnings")
 	fmt.Fprintln(w, "  dump <name>       Dump full debug state as JSON")
+	fmt.Fprintln(w, "  errors            List recorded verify failures, grouped by pattern")
 	fmt.Fprintln(w, "  doctor            Diagnose config, cache, skills, and tools")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Other:")
@@ -159,6 +162,8 @@ Usage: sdd write <name> <phase>
 
 Moves .pending/<phase>.md to its final location and advances the state
 machine. Claude writes to .pending/, Go promotes and tracks state.
+
+The state machine prevents re-promoting an already-completed phase.
 
 Arguments:
   name          Change name
@@ -257,19 +262,36 @@ Flags:
 Output: Aligned table (default) or JSON with per-check pass/warn/fail status.
 Exit:   0 all checks pass or warn, 1 any check fails, 2 usage`,
 
+	"errors": `sdd errors — List recorded verify failures
+
+Usage: sdd errors [--json]
+
+Reads the global error log (openspec/.cache/errors.json) and displays
+verify failures grouped by error fingerprint. Shows recurrence counts.
+
+Flags:
+  --json        Output grouped errors as JSON
+
+Output: Human-readable table (default) or JSON with error groups.
+Exit:   0 success, 1 error, 2 usage`,
+
 	"archive": `sdd archive — Archive completed change
 
-Usage: sdd archive <name>
+Usage: sdd archive <name> [--force]
 
 Moves the change directory to openspec/changes/archive/<timestamp>-<name>/
 and writes archive-manifest.md listing all preserved artifacts.
 
 Requires all prerequisite phases (through clean) to be completed.
+Use --force to archive even when prerequisites are not met.
 
 This is a zero-token operation — runs entirely in Go.
 
 Arguments:
   name          Change name
+
+Flags:
+  --force, -f   Skip prerequisite check and archive anyway
 
 Output: JSON with archive path and manifest location.
 Exit:   0 success, 1 error, 2 usage`,

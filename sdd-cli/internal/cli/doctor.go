@@ -12,6 +12,7 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
@@ -140,6 +141,26 @@ func checkBuildTools(cfg *config.Config) CheckResult {
 	return CheckResult{Name: "build_tools", Status: "pass", Message: "all build commands found"}
 }
 
+func checkErrors(cwd string) CheckResult {
+	log := errlog.Load(cwd)
+	if len(log.Entries) == 0 {
+		return CheckResult{Name: "errors", Status: "pass", Message: "no recorded errors"}
+	}
+	recurring := log.RecurringFingerprints(3)
+	if len(recurring) > 0 {
+		return CheckResult{
+			Name:    "errors",
+			Status:  "warn",
+			Message: fmt.Sprintf("%d recurring error pattern(s); run 'sdd errors' for details", len(recurring)),
+		}
+	}
+	return CheckResult{
+		Name:    "errors",
+		Status:  "pass",
+		Message: fmt.Sprintf("%d error(s) recorded, no recurring patterns", len(log.Entries)),
+	}
+}
+
 func checkPprof() CheckResult {
 	val := os.Getenv("SDD_PPROF")
 	if val == "" {
@@ -174,6 +195,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		checkOrphanedPending(changesDir),
 		checkSkillsPath(cfg),
 		checkBuildTools(cfg),
+		checkErrors(cwd),
 		checkPprof(),
 	}
 

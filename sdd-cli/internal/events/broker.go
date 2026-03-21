@@ -2,7 +2,7 @@ package events
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"sync"
 )
 
@@ -16,6 +16,7 @@ const (
 	CacheMiss        EventType = "CacheMiss"
 	ArtifactPromoted EventType = "ArtifactPromoted"
 	StateAdvanced    EventType = "StateAdvanced"
+	VerifyFailed     EventType = "VerifyFailed"
 )
 
 // Event carries a typed payload through the broker.
@@ -61,6 +62,20 @@ type StateAdvancedPayload struct {
 	ToPhase   string
 }
 
+// VerifyFailedPayload is emitted when sdd verify has one or more failed commands.
+type VerifyFailedPayload struct {
+	Change  string
+	Results []VerifyFailedCommand
+}
+
+// VerifyFailedCommand captures one failed command from a verify run.
+type VerifyFailedCommand struct {
+	Name       string
+	Command    string
+	ExitCode   int
+	ErrorLines []string // first 5 lines
+}
+
 // Handler processes an event.
 type Handler func(Event)
 
@@ -68,16 +83,14 @@ type Handler func(Event)
 // Safe for concurrent Emit() calls from multiple goroutines.
 // A nil *Broker is safe to call Emit() and Subscribe() on (no-op).
 type Broker struct {
-	mu     sync.Mutex
-	subs   map[EventType][]Handler
-	stderr io.Writer
+	mu   sync.Mutex
+	subs map[EventType][]Handler
 }
 
-// NewBroker creates a Broker. stderr is used for panic diagnostics.
-func NewBroker(stderr io.Writer) *Broker {
+// NewBroker creates a Broker. Panic diagnostics are logged via slog.
+func NewBroker() *Broker {
 	return &Broker{
-		subs:   make(map[EventType][]Handler),
-		stderr: stderr,
+		subs: make(map[EventType][]Handler),
 	}
 }
 
@@ -108,9 +121,7 @@ func (b *Broker) Emit(e Event) {
 		func(handler Handler) {
 			defer func() {
 				if r := recover(); r != nil {
-					if b.stderr != nil {
-						fmt.Fprintf(b.stderr, "sdd: event subscriber panic [%s]: %v\n", e.Type, r)
-					}
+					slog.Error("event subscriber panic", "event", string(e.Type), "panic", fmt.Sprint(r))
 				}
 			}()
 			handler(e)

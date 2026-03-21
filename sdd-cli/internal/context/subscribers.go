@@ -2,7 +2,10 @@ package context
 
 import (
 	"io"
+	"os"
+	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 )
 
@@ -53,5 +56,28 @@ func RegisterSubscribers(broker *events.Broker, stderr io.Writer, verbosity int)
 			return
 		}
 		_ = saveContextCache(p.ChangeDir, p.Phase, p.SkillsPath, p.Content)
+	})
+
+	// Error collection — records verify failures to global error log.
+	broker.Subscribe(events.VerifyFailed, func(e events.Event) {
+		p, ok := e.Payload.(events.VerifyFailedPayload)
+		if !ok {
+			return
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return
+		}
+		for _, cmd := range p.Results {
+			errlog.Record(cwd, errlog.ErrorEntry{
+				Timestamp:   time.Now().UTC().Format(time.RFC3339),
+				Change:      p.Change,
+				CommandName: cmd.Name,
+				Command:     cmd.Command,
+				ExitCode:    cmd.ExitCode,
+				ErrorLines:  cmd.ErrorLines,
+				Fingerprint: errlog.Fingerprint(cmd.Command, cmd.ErrorLines),
+			})
+		}
 	})
 }

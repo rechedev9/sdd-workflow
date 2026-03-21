@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/verify"
@@ -23,7 +26,7 @@ import (
 
 // newBroker creates and wires a broker with default subscribers.
 func newBroker(stderr io.Writer, verbosity int) *events.Broker {
-	broker := events.NewBroker(stderr)
+	broker := events.NewBroker()
 	sddctx.RegisterSubscribers(broker, stderr, verbosity)
 	return broker
 }
@@ -185,7 +188,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	if err := sddctx.Assemble(stdout, state.PhaseExplore, p); err != nil {
 		// Non-fatal: context assembly failure doesn't block change creation.
-		fmt.Fprintf(stderr, "warning: explore context assembly failed: %v\n", err)
+		slog.Warn("explore context assembly failed", "error", err)
 	}
 
 	return nil
@@ -568,7 +571,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Smart-skip: reuse last verify if no source files changed.
 	if skip, _ := shouldSkipVerify(cwd, changeDir); skip {
-		fmt.Fprintf(stderr, "sdd: verify skipped — no source changes since last PASS\n")
+		slog.Info("verify skipped", "reason", "no source changes since last PASS")
 		out := struct {
 			Command    string `json:"command"`
 			Status     string `json:"status"`
@@ -629,6 +632,26 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	data, _ := json.MarshalIndent(out, "", "  ")
 	fmt.Fprintln(stdout, string(data))
 
+	// Emit VerifyFailed event for error collection.
+	if !report.Passed {
+		broker := newBroker(stderr, 0)
+		var failedCmds []events.VerifyFailedCommand
+		for _, r := range report.Results {
+			if !r.Passed {
+				failedCmds = append(failedCmds, events.VerifyFailedCommand{
+					Name:       r.Name,
+					Command:    r.Command,
+					ExitCode:   r.ExitCode,
+					ErrorLines: r.ErrorLines(5),
+				})
+			}
+		}
+		broker.Emit(events.Event{
+			Type:    events.VerifyFailed,
+			Payload: events.VerifyFailedPayload{Change: name, Results: failedCmds},
+		})
+	}
+
 	if !report.Passed {
 		return fmt.Errorf("verify: %d command(s) failed", report.FailedCount())
 	}
@@ -637,10 +660,17 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 
 func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 	if len(args) < 1 {
-		return errs.Usage("usage: sdd archive <name>")
+		return errs.Usage("usage: sdd archive <name> [--force]")
 	}
 
 	name := args[0]
+	force := false
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--force", "-f":
+			force = true
+		}
+	}
 
 	// Resolve change directory.
 	changeDir, err := resolveChangeDir(name)
@@ -656,7 +686,10 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	if err := st.CanTransition(state.PhaseArchive); err != nil {
-		return errs.WriteError(stderr, "archive", fmt.Errorf("not ready to archive: %w", err))
+		if !force {
+			return errs.WriteError(stderr, "archive", fmt.Errorf("not ready to archive: %w", err))
+		}
+		slog.Warn("archive --force: skipping prerequisite check", "error", err)
 	}
 
 	// Execute archive.
@@ -872,6 +905,96 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	data, _ := json.MarshalIndent(out, "", "  ")
 	fmt.Fprintln(stdout, string(data))
+	return nil
+}
+
+func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
+	jsonOut := false
+	for _, arg := range args {
+		switch {
+		case arg == "--json":
+			jsonOut = true
+		default:
+			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+		}
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errs.WriteError(stderr, "errors", fmt.Errorf("get working directory: %w", err))
+	}
+
+	log := errlog.Load(cwd)
+
+	if jsonOut {
+		type errorGroup struct {
+			Fingerprint string   `json:"fingerprint"`
+			Count       int      `json:"count"`
+			Command     string   `json:"command"`
+			LastSeen    string   `json:"last_seen"`
+			ErrorLines  []string `json:"error_lines"`
+		}
+		groups := make(map[string]*errorGroup)
+		for _, e := range log.Entries {
+			g, ok := groups[e.Fingerprint]
+			if !ok {
+				g = &errorGroup{
+					Fingerprint: e.Fingerprint,
+					Command:     e.Command,
+					ErrorLines:  e.ErrorLines,
+				}
+				groups[e.Fingerprint] = g
+			}
+			g.Count++
+			if e.Timestamp > g.LastSeen {
+				g.LastSeen = e.Timestamp
+				g.ErrorLines = e.ErrorLines
+			}
+		}
+
+		sorted := make([]*errorGroup, 0, len(groups))
+		for _, g := range groups {
+			sorted = append(sorted, g)
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Count > sorted[j].Count
+		})
+
+		out := struct {
+			Command string        `json:"command"`
+			Status  string        `json:"status"`
+			Total   int           `json:"total"`
+			Groups  []*errorGroup `json:"groups"`
+		}{
+			Command: "errors",
+			Status:  "success",
+			Total:   len(log.Entries),
+			Groups:  sorted,
+		}
+		data, _ := json.MarshalIndent(out, "", "  ")
+		fmt.Fprintln(stdout, string(data))
+		return nil
+	}
+
+	if len(log.Entries) == 0 {
+		fmt.Fprintln(stdout, "sdd errors: no recorded errors")
+		return nil
+	}
+
+	counts := log.RecurringFingerprints(1)
+	fmt.Fprintf(stdout, "sdd errors: %d entries, %d unique patterns\n\n", len(log.Entries), len(counts))
+	start := 0
+	if len(log.Entries) > 10 {
+		start = len(log.Entries) - 10
+	}
+	for _, e := range log.Entries[start:] {
+		fp := e.Fingerprint
+		if len(fp) > 8 {
+			fp = fp[:8]
+		}
+		fmt.Fprintf(stdout, "  %s  %-8s  exit=%d  %s  [%s]\n",
+			e.Timestamp[:19], e.CommandName, e.ExitCode, e.Change, fp)
+	}
 	return nil
 }
 
