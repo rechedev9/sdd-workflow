@@ -18,14 +18,16 @@ CGO_ENABLED=0 go build -o bin/sdd ./cmd/sdd
 ## Test
 
 ```bash
-go test ./... -count=1 -timeout=60s
-go vet ./...
-gofmt -l internal/
+go test ./...
+golangci-lint run ./...   # v2, strict linters
+gofumpt -w .              # formatting
 ```
+
+Install tools: `make tools` (golangci-lint v2 + gofumpt). Full gate: `make check` (fmt + lint + test).
 
 ## Adding a new command
 
-1. Add `runFoo` function in `internal/cli/commands.go` following existing pattern:
+1. Create `internal/cli/cmd_foo.go` with `runFoo(rest []string, stdout, stderr io.Writer) error`:
    - Parse args, `resolveChangeDir`, `state.Load`, business logic, JSON output
    - Errors via `errs.WriteError(stderr, "foo", err)`
    - Exit codes: 0 success, 1 error, 2 usage
@@ -42,8 +44,8 @@ gofmt -l internal/
 ## Adding a new assembler
 
 1. Create `internal/context/{phase}.go` with `Assemble{Phase}(w io.Writer, p *Params) error`
-2. Register in `dispatchers` map in `context.go`
-3. Add `phaseInputs["{phase}"]` in `cache.go` listing input artifacts
+2. Register via `phase.DefaultRegistry.SetAssembler("{phase}", fn)` in `context.go` init()
+3. Define the phase in `internal/phase/registry.go` with prerequisites, artifact file, cache inputs, TTL
 4. Add tests in `context_test.go`
 
 ## Modifying an assembler

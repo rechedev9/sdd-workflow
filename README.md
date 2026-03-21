@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/rechedev9/shenronSDD/actions"><img src="https://img.shields.io/github/actions/workflow/status/rechedev9/shenronSDD/ci.yml?style=for-the-badge&label=CI" alt="CI"></a>
-  <img src="https://img.shields.io/badge/Go-1.24-00ADD8?style=for-the-badge&logo=go" alt="Go 1.24">
+  <img src="https://img.shields.io/badge/Go-1.25-00ADD8?style=for-the-badge&logo=go" alt="Go 1.25">
   <img src="https://img.shields.io/badge/Phases-10-7C3AED?style=for-the-badge" alt="Phases: 10">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="MIT License">
 </p>
@@ -49,7 +49,7 @@ git clone https://github.com/rechedev9/shenronSDD
 cd shenronSDD && ./install.sh
 ```
 
-Requires [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) + [Go 1.24+](https://go.dev/dl/).
+Requires [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) + [Go 1.25+](https://go.dev/dl/).
 
 ## Quick start
 
@@ -139,6 +139,8 @@ Each phase: Go assembles context (0 tokens) → Claude reasons → Go promotes +
 | `sdd diff <name>` | Files changed since `sdd new` |
 | `sdd health <name>` | Token usage, cache stats, pipeline warnings |
 | `sdd doctor` | Validate config, cache, artifacts |
+| `sdd errors` | Verify failures grouped by fingerprint |
+| `sdd dashboard` | Live ops dashboard on localhost:8811 |
 | `sdd dump` | Full workflow state as JSON |
 
 Details: [CLI Reference](docs/sdd-cli-reference.md)
@@ -184,6 +186,8 @@ Details: [Skills Catalog](docs/05-skills-catalog.md)
 - **[LazySlice](sdd-cli/internal/csync/)** — concurrent artifact loading. Start goroutines eagerly, block on consumption.
 - **[Artifact System](sdd-cli/internal/artifacts/)** — `.pending/` staging, promotion, listing, reading.
 - **[Config Detection](sdd-cli/internal/config/)** — auto-detect language, build/test/lint commands, manifests.
+- **[Telemetry Store](sdd-cli/internal/store/)** — SQLite (WAL mode) for phase tokens, cache stats, verify errors. Fingerprinted error grouping.
+- **[Dashboard](sdd-cli/internal/dashboard/)** — embedded HTMX server with KPIs, pipeline progress, error log.
 
 Details: [Architecture](docs/architecture.md) · [Go CLI Patterns](docs/go-cli-patterns.md)
 
@@ -225,14 +229,18 @@ shenronSDD/
     cmd/sdd/main.go
     internal/
       phase/                  # Phase struct + Registry (single source of truth)
-      cli/                    # 13 subcommands
+      cli/                    # 14 subcommands (one per cmd_*.go file)
       state/                  # State machine, atomic persistence
       context/                # Assemblers, cache, metrics, Context Cascade
       artifacts/              # .pending write/promote/read/list
       config/                 # Stack detection, config.yaml
       verify/                 # Build/lint/test runner, archive
+      store/                  # SQLite telemetry (WAL mode)
       events/                 # Pub/sub event broker
       csync/                  # Concurrent artifact loading
+      dashboard/              # Live ops HTTP server (HTMX)
+      errlog/                 # Error log with fingerprinting
+      fsutil/                 # Atomic file writes
   skills/                     # SKILL.md files (loaded by sdd context)
   commands/                   # Slash command definitions
   docs/                       # 13 documentation files
