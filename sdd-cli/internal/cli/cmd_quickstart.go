@@ -120,13 +120,13 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	out := struct {
-		Command      string `json:"command"`
-		Status       string `json:"status"`
-		Change       string `json:"change"`
-		Description  string `json:"description"`
-		ChangeDir    string `json:"change_dir"`
-		CurrentPhase string `json:"current_phase"`
-		SpecFrom     string `json:"spec_from"`
+		Command      string   `json:"command"`
+		Status       string   `json:"status"`
+		Change       string   `json:"change"`
+		Description  string   `json:"description"`
+		ChangeDir    string   `json:"change_dir"`
+		CurrentPhase string   `json:"current_phase"`
+		SpecFrom     string   `json:"spec_from"`
 		Skipped      []string `json:"skipped_phases"`
 	}{
 		Command:      "quickstart",

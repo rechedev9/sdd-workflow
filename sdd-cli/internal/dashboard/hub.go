@@ -48,14 +48,14 @@ type Hub struct {
 	clients map[*websocket.Conn]struct{}
 
 	// Last-known state for diffing.
-	lastKPI        KPIData
-	lastPipelines  []PipelineData
-	lastErrors     []ErrorData
-	lastHeatmap    []PhaseStatusRow
-	lastTokenTS    string // max timestamp seen in phase_events
-	lastVerifyTS   string // max timestamp seen in verify_results
-	lastDurations  []store.PhaseDurationRow
-	lastCacheTS    string // tracks cache history watermark independently
+	lastKPI       KPIData
+	lastPipelines []PipelineData
+	lastErrors    []ErrorData
+	lastHeatmap   []PhaseStatusRow
+	lastTokenTS   string // max timestamp seen in phase_events
+	lastVerifyTS  string // max timestamp seen in verify_results
+	lastDurations []store.PhaseDurationRow
+	lastCacheTS   string // tracks cache history watermark independently
 }
 
 // NewHub creates a hub. Call Run() to start the poll loop.
