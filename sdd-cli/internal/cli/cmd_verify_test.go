@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,6 +21,36 @@ var repoRoot = func() string {
 	}
 	return "."
 }()
+
+func TestRunVerify_NoArgs(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runVerify(nil, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for no args")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunVerify_InvalidName(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runVerify([]string{"../bad"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for invalid name")
+	}
+}
+
+func TestRunVerify_ChangeNotFound(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runVerify([]string{"no-such-change-xyz"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for nonexistent change")
+	}
+}
 
 func TestShouldSkipVerify_NoReport(t *testing.T) {
 	t.Parallel()
