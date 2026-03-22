@@ -104,17 +104,22 @@ func gitDiff(projectDir string) (string, error) {
 		return "", fmt.Errorf("git diff --cached: %w", err)
 	}
 
-	var parts []string
-	if len(staged) > 0 {
-		parts = append(parts, "=== STAGED ===\n"+string(staged))
-	}
-	if len(unstaged) > 0 {
-		parts = append(parts, "=== UNSTAGED ===\n"+string(unstaged))
-	}
-	if len(parts) == 0 {
+	if len(staged) == 0 && len(unstaged) == 0 {
 		return "(no changes)", nil
 	}
-	return strings.Join(parts, "\n"), nil
+	var buf strings.Builder
+	if len(staged) > 0 {
+		buf.WriteString("=== STAGED ===\n")
+		buf.Write(staged)
+	}
+	if len(unstaged) > 0 {
+		if buf.Len() > 0 {
+			buf.WriteByte('\n')
+		}
+		buf.WriteString("=== UNSTAGED ===\n")
+		buf.Write(unstaged)
+	}
+	return buf.String(), nil
 }
 
 // loadProjectRules tries to load AGENTS.md or CLAUDE.md from the project root.
