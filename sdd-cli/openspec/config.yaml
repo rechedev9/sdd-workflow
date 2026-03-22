@@ -7,5 +7,5 @@ skills_path: /home/reche/projects/SDDworkflow/skills/sdd
 commands:
   build: "/usr/local/go/bin/go build ./..."
   test: "/usr/local/go/bin/go test ./..."
-  lint: "golangci-lint run ./..."
+  lint: "/home/reche/go/bin/golangci-lint run ./..."
   format: ""
