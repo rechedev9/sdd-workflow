@@ -1,6 +1,7 @@
 package context
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -80,5 +81,5 @@ func gitFileTree(projectDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("git ls-files: %w", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
