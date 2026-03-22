@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -558,5 +560,73 @@ func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != lines[0] || got[1] != lines[1] {
 		t.Errorf("error_lines = %v, want %v", got, lines)
+	}
+}
+
+func TestRegisterSubscribers_NilBroker(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	// Should not panic.
+	RegisterSubscribers(nil, s)
+}
+
+func TestRegisterSubscribers_NilStore(t *testing.T) {
+	t.Parallel()
+	b := events.NewBroker()
+	// Should not panic.
+	RegisterSubscribers(b, nil)
+}
+
+func TestRegisterSubscribers_PhaseAssembled(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	b.Emit(events.Event{
+		Type: events.PhaseAssembled,
+		Payload: events.PhaseAssembledPayload{
+			Phase:      "explore",
+			Bytes:      1024,
+			Tokens:     256,
+			Cached:     false,
+			DurationMs: 100,
+			ChangeDir:  "/tmp/feat-a",
+		},
+	})
+
+	ctx := context.Background()
+	rows, err := s.PhaseTokensByChange(ctx)
+	if err != nil {
+		t.Fatalf("PhaseTokensByChange: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Error("expected at least one row after PhaseAssembled event")
+	}
+}
+
+func TestRegisterSubscribers_VerifyFailed(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	b.Emit(events.Event{
+		Type: events.VerifyFailed,
+		Payload: events.VerifyFailedPayload{
+			Change: "feat-b",
+			Results: []events.VerifyFailedCommand{
+				{Name: "build", Command: "go build", ExitCode: 1, ErrorLines: []string{"error: x"}},
+			},
+		},
+	})
+
+	ctx := context.Background()
+	errors, err := s.RecentErrors(ctx, 10)
+	if err != nil {
+		t.Fatalf("RecentErrors: %v", err)
+	}
+	if len(errors) == 0 {
+		t.Error("expected at least one row after VerifyFailed event")
 	}
 }
