@@ -1,8 +1,12 @@
 package context
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 )
 
 func TestExtractDecisions(t *testing.T) {
@@ -111,4 +115,91 @@ func TestExtractCompletedTasks(t *testing.T) {
 			t.Errorf("expected sentinel, got %q", got)
 		}
 	})
+}
+
+func TestBuildSummary_NoArtifacts(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	p := &Params{
+		ChangeName:  "add-auth",
+		Description: "Add authentication",
+		Config: &config.Config{
+			Stack: config.Stack{Language: "Go", BuildTool: "make"},
+		},
+	}
+	got := buildSummary(dir, p)
+	if !strings.Contains(got, "add-auth") {
+		t.Errorf("expected change name in summary, got %q", got)
+	}
+	if !strings.Contains(got, "Go") {
+		t.Errorf("expected stack language in summary, got %q", got)
+	}
+}
+
+func TestBuildSummary_WithArtifacts(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("## Findings\nFound something useful"), 0o644)
+	os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("approach: layered middleware\nfallback: noop"), 0o644)
+	os.WriteFile(filepath.Join(dir, "design.md"), []byte("storage: postgres\npattern: repository"), 0o644)
+	os.WriteFile(filepath.Join(dir, "review-report.md"), []byte("## Verdict\nLGTM - approved"), 0o644)
+
+	p := &Params{
+		ChangeName:  "feat-x",
+		Description: "Feature X",
+		Config: &config.Config{
+			Stack: config.Stack{Language: "Go", BuildTool: "go"},
+		},
+	}
+	got := buildSummary(dir, p)
+	if !strings.Contains(got, "feat-x") {
+		t.Errorf("expected change name, got %q", got)
+	}
+	if !strings.Contains(got, "Proposal:") {
+		t.Errorf("expected Proposal section, got %q", got)
+	}
+	if !strings.Contains(got, "Review:") {
+		t.Errorf("expected Review section, got %q", got)
+	}
+}
+
+func TestLoadManifestContents(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/foo\n\ngo 1.21\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "go.sum"), []byte("checksums here\n"), 0o644)
+
+	got := loadManifestContents(dir, []string{"go.mod", "go.sum"})
+	if !strings.Contains(got, "go.mod") {
+		t.Errorf("expected go.mod in output, got %q", got)
+	}
+	if !strings.Contains(got, "module example.com/foo") {
+		t.Errorf("expected module path in output, got %q", got)
+	}
+}
+
+func TestLoadManifestContents_Truncation(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Write a file larger than 2KB.
+	large := strings.Repeat("x", 3000)
+	os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(large), 0o644)
+
+	got := loadManifestContents(dir, []string{"Cargo.toml"})
+	if !strings.Contains(got, "truncated") {
+		t.Errorf("expected truncation marker, got %q", got[:100])
+	}
+}
+
+func TestLoadManifestContents_MissingFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	got := loadManifestContents(dir, []string{"nonexistent.toml"})
+	if got != "" {
+		t.Errorf("expected empty string for missing files, got %q", got)
+	}
 }
