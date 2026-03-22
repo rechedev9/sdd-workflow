@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
@@ -679,6 +680,41 @@ func TestInputHashEmbeddedFallback(t *testing.T) {
 	}
 	if len(h1) != 64 {
 		t.Errorf("expected 64-char hex hash, got %d chars", len(h1))
+	}
+}
+
+func TestAssemble_InvalidPhase(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+
+	var buf bytes.Buffer
+	err := Assemble(&buf, state.Phase("nonexistent"), p)
+	if err == nil {
+		t.Fatal("expected error for invalid phase")
+	}
+	if !strings.Contains(err.Error(), "no assembler") {
+		t.Errorf("expected 'no assembler' in error, got: %v", err)
+	}
+}
+
+func TestAssemble_CacheHit(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+
+	// Pre-save cache for "explore" (no inputs needed).
+	cached := []byte("cached context data")
+	if err := saveContextCache(changeDir, "explore", p.SkillsPath, cached); err != nil {
+		t.Fatalf("saveContextCache: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	if buf.String() != string(cached) {
+		t.Errorf("output = %q, want %q", buf.String(), cached)
 	}
 }
 
