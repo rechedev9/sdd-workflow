@@ -137,9 +137,5 @@ func Save(cfg *Config, path string) error {
 }
 
 func defaultSkillsPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "~/.claude/skills/sdd/"
-	}
-	return filepath.Join(home, ".claude", "skills", "sdd")
+	return "" // embedded prompts are the default; set skills_path to override
 }

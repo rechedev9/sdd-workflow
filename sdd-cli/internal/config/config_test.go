@@ -174,8 +174,8 @@ func TestDetectSkillsPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
-	if cfg.SkillsPath == "" {
-		t.Error("skills_path should not be empty")
+	if cfg.SkillsPath != "" {
+		t.Errorf("skills_path should be empty (embedded prompts default), got %q", cfg.SkillsPath)
 	}
 }
 
