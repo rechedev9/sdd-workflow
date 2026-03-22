@@ -37,6 +37,10 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 	name := positional[0]
 	description := positional[1]
 
+	if err := validateChangeName(name); err != nil {
+		return errs.Usage(err.Error())
+	}
+
 	// Validate spec file exists.
 	specData, err := os.ReadFile(specPath)
 	if err != nil {

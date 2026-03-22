@@ -279,7 +279,7 @@ func (s *Store) PhaseTokensByChange(ctx context.Context) ([]ChangeTokens, error)
 	}
 	defer rows.Close()
 
-	var result []ChangeTokens
+	result := make([]ChangeTokens, 0, 16)
 	for rows.Next() {
 		var ct ChangeTokens
 		if err := rows.Scan(&ct.Change, &ct.Tokens); err != nil {
@@ -306,7 +306,7 @@ func (s *Store) RecentErrors(ctx context.Context, limit int) ([]ErrorRow, error)
 	}
 	defer rows.Close()
 
-	result := make([]ErrorRow, 0)
+	result := make([]ErrorRow, 0, limit)
 	for rows.Next() {
 		var r ErrorRow
 		var linesJSON string
@@ -361,7 +361,7 @@ func (s *Store) TokenHistory(ctx context.Context, since time.Time) ([]TokenHisto
 	}
 	defer rows.Close()
 
-	var result []TokenHistoryRow
+	result := make([]TokenHistoryRow, 0, 64)
 	for rows.Next() {
 		var r TokenHistoryRow
 		var cached int
@@ -386,7 +386,7 @@ func (s *Store) PhaseDurations(ctx context.Context) ([]PhaseDurationRow, error) 
 	}
 	defer rows.Close()
 
-	var result []PhaseDurationRow
+	result := make([]PhaseDurationRow, 0, 16)
 	for rows.Next() {
 		var r PhaseDurationRow
 		if err := rows.Scan(&r.Phase, &r.AvgDurationMs); err != nil {
@@ -412,7 +412,7 @@ func (s *Store) CacheHistory(ctx context.Context, since time.Time) ([]CacheHisto
 	}
 	defer rows.Close()
 
-	var result []CacheHistoryRow
+	result := make([]CacheHistoryRow, 0, 64)
 	for rows.Next() {
 		var r CacheHistoryRow
 		var cached int
@@ -440,7 +440,7 @@ func (s *Store) VerifyHistory(ctx context.Context, since time.Time) ([]VerifyHis
 	}
 	defer rows.Close()
 
-	var result []VerifyHistoryRow
+	result := make([]VerifyHistoryRow, 0, 32)
 	for rows.Next() {
 		var r VerifyHistoryRow
 		var passed int

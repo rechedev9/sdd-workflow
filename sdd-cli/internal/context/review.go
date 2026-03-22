@@ -85,8 +85,11 @@ func AssembleReview(w io.Writer, p *Params) error {
 
 // gitDiff runs git diff and returns staged + unstaged changes.
 func gitDiff(projectDir string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+
 	// Unstaged changes.
-	cmd := exec.CommandContext(context.Background(), "git", "diff")
+	cmd := exec.CommandContext(ctx, "git", "diff")
 	cmd.Dir = projectDir
 	unstaged, err := cmd.Output()
 	if err != nil {
@@ -94,7 +97,7 @@ func gitDiff(projectDir string) (string, error) {
 	}
 
 	// Staged changes.
-	cmd = exec.CommandContext(context.Background(), "git", "diff", "--cached")
+	cmd = exec.CommandContext(ctx, "git", "diff", "--cached")
 	cmd.Dir = projectDir
 	staged, err := cmd.Output()
 	if err != nil {

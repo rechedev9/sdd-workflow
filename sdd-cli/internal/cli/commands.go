@@ -57,7 +57,25 @@ func resolveDir(dir string) (string, error) {
 	return abs, nil
 }
 
+// validateChangeName rejects names that contain path separators or special
+// directory components, preventing path traversal when used in filepath.Join.
+func validateChangeName(name string) error {
+	if name == "" {
+		return fmt.Errorf("change name must not be empty")
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("change name must not be %q", name)
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("change name must not contain path separators: %q", name)
+	}
+	return nil
+}
+
 func resolveChangeDir(name string) (string, error) {
+	if err := validateChangeName(name); err != nil {
+		return "", err
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("get working directory: %w", err)
@@ -73,9 +91,14 @@ func resolveChangeDir(name string) (string, error) {
 	return changeDir, nil
 }
 
+// gitCmdTimeout is the maximum time allowed for a git subprocess.
+const gitCmdTimeout = 30 * time.Second
+
 // gitHeadSHA returns the current HEAD SHA in dir.
 func gitHeadSHA(dir string) (string, error) {
-	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "HEAD")
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -86,7 +109,9 @@ func gitHeadSHA(dir string) (string, error) {
 
 // gitDiffFiles returns files changed between ref and the working tree.
 func gitDiffFiles(dir, ref string) ([]string, error) {
-	cmd := exec.CommandContext(context.Background(), "git", "diff", "--name-only", ref)
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", ref)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

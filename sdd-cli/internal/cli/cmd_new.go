@@ -37,6 +37,10 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	name := positional[0]
 	description := positional[1]
 
+	if err := validateChangeName(name); err != nil {
+		return errs.Usage(err.Error())
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("get working directory: %w", err))
@@ -102,8 +106,6 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		ProjectDir:  cwd,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
-		Stderr:      stderr,
-		Verbosity:   int(verbosity),
 		Broker:      broker,
 	}
 

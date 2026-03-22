@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
@@ -66,9 +67,14 @@ func AssembleExplore(w io.Writer, p *Params) error {
 	return nil
 }
 
+// gitCmdTimeout is the maximum time allowed for a git subprocess.
+const gitCmdTimeout = 30 * time.Second
+
 // gitFileTree runs git ls-files and returns the output.
 func gitFileTree(projectDir string) (string, error) {
-	cmd := exec.CommandContext(context.Background(), "git", "ls-files")
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "ls-files")
 	cmd.Dir = projectDir
 	out, err := cmd.Output()
 	if err != nil {

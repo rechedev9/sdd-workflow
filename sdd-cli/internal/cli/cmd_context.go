@@ -72,8 +72,6 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		ProjectDir:  cwd,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
-		Stderr:      stderr,
-		Verbosity:   int(verbosity),
 		Broker:      broker,
 	}
 

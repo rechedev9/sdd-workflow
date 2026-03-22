@@ -72,7 +72,9 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 	// Try cache first.
 	if cached, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath); ok {
 		size := len(cached)
-		w.Write(cached)
+		if _, err := w.Write(cached); err != nil {
+			return fmt.Errorf("write cached context: %w", err)
+		}
 
 		p.Broker.Emit(events.Event{
 			Type: events.CacheHit,
@@ -120,7 +122,9 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 
 	// Write to output.
 	content := buf.Bytes()
-	w.Write(content)
+	if _, err := w.Write(content); err != nil {
+		return fmt.Errorf("write assembled context: %w", err)
+	}
 
 	p.Broker.Emit(events.Event{
 		Type: events.PhaseAssembled,
@@ -179,7 +183,9 @@ func AssembleConcurrent(w io.Writer, phases []state.Phase, p *Params) error {
 			errs = append(errs, fmt.Sprintf("%s: %v", phases[i], r.err))
 			continue
 		}
-		w.Write(r.data)
+		if _, wErr := w.Write(r.data); wErr != nil {
+			return fmt.Errorf("write phase %s: %w", phases[i], wErr)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -215,7 +221,7 @@ func loadArtifact(changeDir, filename string) ([]byte, error) {
 // writeSection writes a labeled section to the output.
 func writeSection(w io.Writer, label string, content []byte) {
 	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	w.Write(content)
+	w.Write(content) //nolint:errcheck // error captured by errWriter
 	fmt.Fprintln(w)
 }
 

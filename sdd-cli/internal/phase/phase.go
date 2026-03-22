@@ -27,8 +27,6 @@ type AssemblerParams struct {
 	ProjectDir  string
 	Config      *config.Config
 	SkillsPath  string
-	Stderr      io.Writer      // for metrics output; nil = discard
-	Verbosity   int            // -1=quiet, 0=default, 1=verbose, 2=debug
 	Broker      *events.Broker // event broker; nil = no events
 }
 
