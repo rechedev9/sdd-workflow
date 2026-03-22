@@ -250,6 +250,32 @@ func TestListPendingEmpty(t *testing.T) {
 	}
 }
 
+func TestArtifactFileNameUnknownPhase(t *testing.T) {
+	t.Parallel()
+	_, ok := ArtifactFileName(state.Phase("nonexistent"))
+	if ok {
+		t.Error("expected ok=false for unknown phase")
+	}
+}
+
+func TestReadUnknownPhase(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, err := Read(dir, state.Phase("nonexistent"))
+	if err == nil {
+		t.Error("expected error for unknown phase")
+	}
+}
+
+func TestReadFileMissing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, err := ReadFile(dir, "nonexistent.md")
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
 func TestPendingFileName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
