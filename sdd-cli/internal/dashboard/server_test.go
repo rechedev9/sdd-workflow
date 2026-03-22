@@ -77,11 +77,11 @@ func TestHandleIndex(t *testing.T) {
 	if !strings.Contains(body, "SHENRON") {
 		t.Error("expected body to contain SHENRON")
 	}
-	if !strings.Contains(body, "echarts.min.js") {
-		t.Error("expected body to contain echarts.min.js script reference")
-	}
 	if !strings.Contains(body, "dashboard.js") {
 		t.Error("expected body to contain dashboard.js script reference")
+	}
+	if !strings.Contains(body, "canvas") {
+		t.Error("expected body to contain canvas element")
 	}
 }
 
@@ -94,21 +94,6 @@ func TestHandleIndex_NotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestStaticECharts(t *testing.T) {
-	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
-	req := httptest.NewRequest("GET", "/static/echarts.min.js", nil)
-	w := httptest.NewRecorder()
-	srv.routes().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if w.Body.Len() == 0 {
-		t.Error("expected non-empty echarts.min.js response")
 	}
 }
 
