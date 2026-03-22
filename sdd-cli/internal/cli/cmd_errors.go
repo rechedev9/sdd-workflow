@@ -95,8 +95,12 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		if len(fp) > 8 {
 			fp = fp[:8]
 		}
+		ts := e.Timestamp
+		if len(ts) > 19 {
+			ts = ts[:19]
+		}
 		fmt.Fprintf(stdout, "  %s  %-8s  exit=%d  %s  [%s]\n",
-			e.Timestamp[:19], e.CommandName, e.ExitCode, e.Change, fp)
+			ts, e.CommandName, e.ExitCode, e.Change, fp)
 	}
 	return nil
 }

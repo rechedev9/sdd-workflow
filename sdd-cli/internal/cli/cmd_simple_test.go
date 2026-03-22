@@ -41,12 +41,15 @@ func TestRunQuickstart_UnknownFlag(t *testing.T) {
 	}
 }
 
-func TestRunDashboard_NoArgs(t *testing.T) {
+func TestRunDashboard_InvalidPort(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	// runDashboard needs a store — calling with no valid dir returns error.
-	err := runDashboard(nil, &stdout, &stderr)
-	// May succeed (opens store from cwd) or fail — either is valid.
-	// We just ensure it doesn't panic.
-	_ = err
+	// Invalid port causes early return before any blocking I/O.
+	err := runDashboard([]string{"--port", "999"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for invalid port")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
 }
