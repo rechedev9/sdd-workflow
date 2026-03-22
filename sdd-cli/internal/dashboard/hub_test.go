@@ -238,3 +238,59 @@ func TestBuildHeatmapFromChanges_WithChange(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPipelinesFromChanges_Empty(t *testing.T) {
+	t.Parallel()
+	h := newTestHub(t)
+	pipelines := h.buildPipelinesFromChanges(context.Background(), nil)
+	if len(pipelines) != 0 {
+		t.Errorf("expected 0 pipelines for nil changes, got %d", len(pipelines))
+	}
+}
+
+func TestBuildPipelinesFromChanges_WithChange(t *testing.T) {
+	t.Parallel()
+	fm := &fakeMetrics{
+		tokens: []store.ChangeTokens{
+			{Change: "feat-z", Tokens: 1000},
+		},
+	}
+	h := NewHub(fm, t.TempDir())
+	st := state.NewState("feat-z", "test")
+	changes := []changeSnapshot{{dir: t.TempDir(), state: st}}
+
+	pipelines := h.buildPipelinesFromChanges(context.Background(), changes)
+	if len(pipelines) != 1 {
+		t.Fatalf("expected 1 pipeline, got %d", len(pipelines))
+	}
+	p := pipelines[0]
+	if p.Name != "feat-z" {
+		t.Errorf("name = %q, want %q", p.Name, "feat-z")
+	}
+	if p.Tokens != 1000 {
+		t.Errorf("tokens = %d, want 1000", p.Tokens)
+	}
+	if p.Total != len(state.AllPhases()) {
+		t.Errorf("total = %d, want %d", p.Total, len(state.AllPhases()))
+	}
+}
+
+func TestBuildPipelinesFromChanges_StaleStatus(t *testing.T) {
+	t.Parallel()
+	h := newTestHub(t)
+
+	// Create a state that is old enough to be stale (> 24h).
+	st := state.NewState("feat-stale", "test")
+	// Override UpdatedAt to a time far in the past.
+	st.UpdatedAt = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	changes := []changeSnapshot{{dir: t.TempDir(), state: st}}
+	pipelines := h.buildPipelinesFromChanges(context.Background(), changes)
+	if len(pipelines) != 1 {
+		t.Fatalf("expected 1 pipeline, got %d", len(pipelines))
+	}
+	// Stale change with no FAILED verify report → "warn".
+	if pipelines[0].Status != "warn" {
+		t.Errorf("status = %q, want %q", pipelines[0].Status, "warn")
+	}
+}
