@@ -1,11 +1,12 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
@@ -59,8 +60,8 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		for _, g := range groups {
 			sorted = append(sorted, g)
 		}
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Count > sorted[j].Count
+		slices.SortFunc(sorted, func(a, b *errorGroup) int {
+			return cmp.Compare(b.Count, a.Count)
 		})
 
 		out := struct {
