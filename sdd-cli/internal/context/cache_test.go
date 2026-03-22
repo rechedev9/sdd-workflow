@@ -134,6 +134,69 @@ func TestCheckCacheIntegrity_EmptyDir(t *testing.T) {
 	}
 }
 
+func TestCheckCacheIntegrity_StaleEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Valid "hash|timestamp" format but wrong hash — should count as stale.
+	os.WriteFile(filepath.Join(cacheD, "explore.hash"), []byte("wronghash|1000000000"), 0o644)
+
+	stale, err := CheckCacheIntegrity(dir, "")
+	if err != nil {
+		t.Fatalf("CheckCacheIntegrity: %v", err)
+	}
+	if stale != 1 {
+		t.Errorf("stale = %d, want 1 for wrong hash", stale)
+	}
+}
+
+func TestSaveContextCache_ThenInvalidate(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// "propose" has exploration.md as a cache input — write it first.
+	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("original"), 0o644)
+
+	// Save context.
+	if err := saveContextCache(dir, "propose", "", []byte("content")); err != nil {
+		t.Fatalf("saveContextCache: %v", err)
+	}
+
+	// Should hit.
+	_, ok := tryCachedContext(dir, "propose", "")
+	if !ok {
+		t.Error("expected cache hit after save")
+	}
+
+	// Modify exploration.md — hash should change.
+	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("modified"), 0o644)
+
+	// Now the hash should mismatch → miss.
+	_, ok = tryCachedContext(dir, "propose", "")
+	if ok {
+		t.Error("expected cache miss after input artifact changed")
+	}
+}
+
+func TestInputHash_WithSpecsDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+
+	// Hash with empty specs dir.
+	h1 := inputHash(dir, []string{"specs/"}, "", "spec")
+
+	// Add a spec file — hash should change.
+	os.WriteFile(filepath.Join(specsDir, "auth.md"), []byte("# Auth Spec"), 0o644)
+	h2 := inputHash(dir, []string{"specs/"}, "", "spec")
+
+	if h1 == h2 {
+		t.Error("hash should change when specs dir content changes")
+	}
+}
+
 func TestCheckCacheIntegrity_LegacyHashFormat(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
