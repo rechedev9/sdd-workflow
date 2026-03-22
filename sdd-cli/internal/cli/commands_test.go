@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
@@ -74,6 +75,52 @@ func TestCheckRecurringFailures_DifferentChange(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil when recurring errors are from different change, got %v", result)
 	}
+}
+
+func TestResolveDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("existing_dir", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		got, err := resolveDir(dir)
+		if err != nil {
+			t.Fatalf("resolveDir(%q): %v", dir, err)
+		}
+		if got == "" {
+			t.Error("expected non-empty path")
+		}
+	})
+
+	t.Run("dot_uses_cwd", func(t *testing.T) {
+		t.Parallel()
+		got, err := resolveDir(".")
+		if err != nil {
+			t.Fatalf("resolveDir(.): %v", err)
+		}
+		if got == "" {
+			t.Error("expected non-empty path for '.'")
+		}
+	})
+
+	t.Run("missing_dir", func(t *testing.T) {
+		t.Parallel()
+		_, err := resolveDir("/nonexistent/path/xyz")
+		if err == nil {
+			t.Error("expected error for missing directory")
+		}
+	})
+
+	t.Run("file_not_dir", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		f, _ := os.CreateTemp(dir, "test*.txt")
+		f.Close()
+		_, err := resolveDir(f.Name())
+		if err == nil {
+			t.Error("expected error when path is a file, not a directory")
+		}
+	})
 }
 
 func TestValidateChangeName(t *testing.T) {
