@@ -45,7 +45,10 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "write", fmt.Errorf("load state: %w", err))
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errs.WriteError(stderr, "write", fmt.Errorf("get working directory: %w", err))
+	}
 	db := tryOpenStore(cwd)
 	if db != nil {
 		defer db.Close()
