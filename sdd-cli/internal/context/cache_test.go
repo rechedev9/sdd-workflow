@@ -272,3 +272,22 @@ func TestLoadPipelineMetrics_VersionMismatch(t *testing.T) {
 		t.Errorf("Version = %d, want %d", pm.Version, cacheVersion)
 	}
 }
+
+func TestWriteMetrics_SilentAtNegativeVerbosity(t *testing.T) {
+	t.Parallel()
+	// verbosity < 0 → should return without logging (no panic).
+	m := &contextMetrics{Phase: "explore", Bytes: 1024, Tokens: 256, Cached: false, DurationMs: 50}
+	writeMetrics(nil, m, -1)
+}
+
+func TestWriteMetrics_Assembled(t *testing.T) {
+	t.Parallel()
+	m := &contextMetrics{Phase: "propose", Bytes: 2048, Tokens: 512, Cached: false, DurationMs: 100}
+	writeMetrics(nil, m, 0)
+}
+
+func TestWriteMetrics_Cached(t *testing.T) {
+	t.Parallel()
+	m := &contextMetrics{Phase: "tasks", Bytes: 512, Tokens: 128, Cached: true, DurationMs: 5}
+	writeMetrics(nil, m, 0)
+}
