@@ -1,10 +1,14 @@
 package dashboard
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
 )
 
 func newTestHub(t *testing.T) *Hub {
@@ -121,5 +125,116 @@ func TestPruneVerifyCache(t *testing.T) {
 	}
 	if _, found := h.verifyCache["stale-dir"]; found {
 		t.Error("expected stale-dir to be pruned from cache")
+	}
+}
+
+func TestLoadChanges_Empty(t *testing.T) {
+	t.Parallel()
+	h := newTestHub(t)
+	// changesDir is empty → no changes.
+	changes := h.loadChanges()
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes for empty dir, got %d", len(changes))
+	}
+}
+
+func TestLoadChanges_WithChange(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	changesDir := filepath.Join(dir, "changes")
+	os.MkdirAll(changesDir, 0o755)
+	h := NewHub(&fakeMetrics{}, changesDir)
+
+	// Create a change directory with a valid state.json.
+	changeDir := filepath.Join(changesDir, "feat-x")
+	os.MkdirAll(changeDir, 0o755)
+	st := state.NewState("feat-x", "test change")
+	state.Save(st, filepath.Join(changeDir, "state.json"))
+
+	changes := h.loadChanges()
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d", len(changes))
+	}
+	if changes[0].state.Name != "feat-x" {
+		t.Errorf("change name = %q, want %q", changes[0].state.Name, "feat-x")
+	}
+}
+
+func TestLoadChanges_SkipsArchive(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	changesDir := filepath.Join(dir, "changes")
+	os.MkdirAll(changesDir, 0o755)
+	h := NewHub(&fakeMetrics{}, changesDir)
+
+	// Create the special "archive" directory — should be skipped.
+	os.MkdirAll(filepath.Join(changesDir, "archive"), 0o755)
+
+	changes := h.loadChanges()
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes (archive skipped), got %d", len(changes))
+	}
+}
+
+func TestBuildErrors_Empty(t *testing.T) {
+	t.Parallel()
+	h := newTestHub(t)
+	data := h.buildErrors(context.Background())
+	if data == nil {
+		t.Error("expected non-nil slice for empty errors")
+	}
+	if len(data) != 0 {
+		t.Errorf("expected 0 errors, got %d", len(data))
+	}
+}
+
+func TestBuildErrors_WithRows(t *testing.T) {
+	t.Parallel()
+	fm := &fakeMetrics{
+		errors: []store.ErrorRow{
+			{
+				Timestamp:   "2026-01-01T00:00:00Z",
+				CommandName: "build",
+				ExitCode:    1,
+				Change:      "feat-a",
+				Fingerprint: "abcdef0123456789",
+				FirstLine:   "error: undefined",
+			},
+		},
+	}
+	h := NewHub(fm, t.TempDir())
+	data := h.buildErrors(context.Background())
+	if len(data) != 1 {
+		t.Fatalf("expected 1 error row, got %d", len(data))
+	}
+	if data[0].Fingerprint != "abcdef01" {
+		t.Errorf("fingerprint = %q, want %q", data[0].Fingerprint, "abcdef01")
+	}
+}
+
+func TestBuildHeatmapFromChanges_Empty(t *testing.T) {
+	t.Parallel()
+	grid := buildHeatmapFromChanges(nil)
+	if len(grid) != 0 {
+		t.Errorf("expected 0 rows for empty changes, got %d", len(grid))
+	}
+}
+
+func TestBuildHeatmapFromChanges_WithChange(t *testing.T) {
+	t.Parallel()
+	st := state.NewState("feat-y", "test")
+	changes := []changeSnapshot{{dir: "/tmp/feat-y", state: st}}
+	grid := buildHeatmapFromChanges(changes)
+	allPhases := state.AllPhases()
+	if len(grid) != len(allPhases) {
+		t.Errorf("grid rows = %d, want %d", len(grid), len(allPhases))
+	}
+	for _, row := range grid {
+		if row.Change != "feat-y" {
+			t.Errorf("change = %q, want %q", row.Change, "feat-y")
+		}
+		if row.Status == "" {
+			t.Errorf("status empty for phase %s", row.Phase)
+		}
 	}
 }
