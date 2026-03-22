@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -628,6 +630,38 @@ func TestCheckSkillsPathPartial(t *testing.T) {
 	}
 	if !strings.Contains(r.Message, "1/") {
 		t.Errorf("expected '1/' in message, got %q", r.Message)
+	}
+}
+
+// --- runDoctor ---
+
+func TestRunDoctor_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDoctor([]string{"--unknown"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunDoctor_JSONFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	// runDoctor uses os.Getwd() so it may find a real config or not; either way
+	// --json should produce valid JSON output without panicking.
+	_ = runDoctor([]string{"--json"}, &stdout, &stderr)
+	out := stdout.String()
+	if len(out) > 0 {
+		var v map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &v); err != nil {
+			t.Errorf("--json output is not valid JSON: %v\n%s", err, out)
+		}
+		if v["command"] != "doctor" {
+			t.Errorf("expected command=doctor, got %v", v["command"])
+		}
 	}
 }
 
