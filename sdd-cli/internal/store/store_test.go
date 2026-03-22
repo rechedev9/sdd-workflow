@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -560,6 +561,21 @@ func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != lines[0] || got[1] != lines[1] {
 		t.Errorf("error_lines = %v, want %v", got, lines)
+	}
+}
+
+func TestOpen_MkdirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create a file at the would-be parent directory so MkdirAll fails.
+	blocker := dir + "/not-a-dir"
+	if err := os.WriteFile(blocker, []byte("block"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Path inside a file "directory" — MkdirAll will fail.
+	_, err := Open(blocker + "/sub/test.db")
+	if err == nil {
+		t.Fatal("expected error when parent path is a file, got nil")
 	}
 }
 
