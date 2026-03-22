@@ -1,6 +1,7 @@
 package context
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -136,11 +137,12 @@ func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, bool) {
 	}
 
 	// Parse "hash|timestamp" format.
-	stored := strings.TrimSpace(string(raw))
-	storedHash, tsStr, ok := strings.Cut(stored, "|")
+	hashB, tsB, ok := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
 	if !ok {
 		return nil, false // legacy format without timestamp → miss
 	}
+	storedHash := string(hashB)
+	tsStr := string(tsB)
 
 	// Check content hash (includes SKILL.md).
 	currentHash := inputHash(changeDir, inputs, skillsPath, phaseName)
@@ -332,8 +334,8 @@ func CheckCacheIntegrity(changeDir, skillsPath string) (int, error) {
 		if err != nil {
 			continue
 		}
-		stored := strings.TrimSpace(string(raw))
-		storedHash, _, ok := strings.Cut(stored, "|")
+		storedHashB, _, ok := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
+		storedHash := string(storedHashB)
 		if !ok {
 			stale++
 			continue
