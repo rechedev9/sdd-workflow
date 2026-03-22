@@ -33,6 +33,16 @@ var (
 	ErrCorruptState        = errors.New("corrupt state file")
 )
 
+// prereqsMet reports whether every prerequisite phase in desc is completed.
+func (s *State) prereqsMet(desc phase.Phase) bool {
+	for _, req := range desc.Prerequisites {
+		if s.Phases[Phase(req)] != StatusCompleted {
+			return false
+		}
+	}
+	return true
+}
+
 // CanTransition reports whether moving from the current state to the target phase is valid.
 func (s *State) CanTransition(target Phase) error {
 	if s.Phases[target] == StatusCompleted {
@@ -77,14 +87,7 @@ func (s *State) nextReady() Phase {
 		if !ok {
 			continue
 		}
-		ready := true
-		for _, req := range desc.Prerequisites {
-			if s.Phases[Phase(req)] != StatusCompleted {
-				ready = false
-				break
-			}
-		}
-		if ready {
+		if s.prereqsMet(desc) {
 			return p
 		}
 	}
@@ -104,14 +107,7 @@ func (s *State) ReadyPhases() []Phase {
 		if !ok {
 			continue
 		}
-		allMet := true
-		for _, req := range desc.Prerequisites {
-			if s.Phases[Phase(req)] != StatusCompleted {
-				allMet = false
-				break
-			}
-		}
-		if allMet {
+		if s.prereqsMet(desc) {
 			ready = append(ready, p)
 		}
 	}
