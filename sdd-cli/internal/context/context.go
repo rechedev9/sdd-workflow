@@ -229,3 +229,12 @@ func writeSection(w io.Writer, label string, content []byte) {
 func writeSectionStr(w io.Writer, label, content string) {
 	writeSection(w, label, []byte(content))
 }
+
+// writeChangeSection writes the CHANGE section (Name + Description).
+// Used by every assembler to avoid repeating the same fmt.Sprintf.
+func writeChangeSection(w io.Writer, p *Params) {
+	writeSectionStr(w, "CHANGE", fmt.Sprintf(
+		"Name: %s\nDescription: %s",
+		p.ChangeName, p.Description,
+	))
+}

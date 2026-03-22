@@ -35,10 +35,7 @@ func AssemblePropose(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	writeSectionStr(w, "PROJECT", projectContext(p))
 
