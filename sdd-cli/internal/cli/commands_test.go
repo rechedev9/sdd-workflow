@@ -2,10 +2,44 @@ package cli
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 )
+
+func TestGitDiffFiles_InvalidRef(t *testing.T) {
+	t.Parallel()
+	// Use a valid git repo but an invalid ref → ExitError path (lines 119-122).
+	_, err := gitDiffFiles(repoRoot, "INVALID_REF_XYZ_DOES_NOT_EXIST")
+	if err == nil {
+		t.Fatal("expected error for invalid git ref")
+	}
+}
+
+func TestGitDiffFiles_NonGitDir(t *testing.T) {
+	t.Parallel()
+	// Non-git directory → exec error path (line 123).
+	_, err := gitDiffFiles(t.TempDir(), "HEAD")
+	if err == nil {
+		t.Fatal("expected error for non-git directory")
+	}
+}
+
+func TestGitDiffFiles_ValidRef(t *testing.T) {
+	t.Parallel()
+	// Valid git repo + valid ref → no error; result is nil or a list of files.
+	files, err := gitDiffFiles(repoRoot, "HEAD")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Each file should be a relative path (no empty strings).
+	for _, f := range files {
+		if strings.TrimSpace(f) == "" {
+			t.Errorf("empty file path in result")
+		}
+	}
+}
 
 func TestCheckRecurringFailures_NoLog(t *testing.T) {
 	t.Parallel()
