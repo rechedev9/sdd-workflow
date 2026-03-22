@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -104,7 +105,7 @@ func gitHeadSHA(dir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 // gitDiffFiles returns files changed between ref and the working tree.
@@ -139,7 +140,7 @@ func shouldSkipVerify(cwd, changeDir string) (bool, error) {
 	if err != nil {
 		return false, nil // no report → can't skip
 	}
-	if !strings.Contains(string(data), "**Status:** PASSED") {
+	if !bytes.Contains(data, []byte("**Status:** PASSED")) {
 		return false, nil // last run failed → must re-verify
 	}
 
