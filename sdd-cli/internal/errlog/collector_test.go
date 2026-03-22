@@ -137,3 +137,24 @@ func TestRecurringFingerprints(t *testing.T) {
 		t.Errorf("recurring(2) = %d, want 2", len(got2))
 	}
 }
+
+func TestRecord_MaxEntries(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Record maxEntries+1 entries — oldest should be evicted.
+	for i := 0; i <= maxEntries; i++ {
+		Record(dir, ErrorEntry{
+			CommandName: "build",
+			Command:     "go build",
+			ExitCode:    1,
+			ErrorLines:  []string{"error: something"},
+			Fingerprint: Fingerprint("go build", []string{"error: something"}),
+		})
+	}
+
+	loaded := Load(dir)
+	if len(loaded.Entries) != maxEntries {
+		t.Errorf("entries = %d, want %d (oldest evicted)", len(loaded.Entries), maxEntries)
+	}
+}
