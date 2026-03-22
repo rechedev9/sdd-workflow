@@ -32,6 +32,25 @@ Agent(
   3. If FAILS: read full error, fix, re-run. Max 3 attempts. If still failing, mark BLOCKED and stop.
   4. If PASSES: mark task [x] and move to next task
 
+  TEST GENERATION RULES (mandatory — violations are bugs):
+  1. NO trivial assertions. If a test only checks happy-path return values
+     with hardcoded inputs, delete it and write a real test.
+  2. Test through exported API only. Never test unexported functions directly.
+     If you can't reach the code path through a public function, it's dead code.
+  3. FUZZ: Every function that accepts []byte, string, or io.Reader MUST get
+     a Fuzz* test. Seeds: one valid, one empty, one malformed. Target must
+     not panic. Round-trips assert Decode(Encode(x)) == x.
+  4. BOUNDARIES: When code has a numeric threshold (size, count, index),
+     add test cases at N-1, N, N+1. No exceptions.
+  5. CHAOS: When code uses goroutines, channels, sync primitives, atomic ops,
+     or shared file I/O — write TestChaos* tests that hammer concurrent paths
+     from 10-50 goroutines. These exist to be caught by -race.
+  6. STRESS: Generate random/massive inputs to bombard the public API.
+     Corrupt payloads, oversized strings, empty fields, null bytes, nested
+     structures at max depth. Minimum 1000 iterations per stress test.
+  7. Every test must answer: "what input breaks this?" If you can't state
+     the failure hypothesis, don't write the test.
+
   After batch complete: run full suite (build + lint + tests) and report results.
 
   Write updated tasks.md (completed items marked [x]) to:
