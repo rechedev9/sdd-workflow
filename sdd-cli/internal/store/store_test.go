@@ -445,6 +445,87 @@ func TestPhaseDurations_Empty(t *testing.T) {
 	}
 }
 
+func TestInsertVerifyResult_Roundtrip(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	results := []VerifyResult{
+		{Timestamp: base, Change: "feat-a", CommandName: "build", ExitCode: 0, Passed: true},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", CommandName: "test", ExitCode: 1, Passed: false},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-b", CommandName: "build", ExitCode: 0, Passed: true},
+	}
+	for _, r := range results {
+		if err := s.InsertVerifyResult(ctx, r); err != nil {
+			t.Fatalf("InsertVerifyResult: %v", err)
+		}
+	}
+
+	rows, err := s.VerifyHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("len = %d, want 3", len(rows))
+	}
+	if !rows[0].Passed {
+		t.Error("rows[0].Passed should be true")
+	}
+	if rows[1].Passed {
+		t.Error("rows[1].Passed should be false")
+	}
+	if rows[0].Change != "feat-a" {
+		t.Errorf("rows[0].Change = %q, want feat-a", rows[0].Change)
+	}
+	if rows[1].ExitCode != 1 {
+		t.Errorf("rows[1].ExitCode = %d, want 1", rows[1].ExitCode)
+	}
+}
+
+func TestVerifyHistory_TimeFilter(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	for i, offset := range []time.Duration{0, time.Minute, 2 * time.Minute} {
+		r := VerifyResult{
+			Timestamp:   base.Add(offset),
+			Change:      "feat-a",
+			CommandName: "build",
+			ExitCode:    i,
+			Passed:      i == 0,
+		}
+		if err := s.InsertVerifyResult(ctx, r); err != nil {
+			t.Fatalf("InsertVerifyResult: %v", err)
+		}
+	}
+
+	// since after first record — expect 2
+	rows, err := s.VerifyHistory(ctx, base.Add(30*time.Second))
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+}
+
+func TestVerifyHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.VerifyHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
 // Verify JSON round-trip fidelity of error_lines.
 func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	t.Parallel()
