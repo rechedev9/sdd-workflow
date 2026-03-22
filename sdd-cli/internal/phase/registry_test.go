@@ -1,6 +1,7 @@
 package phase_test
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -169,4 +170,43 @@ func TestSealedRegistryPanicsOnRegister(t *testing.T) {
 		}
 	}()
 	r.Register(phase.Phase{Name: "late"})
+}
+
+func TestSetAssembler_WiresFunction(t *testing.T) {
+	t.Parallel()
+	r := &phase.Registry{}
+	r.Register(phase.Phase{Name: "wired"})
+	fn := func(_ io.Writer, _ *phase.AssemblerParams) error { return nil }
+	r.SetAssembler("wired", fn)
+	p, ok := r.Get("wired")
+	if !ok {
+		t.Fatal("phase not found")
+	}
+	if p.Assemble == nil {
+		t.Error("expected Assemble to be non-nil after SetAssembler")
+	}
+}
+
+func TestSetAssembler_PanicsOnUnknownPhase(t *testing.T) {
+	t.Parallel()
+	r := &phase.Registry{}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for unknown phase")
+		}
+	}()
+	r.SetAssembler("nonexistent", nil)
+}
+
+func TestSetAssembler_PanicsOnSealed(t *testing.T) {
+	t.Parallel()
+	r := &phase.Registry{}
+	r.Register(phase.Phase{Name: "sealed-phase"})
+	r.Get("sealed-phase") // seals
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for SetAssembler on sealed registry")
+		}
+	}()
+	r.SetAssembler("sealed-phase", nil)
 }
