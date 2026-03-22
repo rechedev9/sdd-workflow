@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -85,7 +85,7 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 
 	sorted := make([]string, len(inputs))
 	copy(sorted, inputs)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 
 	for _, name := range sorted {
 		if name == "specs/" {
