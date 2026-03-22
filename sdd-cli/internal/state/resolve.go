@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -9,10 +10,8 @@ import (
 func ResolvePhase(input string) (Phase, error) {
 	phases := AllPhases()
 
-	for _, p := range phases {
-		if string(p) == input {
-			return p, nil
-		}
+	if slices.Contains(phases, Phase(input)) {
+		return Phase(input), nil
 	}
 
 	if idx, err := strconv.Atoi(input); err == nil {
