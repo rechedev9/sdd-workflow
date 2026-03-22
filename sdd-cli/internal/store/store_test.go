@@ -287,6 +287,164 @@ func TestInsertVerifyEvent_EmptyErrorLines(t *testing.T) {
 	}
 }
 
+func TestTokenHistory(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", Tokens: 100, Cached: true, DurationMs: 10},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", Phase: "propose", Tokens: 200, Cached: false, DurationMs: 20},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-b", Phase: "design", Tokens: 50, Cached: false, DurationMs: 5},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	// since before all events — expect all 3
+	rows, err := s.TokenHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("TokenHistory: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("len = %d, want 3", len(rows))
+	}
+	if rows[0].Tokens != 100 {
+		t.Errorf("rows[0].Tokens = %d, want 100", rows[0].Tokens)
+	}
+	if !rows[0].Cached {
+		t.Error("rows[0].Cached should be true")
+	}
+	if rows[1].Cached {
+		t.Error("rows[1].Cached should be false")
+	}
+
+	// since after first event — expect only 2
+	rows2, err := s.TokenHistory(ctx, base.Add(30*time.Second))
+	if err != nil {
+		t.Fatalf("TokenHistory (filtered): %v", err)
+	}
+	if len(rows2) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows2))
+	}
+}
+
+func TestTokenHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.TokenHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("TokenHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
+func TestCacheHistory(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", Tokens: 10, Cached: true, DurationMs: 10},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", Phase: "propose", Tokens: 20, Cached: false, DurationMs: 20},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	rows, err := s.CacheHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("CacheHistory: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+	if !rows[0].Cached {
+		t.Error("rows[0].Cached should be true")
+	}
+	if rows[1].Cached {
+		t.Error("rows[1].Cached should be false")
+	}
+	if rows[0].Phase != "explore" {
+		t.Errorf("rows[0].Phase = %q, want explore", rows[0].Phase)
+	}
+}
+
+func TestCacheHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.CacheHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("CacheHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
+func TestPhaseDurations(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", DurationMs: 100},
+		{Timestamp: base.Add(time.Minute), Change: "feat-b", Phase: "explore", DurationMs: 200},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-a", Phase: "propose", DurationMs: 300},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	rows, err := s.PhaseDurations(ctx)
+	if err != nil {
+		t.Fatalf("PhaseDurations: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+
+	m := make(map[string]int64)
+	for _, r := range rows {
+		m[r.Phase] = r.AvgDurationMs
+	}
+	if m["explore"] != 150 {
+		t.Errorf("explore avg = %d, want 150", m["explore"])
+	}
+	if m["propose"] != 300 {
+		t.Errorf("propose avg = %d, want 300", m["propose"])
+	}
+}
+
+func TestPhaseDurations_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.PhaseDurations(ctx)
+	if err != nil {
+		t.Fatalf("PhaseDurations: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
 // Verify JSON round-trip fidelity of error_lines.
 func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	t.Parallel()
