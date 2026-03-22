@@ -81,7 +81,7 @@ func readSkillBytes(skillsPath, phaseName string) []byte {
 
 // inputHash computes a SHA256 hash of all input artifacts + SKILL.md for a phase.
 // Includes cacheVersion so format changes auto-invalidate.
-// Includes SKILL.md so skill edits invalidate the cache (tokentally ETag pattern).
+// Includes SKILL.md so skill edits invalidate the cache (essentially an ETag pattern).
 func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) string {
 	h := sha256.New()
 
