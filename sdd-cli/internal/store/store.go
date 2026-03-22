@@ -354,7 +354,7 @@ func (s *Store) TokenHistory(ctx context.Context, since time.Time) ([]TokenHisto
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT timestamp, change, phase, tokens, cached
 		 FROM phase_events
-		 WHERE timestamp > ?
+		 WHERE timestamp >= ?
 		 ORDER BY id`, since.Format(time.RFC3339))
 	if err != nil {
 		return nil, fmt.Errorf("store: token history: %w", err)
@@ -405,7 +405,7 @@ func (s *Store) CacheHistory(ctx context.Context, since time.Time) ([]CacheHisto
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT timestamp, phase, cached
 		 FROM phase_events
-		 WHERE timestamp > ?
+		 WHERE timestamp >= ?
 		 ORDER BY id`, since.Format(time.RFC3339))
 	if err != nil {
 		return nil, fmt.Errorf("store: cache history: %w", err)
@@ -433,7 +433,7 @@ func (s *Store) VerifyHistory(ctx context.Context, since time.Time) ([]VerifyHis
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT timestamp, change, command_name, exit_code, passed
 		 FROM verify_results
-		 WHERE timestamp > ?
+		 WHERE timestamp >= ?
 		 ORDER BY id`, since.Format(time.RFC3339))
 	if err != nil {
 		return nil, fmt.Errorf("store: verify history: %w", err)
