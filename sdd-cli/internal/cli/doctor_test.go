@@ -613,3 +613,42 @@ func TestPrintDoctorTableEmpty(t *testing.T) {
 		t.Error("output should still contain header even with no checks")
 	}
 }
+
+func TestCheckSkillsPathPartial(t *testing.T) {
+	t.Parallel()
+	skillsDir := t.TempDir()
+	// Create one SKILL.md — partial coverage → warn.
+	phaseDir := filepath.Join(skillsDir, "sdd-explore")
+	os.MkdirAll(phaseDir, 0o755)
+	os.WriteFile(filepath.Join(phaseDir, "SKILL.md"), []byte("# skill"), 0o644)
+	cfg := &config.Config{SkillsPath: skillsDir}
+	r := checkSkillsPath(cfg)
+	if r.Status != "warn" {
+		t.Errorf("expected warn for partial skills, got %q", r.Status)
+	}
+	if !strings.Contains(r.Message, "1/") {
+		t.Errorf("expected '1/' in message, got %q", r.Message)
+	}
+}
+
+func TestCheckSkillsPathAllPresent(t *testing.T) {
+	t.Parallel()
+	skillsDir := t.TempDir()
+	// Create SKILL.md for all 10 phases → pass.
+	for _, name := range []string{
+		"explore", "propose", "spec", "design", "tasks",
+		"apply", "review", "verify", "clean", "archive",
+	} {
+		phaseDir := filepath.Join(skillsDir, "sdd-"+name)
+		os.MkdirAll(phaseDir, 0o755)
+		os.WriteFile(filepath.Join(phaseDir, "SKILL.md"), []byte("# skill"), 0o644)
+	}
+	cfg := &config.Config{SkillsPath: skillsDir}
+	r := checkSkillsPath(cfg)
+	if r.Status != "pass" {
+		t.Errorf("expected pass for all skills present, got %q", r.Status)
+	}
+	if !strings.Contains(r.Message, "10/10") {
+		t.Errorf("expected '10/10' in message, got %q", r.Message)
+	}
+}
