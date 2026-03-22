@@ -1,6 +1,8 @@
 package context
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -117,6 +119,78 @@ func TestRecordMetrics_UpdatesTotals(t *testing.T) {
 	}
 	if pm2.CacheMisses != 1 {
 		t.Errorf("CacheMisses = %d, want 1", pm2.CacheMisses)
+	}
+}
+
+func TestCheckCacheIntegrity_EmptyDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	stale, err := CheckCacheIntegrity(dir, "")
+	if err != nil {
+		t.Fatalf("CheckCacheIntegrity: %v", err)
+	}
+	if stale != 0 {
+		t.Errorf("stale = %d, want 0 for empty dir", stale)
+	}
+}
+
+func TestCheckCacheIntegrity_LegacyHashFormat(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Legacy format without "|" separator — should count as stale.
+	os.WriteFile(filepath.Join(cacheD, "explore.hash"), []byte("somehash"), 0o644)
+
+	stale, err := CheckCacheIntegrity(dir, "")
+	if err != nil {
+		t.Fatalf("CheckCacheIntegrity: %v", err)
+	}
+	if stale != 1 {
+		t.Errorf("stale = %d, want 1 for legacy hash format", stale)
+	}
+}
+
+func TestSaveAndTryCachedContext(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	content := []byte("assembled context for explore")
+	// Save with empty skillsPath — no external skill file.
+	if err := saveContextCache(dir, "explore", "", content); err != nil {
+		t.Fatalf("saveContextCache: %v", err)
+	}
+
+	// Should hit cache on first try.
+	cached, ok := tryCachedContext(dir, "explore", "")
+	if !ok {
+		t.Fatal("expected cache hit after saveContextCache")
+	}
+	if string(cached) != string(content) {
+		t.Errorf("cached content = %q, want %q", cached, content)
+	}
+}
+
+func TestTryCachedContext_Miss_NoHashFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, ok := tryCachedContext(dir, "explore", "")
+	if ok {
+		t.Error("expected cache miss when no hash file")
+	}
+}
+
+func TestTryCachedContext_Miss_LegacyFormat(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Write legacy hash without "|".
+	os.WriteFile(filepath.Join(cacheD, "explore.hash"), []byte("legacyhash"), 0o644)
+
+	_, ok := tryCachedContext(dir, "explore", "")
+	if ok {
+		t.Error("expected cache miss for legacy hash format")
 	}
 }
 
