@@ -533,3 +533,83 @@ func TestCheckPprofSet(t *testing.T) {
 		t.Errorf("expected 'SDD_PPROF=cpu' in message, got %q", r.Message)
 	}
 }
+
+// --- aggregateStatus ---
+
+func TestAggregateStatusAllPass(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "pass"},
+		{Name: "b", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "pass" {
+		t.Errorf("aggregateStatus = %q, want pass", got)
+	}
+}
+
+func TestAggregateStatusWithWarn(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "pass"},
+		{Name: "b", Status: "warn"},
+		{Name: "c", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "warn" {
+		t.Errorf("aggregateStatus = %q, want warn", got)
+	}
+}
+
+func TestAggregateStatusWithFail(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "warn"},
+		{Name: "b", Status: "fail"},
+		{Name: "c", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "fail" {
+		t.Errorf("aggregateStatus = %q, want fail", got)
+	}
+}
+
+func TestAggregateStatusEmpty(t *testing.T) {
+	t.Parallel()
+	if got := aggregateStatus(nil); got != "pass" {
+		t.Errorf("aggregateStatus(nil) = %q, want pass", got)
+	}
+}
+
+// --- printDoctorTable ---
+
+func TestPrintDoctorTable(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "config", Status: "pass", Message: ""},
+		{Name: "tools", Status: "warn", Message: "missing: foo"},
+		{Name: "cache", Status: "fail", Message: "2 stale entries"},
+	}
+	var buf strings.Builder
+	printDoctorTable(&buf, checks)
+	out := buf.String()
+
+	if !strings.Contains(out, "sdd doctor") {
+		t.Error("output should contain 'sdd doctor' header")
+	}
+	if !strings.Contains(out, "config") {
+		t.Error("output should contain check name 'config'")
+	}
+	if !strings.Contains(out, "missing: foo") {
+		t.Error("output should contain message 'missing: foo'")
+	}
+	if !strings.Contains(out, "2 stale entries") {
+		t.Error("output should contain '2 stale entries'")
+	}
+}
+
+func TestPrintDoctorTableEmpty(t *testing.T) {
+	t.Parallel()
+	var buf strings.Builder
+	printDoctorTable(&buf, nil)
+	if !strings.Contains(buf.String(), "sdd doctor") {
+		t.Error("output should still contain header even with no checks")
+	}
+}
