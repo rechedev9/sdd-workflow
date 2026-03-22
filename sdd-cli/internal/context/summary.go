@@ -11,7 +11,7 @@ import (
 // cumulative context (~500-800 bytes) that carries key decisions forward
 // through the pipeline. Non-fatal: returns empty string if no artifacts exist.
 func buildSummary(changeDir string, p *Params) string {
-	var sections []string
+	sections := make([]string, 0, 6)
 
 	sections = append(sections, fmt.Sprintf("Change: %s — %s", p.ChangeName, p.Description))
 	sections = append(sections, fmt.Sprintf("Stack: %s (%s)", p.Config.Stack.Language, p.Config.Stack.BuildTool))
@@ -53,7 +53,7 @@ func buildSummary(changeDir string, p *Params) string {
 // Used to pull key decisions from artifacts without loading the entire file.
 func extractFirst(content, keyword string, maxLines int) string {
 	lines := strings.Split(content, "\n")
-	var result []string
+	result := make([]string, 0, maxLines)
 
 	collecting := false
 	for _, line := range lines {
@@ -104,8 +104,8 @@ func isDecisionKey(s string) bool {
 
 func extractDecisions(content string) string {
 	lines := strings.Split(content, "\n")
-	var kvPairs []string
-	var headerLines []string
+	kvPairs := make([]string, 0, 5)
+	headerLines := make([]string, 0, 3)
 	inFence := false
 	inDecisionSection := false
 
@@ -170,7 +170,7 @@ func projectContext(p *Params) string {
 // loadManifestContents reads the actual content of detected manifest files.
 // Returns a compact summary with versions and dependencies.
 func loadManifestContents(projectDir string, manifests []string) string {
-	var parts []string
+	parts := make([]string, 0, len(manifests))
 	for _, m := range manifests {
 		data, err := os.ReadFile(filepath.Join(projectDir, m))
 		if err != nil {
