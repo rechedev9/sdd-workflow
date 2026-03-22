@@ -358,6 +358,14 @@ func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSna
 // The "**Status:** FAILED" marker appears in the first few hundred bytes.
 const verifyReportReadLimit = 4096
 
+// verifyBufPool reuses 4 KiB read buffers across cachedVerifyStatus calls.
+var verifyBufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, verifyReportReadLimit)
+		return &buf
+	},
+}
+
 // cachedVerifyStatus returns "error" if verify-report.md contains FAILED,
 // "ok" otherwise. Results are cached by file modification time to avoid
 // re-reading the file on every poll tick. Uses open+fstat to avoid TOCTOU
@@ -387,11 +395,12 @@ func (h *Hub) cachedVerifyStatus(changeDir string) string {
 
 	// File changed or not cached — read capped prefix from open handle.
 	status := "ok"
-	buf := make([]byte, verifyReportReadLimit)
-	n, _ := f.Read(buf)
-	if n > 0 && strings.Contains(string(buf[:n]), "**Status:** FAILED") {
+	bufp := verifyBufPool.Get().(*[]byte)
+	n, _ := f.Read(*bufp)
+	if n > 0 && strings.Contains(string((*bufp)[:n]), "**Status:** FAILED") {
 		status = "error"
 	}
+	verifyBufPool.Put(bufp)
 
 	h.verifyCacheMu.Lock()
 	h.verifyCache[changeDir] = verifyCacheEntry{modTime: info.ModTime(), status: status}
