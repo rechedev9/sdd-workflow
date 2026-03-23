@@ -24,7 +24,8 @@ func ResolvePhase(input string) (Phase, error) {
 	lower := strings.ToLower(input)
 	var matches []string
 	for _, p := range phases {
-		if strings.HasPrefix(strings.ToLower(string(p)), lower) {
+		// Phase names are already lowercase; no need to ToLower(p).
+		if strings.HasPrefix(string(p), lower) {
 			matches = append(matches, string(p))
 		}
 	}
