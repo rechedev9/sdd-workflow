@@ -602,6 +602,31 @@ func TestLoadSpecsMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestLoadSpecs_UnreadableFileSkipped(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+
+	// Readable spec.
+	os.WriteFile(filepath.Join(specsDir, "good.md"), []byte("readable content"), 0o644)
+	// Unreadable spec — ReadFile will fail, should be skipped.
+	unreadable := filepath.Join(specsDir, "secret.md")
+	os.WriteFile(unreadable, []byte("secret"), 0o000)
+	t.Cleanup(func() { os.Chmod(unreadable, 0o644) })
+
+	specs, err := loadSpecs(dir)
+	if err != nil {
+		t.Fatalf("loadSpecs: %v", err)
+	}
+	if !strings.Contains(specs, "readable content") {
+		t.Error("expected readable spec in output")
+	}
+	if strings.Contains(specs, "secret") {
+		t.Error("unreadable spec should be skipped")
+	}
+}
+
 // --- Embedded Skills Tests ---
 
 func TestLoadSkillEmbedFallback(t *testing.T) {
