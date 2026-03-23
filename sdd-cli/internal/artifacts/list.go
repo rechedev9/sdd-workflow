@@ -18,9 +18,10 @@ type ArtifactInfo struct {
 
 // List returns all existing artifacts in the change directory.
 func List(changeDir string) ([]ArtifactInfo, error) {
-	result := make([]ArtifactInfo, 0)
+	phases := state.AllPhases()
+	result := make([]ArtifactInfo, 0, len(phases))
 
-	for _, phase := range state.AllPhases() {
+	for _, phase := range phases {
 		name, ok := ArtifactFileName(phase)
 		if !ok {
 			continue

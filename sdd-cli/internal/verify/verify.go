@@ -78,6 +78,7 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 	report := &Report{
 		Timestamp: time.Now().UTC(),
 		Passed:    true,
+		Results:   make([]*CommandResult, 0, len(commands)),
 	}
 
 	for _, spec := range commands {
