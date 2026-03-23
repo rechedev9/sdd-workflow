@@ -171,6 +171,42 @@ func TestRunErrors_TextMoreThanTen(t *testing.T) {
 	}
 }
 
+func TestRunErrors_JSONNilErrorLines(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Covers the nil ErrorLines path in JSON grouping (lines = []string{}).
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	fp := errlog.Fingerprint("go build", nil)
+	errlog.Record(dir, errlog.ErrorEntry{
+		Change: "feat-nil", CommandName: "build",
+		Command: "go build", ExitCode: 1,
+		ErrorLines:  nil,
+		Fingerprint: fp,
+	})
+
+	var stdout, stderr bytes.Buffer
+	if err := runErrors([]string{"--json"}, &stdout, &stderr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var out struct {
+		Groups []struct {
+			ErrorLines []string `json:"error_lines"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout.String())
+	}
+	if len(out.Groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(out.Groups))
+	}
+	if out.Groups[0].ErrorLines == nil {
+		t.Error("expected non-nil ErrorLines slice for nil entry")
+	}
+}
+
 func TestRunErrors_JSONWithEntries(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()

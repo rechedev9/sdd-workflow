@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
 func TestRunHealth_HappyPath(t *testing.T) {
@@ -73,5 +76,42 @@ func TestRunHealth_VerifyFailedWarning(t *testing.T) {
 	warnings, ok := out["warnings"].([]interface{})
 	if !ok || len(warnings) == 0 {
 		t.Errorf("expected warnings for FAILED verify, got %v", out["warnings"])
+	}
+}
+
+func TestRunHealth_StaleWarning(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "openspec", "changes", "health-stale")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Backdate UpdatedAt to 48h ago so IsStale(24h) returns true.
+	st := state.NewState("health-stale", "stale test")
+	st.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := runHealth([]string{"health-stale"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runHealth: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	if out["stale"] != true {
+		t.Errorf("stale = %v, want true", out["stale"])
+	}
+	warnings, ok := out["warnings"].([]interface{})
+	if !ok || len(warnings) == 0 {
+		t.Errorf("expected stale warning, got %v", out["warnings"])
 	}
 }
