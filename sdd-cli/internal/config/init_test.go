@@ -98,3 +98,15 @@ func TestInitNoManifest(t *testing.T) {
 		t.Fatal("expected error for no manifest")
 	}
 }
+
+func TestInit_MkdirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644)
+	// Place a file at the openspec path so MkdirAll can't create a directory there.
+	os.WriteFile(filepath.Join(dir, "openspec"), []byte("block"), 0o644)
+	_, err := Init(dir, false)
+	if err == nil {
+		t.Fatal("expected error when openspec path is a file")
+	}
+}

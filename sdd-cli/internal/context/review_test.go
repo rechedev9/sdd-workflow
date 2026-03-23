@@ -183,3 +183,42 @@ func initBareGitRepo(t *testing.T, dir string) error {
 	}
 	return runRealGit(dir, "commit", "-q", "-m", "init")
 }
+
+func TestAssembleReview_MissingSpecs(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// No specs/ directory — loadSpecsLoader will error, triggering the
+	// errRequiredArtifact("review", "spec artifacts", ...) branch.
+	var buf strings.Builder
+	p := &Params{ChangeDir: dir, ProjectDir: dir}
+	err := AssembleReview(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when specs directory is missing")
+	}
+	if !strings.Contains(err.Error(), "spec artifacts") {
+		t.Errorf("error = %q, want mention of 'spec artifacts'", err.Error())
+	}
+}
+
+func TestAssembleReview_MissingDesign(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create specs/ with a dummy spec so loadSpecs succeeds.
+	specsDir := filepath.Join(dir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specsDir, "feat.md"), []byte("# spec"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// No design.md — artifactLoader("design.md") errors → errRequiredArtifact branch.
+	var buf strings.Builder
+	p := &Params{ChangeDir: dir, ProjectDir: dir}
+	err := AssembleReview(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when design.md is missing")
+	}
+	if !strings.Contains(err.Error(), "design artifact") {
+		t.Errorf("error = %q, want mention of 'design artifact'", err.Error())
+	}
+}
