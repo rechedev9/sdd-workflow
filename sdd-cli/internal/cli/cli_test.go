@@ -398,6 +398,47 @@ func TestRunDiff(t *testing.T) {
 			t.Errorf("stderr = %q, want base_ref error", stderr.String())
 		}
 	})
+
+	t.Run("no changed files", func(t *testing.T) {
+		// Uses Chdir — do not mark parallel.
+		root := t.TempDir()
+		sha := initGitRepo(t, root)
+
+		// Create change with BaseRef but make no changes after the commit.
+		changeDir := filepath.Join(root, "openspec", "changes", "clean")
+		if err := os.MkdirAll(changeDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		st := state.NewState("clean", "desc")
+		st.BaseRef = sha
+		if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+			t.Fatal(err)
+		}
+
+		orig, _ := os.Getwd()
+		t.Cleanup(func() { os.Chdir(orig) })
+		os.Chdir(root)
+
+		var stdout, stderr bytes.Buffer
+		err := Run([]string{"diff", "clean"}, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+		}
+
+		var out struct {
+			Files []string `json:"files"`
+			Count int      `json:"count"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+			t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+		}
+		if out.Count != 0 {
+			t.Errorf("count = %d, want 0 for clean working tree", out.Count)
+		}
+		if out.Files == nil {
+			t.Error("expected non-nil files slice even when empty")
+		}
+	})
 }
 
 func TestRunPerCommandHelp(t *testing.T) {
