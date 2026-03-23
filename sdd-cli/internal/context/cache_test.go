@@ -1,6 +1,7 @@
 package context
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -364,6 +365,52 @@ func TestLoadPipelineMetrics_WrongVersion(t *testing.T) {
 	}
 	if len(pm.Phases) != 0 {
 		t.Errorf("Phases len = %d, want 0 after version mismatch fallback", len(pm.Phases))
+	}
+}
+
+func TestLoadPipelineMetrics_NullPhases(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Write valid JSON with correct cacheVersion but phases:null — triggers the
+	// pm.Phases == nil guard in LoadPipelineMetrics.
+	jsonData := []byte(`{"version":` + fmt.Sprintf("%d", cacheVersion) + `,"phases":null}`)
+	os.WriteFile(filepath.Join(cacheD, "metrics.json"), jsonData, 0o644)
+
+	pm := LoadPipelineMetrics(dir)
+	if pm == nil {
+		t.Fatal("expected non-nil PipelineMetrics")
+	}
+	if pm.Phases == nil {
+		t.Error("Phases should be initialized when JSON has phases:null")
+	}
+}
+
+func TestTryCachedContext_TTLExpired(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	phaseName := "propose" // CacheTTL: 4h, CacheInputs: ["exploration.md"]
+
+	// Create required input file so hash matches.
+	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("explored"), 0o644)
+
+	// Compute the current hash for the propose phase with no skills path.
+	inputs := phaseCacheInputs(phaseName)
+	hash := inputHash(dir, inputs, "", phaseName)
+
+	// Write hash file with epoch timestamp (age >> 4h TTL) and a context file.
+	cacheD := cacheDir(dir)
+	os.MkdirAll(cacheD, 0o755)
+	os.WriteFile(hashCachePath(dir, phaseName), []byte(fmt.Sprintf("%s|0", hash)), 0o644)
+	os.WriteFile(contextCachePath(dir, phaseName), []byte("cached context"), 0o644)
+
+	data, hit := tryCachedContext(dir, phaseName, "")
+	if hit {
+		t.Error("expected cache miss due to TTL expiry, got hit")
+	}
+	if data != nil {
+		t.Error("expected nil data on TTL expiry")
 	}
 }
 
