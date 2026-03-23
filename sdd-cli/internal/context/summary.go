@@ -141,6 +141,35 @@ func extractDecisions(content string) string {
 	return extractFirst(content, "##", 3)
 }
 
+// compactSpecs extracts only headings and MUST/SHOULD/GIVEN/WHEN/THEN lines from specs.
+// Reduces a full spec to ~20% of its size while keeping acceptance criteria.
+func compactSpecs(specs string) string {
+	var b strings.Builder
+	for line := range strings.Lines(specs) {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(trimmed, "MUST") ||
+			strings.HasPrefix(trimmed, "SHOULD") ||
+			strings.HasPrefix(trimmed, "- MUST") ||
+			strings.HasPrefix(trimmed, "- SHOULD") ||
+			strings.Contains(trimmed, "GIVEN") ||
+			strings.Contains(trimmed, "WHEN") ||
+			strings.Contains(trimmed, "THEN") {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+// compactDesign extracts only the Decisions/Architecture section from design.md.
+func compactDesign(content string) string {
+	return extractDecisions(content)
+}
+
 // projectContext returns a compact project overview string with stack info.
 func projectContext(p *Params) string {
 	return fmt.Sprintf(

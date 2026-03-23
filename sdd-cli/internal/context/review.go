@@ -65,10 +65,19 @@ func AssembleReview(w io.Writer, p *Params) error {
 	writeChangeSection(w, p)
 
 	tasksStr := string(tasks)
-	writeSection(w, "SPECIFICATIONS", specs)
-	writeSection(w, "DESIGN", design)
+	if p.Compact {
+		writeSectionStr(w, "SPECIFICATIONS (compact)", compactSpecs(string(specs)))
+		writeSectionStr(w, "DESIGN (compact)", compactDesign(string(design)))
+	} else {
+		writeSection(w, "SPECIFICATIONS", specs)
+		writeSection(w, "DESIGN", design)
+	}
 	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(tasksStr))
-	writeSection(w, "TASKS", tasks)
+	if p.Compact {
+		writeSectionStr(w, "CURRENT TASK", extractCurrentTask(tasksStr))
+	} else {
+		writeSection(w, "TASKS", tasks)
+	}
 	if len(diff) > 0 {
 		writeSection(w, "GIT DIFF", diff)
 	}
@@ -80,9 +89,16 @@ func AssembleReview(w io.Writer, p *Params) error {
 	return nil
 }
 
+// maxDiffBytes caps the combined git diff output included in review context.
+// Large refactors can produce 50KB+ diffs that push the review phase past
+// the 100KB size guard. 10KB is enough to review meaningful changes; for the
+// full diff the reviewer can run `git diff` directly.
+const maxDiffBytes = 10 * 1024
+
 // gitDiff runs git diff and returns staged + unstaged changes.
 // The two git commands are issued in parallel to halve wall-clock latency
 // on repos where git diff takes tens of milliseconds.
+// Output is truncated to maxDiffBytes to keep review context within budget.
 func gitDiff(projectDir string) (string, error) {
 	type result struct {
 		out []byte
@@ -135,6 +151,12 @@ func gitDiff(projectDir string) (string, error) {
 		}
 		buf.WriteString("=== UNSTAGED ===\n")
 		buf.Write(unstaged)
+	}
+
+	// Truncate to keep review context within token budget.
+	if buf.Len() > maxDiffBytes {
+		s := buf.String()[:maxDiffBytes]
+		return s + "\n\n... (truncated at 10KB — run `git diff` for full output)\n", nil
 	}
 	return buf.String(), nil
 }

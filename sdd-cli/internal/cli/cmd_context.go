@@ -14,11 +14,14 @@ import (
 func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 	args, verbosity := ParseVerbosityFlags(args)
 	jsonOut := false
+	compact := false
 	var positional []string
 	for _, arg := range args {
 		switch {
 		case arg == "--json":
 			jsonOut = true
+		case arg == "--compact":
+			compact = true
 		case !strings.HasPrefix(arg, "-"):
 			positional = append(positional, arg)
 		default:
@@ -61,6 +64,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
 		Broker:      broker,
+		Compact:     compact,
 	}
 
 	// Choose target writer: buffer for JSON mode, stdout otherwise.

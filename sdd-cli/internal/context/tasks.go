@@ -37,8 +37,13 @@ func AssembleTasks(w io.Writer, p *Params) error {
 
 	writeChangeSection(w, p)
 
-	writeSection(w, "SPECIFICATIONS", specs)
-	writeSection(w, "DESIGN", design)
+	if p.Compact {
+		writeSectionStr(w, "SPECIFICATIONS (compact)", compactSpecs(string(specs)))
+		writeSectionStr(w, "DESIGN (compact)", compactDesign(string(design)))
+	} else {
+		writeSection(w, "SPECIFICATIONS", specs)
+		writeSection(w, "DESIGN", design)
+	}
 
 	return nil
 }

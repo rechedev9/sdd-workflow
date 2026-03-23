@@ -29,6 +29,7 @@ type AssemblerParams struct {
 	Config      *config.Config
 	SkillsPath  string
 	Broker      *events.Broker // event broker; nil = no events
+	Compact     bool           // emit reduced context (titles + decisions only)
 }
 
 // Assembler is the function type for per-phase context assembly.

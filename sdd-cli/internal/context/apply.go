@@ -56,8 +56,14 @@ func AssembleApply(w io.Writer, p *Params) error {
 
 	writeSectionStr(w, "COMPLETED TASKS", completedSummary)
 	writeSectionStr(w, "CURRENT TASK", currentTask)
-	writeSection(w, "DESIGN", design)
-	writeSection(w, "SPECIFICATIONS", specs)
+
+	if p.Compact {
+		writeSectionStr(w, "DESIGN (compact)", compactDesign(string(design)))
+		writeSectionStr(w, "SPECIFICATIONS (compact)", compactSpecs(string(specs)))
+	} else {
+		writeSection(w, "DESIGN", design)
+		writeSection(w, "SPECIFICATIONS", specs)
+	}
 
 	return nil
 }

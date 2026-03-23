@@ -57,13 +57,26 @@ func AssembleClean(w io.Writer, p *Params) error {
 	tasksStr := string(tasks)
 	writeSection(w, "VERIFY REPORT", verifyReport)
 	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(tasksStr))
-	writeSection(w, "TASKS", tasks)
-
-	if len(design) > 0 {
-		writeSection(w, "DESIGN", design)
+	if p.Compact {
+		writeSectionStr(w, "CURRENT TASK", extractCurrentTask(tasksStr))
+	} else {
+		writeSection(w, "TASKS", tasks)
 	}
-	if len(specs) > 0 {
-		writeSection(w, "SPECIFICATIONS", specs)
+
+	if p.Compact {
+		if len(design) > 0 {
+			writeSectionStr(w, "DESIGN (compact)", compactDesign(string(design)))
+		}
+		if len(specs) > 0 {
+			writeSectionStr(w, "SPECIFICATIONS (compact)", compactSpecs(string(specs)))
+		}
+	} else {
+		if len(design) > 0 {
+			writeSection(w, "DESIGN", design)
+		}
+		if len(specs) > 0 {
+			writeSection(w, "SPECIFICATIONS", specs)
+		}
 	}
 
 	return nil
