@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -42,13 +41,7 @@ func AssembleExplore(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "PROJECT", fmt.Sprintf(
-		"Name: %s\nLanguage: %s\nBuild Tool: %s\nManifests: %s",
-		p.Config.ProjectName,
-		p.Config.Stack.Language,
-		p.Config.Stack.BuildTool,
-		strings.Join(p.Config.Stack.Manifests, ", "),
-	))
+	writeSectionStr(w, "PROJECT", projectContext(p))
 
 	if p.Description != "" {
 		writeChangeSection(w, p)
