@@ -123,13 +123,13 @@ func TestRegisterSubscribers_VerifyFailed_RecordsErrors(t *testing.T) {
 	b := events.NewBroker()
 	cwd := t.TempDir()
 
-	// Construct an openspec dir so errlog.Record writes into a predictable path.
 	RegisterSubscribers(b, 0)
 
 	b.Emit(events.Event{
 		Type: events.VerifyFailed,
 		Payload: events.VerifyFailedPayload{
-			Change: "my-change",
+			Change:     "my-change",
+			ProjectDir: cwd, // required: subscriber skips when empty
 			Results: []events.VerifyFailedCommand{
 				{
 					Name:       "lint",
@@ -141,12 +141,31 @@ func TestRegisterSubscribers_VerifyFailed_RecordsErrors(t *testing.T) {
 		},
 	})
 
-	// errlog.Record uses os.Getwd() internally, so we can't assert the exact
-	// path here — but we can verify the subscriber ran without panic by
-	// confirming the entry fingerprint matches expectations via errlog.Fingerprint.
-	fp := errlog.Fingerprint("golangci-lint run", []string{"unused var"})
-	if fp == "" {
-		t.Error("expected non-empty fingerprint")
+	// Verify the entry was actually recorded in the errlog.
+	log := errlog.Load(cwd)
+	if len(log.Entries) != 1 {
+		t.Fatalf("expected 1 errlog entry, got %d", len(log.Entries))
 	}
-	_ = cwd // referenced to satisfy use
+	if log.Entries[0].Change != "my-change" {
+		t.Errorf("entry.Change = %q, want my-change", log.Entries[0].Change)
+	}
+}
+
+func TestRegisterSubscribers_VerifyFailed_EmptyProjectDir(t *testing.T) {
+	t.Parallel()
+	b := events.NewBroker()
+	RegisterSubscribers(b, 0)
+
+	// Emit with empty ProjectDir — subscriber must skip without panic.
+	b.Emit(events.Event{
+		Type: events.VerifyFailed,
+		Payload: events.VerifyFailedPayload{
+			Change:     "my-change",
+			ProjectDir: "", // triggers early return guard
+			Results: []events.VerifyFailedCommand{
+				{Name: "build", Command: "go build ./...", ExitCode: 1},
+			},
+		},
+	})
+	// No assertion needed — test passes if no panic occurs.
 }
