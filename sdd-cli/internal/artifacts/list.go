@@ -18,7 +18,7 @@ type ArtifactInfo struct {
 
 // List returns all existing artifacts in the change directory.
 func List(changeDir string) ([]ArtifactInfo, error) {
-	var result []ArtifactInfo
+	result := make([]ArtifactInfo, 0)
 
 	for _, phase := range state.AllPhases() {
 		name, ok := ArtifactFileName(phase)
@@ -74,7 +74,7 @@ func ListPending(changeDir string) ([]ArtifactInfo, error) {
 		return nil, fmt.Errorf("read .pending directory: %w", err)
 	}
 
-	var result []ArtifactInfo
+	result := make([]ArtifactInfo, 0, len(entries))
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil {
