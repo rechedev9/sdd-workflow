@@ -81,6 +81,33 @@ func TestRunDump_WithCacheKeys(t *testing.T) {
 	}
 }
 
+func TestRunDump_StatusAndPendingArray(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := setupChange(t, "dump-status", "status check")
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	if err := runDump([]string{"dump-status"}, &stdout, &stderr); err != nil {
+		t.Fatalf("runDump: %v", err)
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if out["status"] != "success" {
+		t.Errorf("status = %v, want success", out["status"])
+	}
+	// pending must be a JSON array (not null) even when .pending/ is absent.
+	if pending, ok := out["pending"].([]interface{}); !ok || pending == nil {
+		t.Errorf("pending should be a JSON array, got %T: %v", out["pending"], out["pending"])
+	}
+}
+
 func TestRunDump_NoConfig(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	root := setupChange(t, "dump-nocfg", "no config")

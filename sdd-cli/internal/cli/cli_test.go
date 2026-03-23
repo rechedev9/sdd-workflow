@@ -356,3 +356,31 @@ func TestRunDiff(t *testing.T) {
 		}
 	})
 }
+
+func TestRunPerCommandHelp(t *testing.T) {
+	t.Parallel()
+	// Covers the commandHelp lookup branch in Run (sdd <cmd> --help).
+	for _, cmd := range []string{"init", "new", "context", "verify", "dump", "doctor"} {
+		for _, flag := range []string{"--help", "-h"} {
+			var stdout, stderr bytes.Buffer
+			err := Run([]string{cmd, flag}, &stdout, &stderr)
+			if err != nil {
+				t.Errorf("Run(%q %q): unexpected error: %v", cmd, flag, err)
+				continue
+			}
+			if stdout.Len() == 0 {
+				t.Errorf("Run(%q %q): expected help output, got nothing", cmd, flag)
+			}
+		}
+	}
+}
+
+func TestRunUnknownCommandHelp(t *testing.T) {
+	t.Parallel()
+	// An unrecognised command with --help falls through to the unknown-command error.
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"nonexistent", "--help"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown command + --help")
+	}
+}
