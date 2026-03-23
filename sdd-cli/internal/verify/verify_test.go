@@ -426,3 +426,18 @@ func TestArchive(t *testing.T) {
 		t.Error("expected manifest to list exploration.md")
 	}
 }
+
+func TestWriteManifest_ReadDirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Make dir unreadable so os.ReadDir inside writeManifest fails.
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	err := writeManifest(dir, "test-change", filepath.Join(dir, "manifest.md"))
+	if err == nil {
+		t.Fatal("expected error when archive directory is unreadable")
+	}
+}
