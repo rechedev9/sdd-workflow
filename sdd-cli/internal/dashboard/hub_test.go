@@ -294,3 +294,43 @@ func TestBuildPipelinesFromChanges_StaleStatus(t *testing.T) {
 		t.Errorf("status = %q, want %q", pipelines[0].Status, "warn")
 	}
 }
+
+func TestLoadChanges_ReadDirFails(t *testing.T) {
+	t.Parallel()
+	// Point hub at a path that does not exist — ReadDir must fail.
+	h := NewHub(&fakeMetrics{}, filepath.Join(t.TempDir(), "nonexistent"))
+	changes := h.loadChanges()
+	if changes != nil {
+		t.Errorf("expected nil slice when ReadDir fails, got %v", changes)
+	}
+}
+
+func TestLoadChanges_SkipsFiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	changesDir := filepath.Join(dir, "changes")
+	os.MkdirAll(changesDir, 0o755)
+	h := NewHub(&fakeMetrics{}, changesDir)
+
+	// Place a regular file in changesDir — should be skipped (not a dir).
+	os.WriteFile(filepath.Join(changesDir, "not-a-dir.txt"), []byte("hello"), 0o644)
+
+	changes := h.loadChanges()
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes when only files present, got %d", len(changes))
+	}
+}
+
+func TestBroadcastIfChanged_SameHashSkips(t *testing.T) {
+	t.Parallel()
+	h := newTestHub(t)
+	ctx := context.Background()
+
+	// First call seeds the hash.
+	var hash [32]byte
+	h.broadcastIfChanged(ctx, "test", "payload", &hash)
+
+	// Second call with the same payload must not panic and must not broadcast
+	// (no clients are connected so no write occurs — just verifying no crash).
+	h.broadcastIfChanged(ctx, "test", "payload", &hash)
+}
