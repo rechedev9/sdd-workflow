@@ -494,3 +494,22 @@ func TestSaveContextCache_WithPrecomputedHash(t *testing.T) {
 		t.Errorf("stored hash = %q, want %q", stored, precomputed)
 	}
 }
+
+func TestInputHash_UnreadableSpecFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+
+	// Write two spec files; make one unreadable to trigger the os.ReadFile error branch.
+	os.WriteFile(filepath.Join(specsDir, "a.md"), []byte("content a"), 0o644)
+	unreadable := filepath.Join(specsDir, "b.md")
+	os.WriteFile(unreadable, []byte("content b"), 0o000)
+	t.Cleanup(func() { os.Chmod(unreadable, 0o644) })
+
+	// Should not panic — unreadable file is silently skipped.
+	h := inputHash(dir, []string{"specs/"}, "", "")
+	if h == "" {
+		t.Error("expected non-empty hash even with unreadable spec file")
+	}
+}
