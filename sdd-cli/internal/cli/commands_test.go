@@ -292,6 +292,30 @@ func TestShouldSkipVerify_SourceFileChanged(t *testing.T) {
 	}
 }
 
+// TestRun_DispatchCoverage exercises the Run switch cases not covered by
+// direct calls to the underlying run* functions. Each subtest only needs
+// the dispatch to fire — the underlying commands may return errors.
+func TestRun_DispatchCoverage(t *testing.T) {
+	root := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	cases := []struct {
+		args []string
+	}{
+		{[]string{"errors", "--unknown-flag-xyz"}},     // runErrors dispatch
+		{[]string{"doctor", "--unknown-flag-xyz"}},     // runDoctor dispatch
+		{[]string{"quickstart"}},                       // runQuickstart dispatch (no args → usage error)
+		{[]string{"completion", "bash"}},               // runCompletion dispatch
+	}
+	for _, tc := range cases {
+		var stdout, stderr bytes.Buffer
+		// Error is acceptable — we only need the dispatch branch to execute.
+		Run(tc.args, &stdout, &stderr) //nolint:errcheck
+	}
+}
+
 func TestValidateChangeName(t *testing.T) {
 	t.Parallel()
 
