@@ -687,6 +687,27 @@ func TestRunDoctor_JSONFlag(t *testing.T) {
 	}
 }
 
+func TestRunDoctor_FailPath(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Use a config with a nonexistent build binary → checkBuildTools → fail → runDoctor returns error.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	// Write config with a missing binary so checkBuildTools returns fail.
+	writeConfig(t, dir, "version: 1\nproject_name: test\ncommands:\n  build: __no_such_binary_xyz ./...\n")
+
+	var stdout, stderr bytes.Buffer
+	err := runDoctor(nil, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when a check fails")
+	}
+	if !strings.Contains(err.Error(), "check(s) failed") {
+		t.Errorf("error = %q, want 'check(s) failed'", err.Error())
+	}
+}
+
 func TestCheckSkillsPathAllPresent(t *testing.T) {
 	t.Parallel()
 	skillsDir := t.TempDir()
