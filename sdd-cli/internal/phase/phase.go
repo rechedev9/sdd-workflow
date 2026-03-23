@@ -66,23 +66,15 @@ func (r *Registry) Register(p Phase) {
 	if p.Name == "" {
 		panic("phase: Register called with empty Name")
 	}
-	if r.byName != nil {
-		if _, dup := r.byName[p.Name]; dup {
-			panic("phase: duplicate registration: " + p.Name)
-		}
-	} else {
-		for _, existing := range r.phases {
-			if existing.Name == p.Name {
-				panic("phase: duplicate registration: " + p.Name)
-			}
-		}
+	if r.byName == nil {
+		r.byName = make(map[string]int, 16)
+	}
+	if _, dup := r.byName[p.Name]; dup {
+		panic("phase: duplicate registration: " + p.Name)
 	}
 	// Sort CacheInputs once at registration so inputHash can skip the alloc+sort.
 	if len(p.CacheInputs) > 1 {
 		slices.Sort(p.CacheInputs)
-	}
-	if r.byName == nil {
-		r.byName = make(map[string]int, 16)
 	}
 	r.byName[p.Name] = len(r.phases)
 	r.phases = append(r.phases, p)
