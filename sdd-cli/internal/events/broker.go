@@ -107,16 +107,19 @@ func (b *Broker) Subscribe(t EventType, h Handler) {
 
 // Emit dispatches an event to all subscribers for its type.
 // Nil-safe: calling on a nil *Broker is a no-op.
-// Serialized via mutex — concurrent Emit() calls are safe.
+// The handler slice is copied under the lock, then handlers are called
+// without holding the lock — allowing handlers to call Subscribe or Emit
+// without deadlocking.
 // Each subscriber is called with panic recovery.
 func (b *Broker) Emit(e Event) {
 	if b == nil {
 		return
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	handlers := make([]Handler, len(b.subs[e.Type]))
+	copy(handlers, b.subs[e.Type])
+	b.mu.Unlock()
 
-	handlers := b.subs[e.Type]
 	for _, h := range handlers {
 		func(handler Handler) {
 			defer func() {
