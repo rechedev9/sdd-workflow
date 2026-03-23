@@ -120,6 +120,20 @@ func TestRun_SkipsEmptyCommands(t *testing.T) {
 	}
 }
 
+func TestRun_ZeroTimeoutUsesDefault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Pass timeout=0 — Run must substitute DefaultTimeout and still succeed.
+	report, err := Run(dir, []CommandSpec{{Name: "ok", Command: "true"}}, 0, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !report.Passed {
+		t.Error("expected report to pass with timeout=0 (defaults to DefaultTimeout)")
+	}
+}
+
 func TestErrorLines(t *testing.T) {
 	t.Parallel()
 
