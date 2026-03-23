@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"testing"
 )
 
@@ -44,5 +45,20 @@ func TestRunContext_ChangeNotFound(t *testing.T) {
 	err := runContext([]string{"no-such-change-xyz"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error for nonexistent change")
+	}
+}
+
+func TestRunContext_InvalidPhase(t *testing.T) {
+	// Uses Chdir and setupChange — must not be parallel.
+	root := setupChange(t, "ctx-badphase", "invalid phase test")
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := runContext([]string{"ctx-badphase", "not-a-real-phase"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for invalid phase name")
 	}
 }
