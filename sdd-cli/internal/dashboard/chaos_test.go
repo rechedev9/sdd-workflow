@@ -48,8 +48,7 @@ func (e *errorMetrics) VerifyHistory(_ context.Context, _ time.Time) ([]store.Ve
 // Returns the ws URL and a cancel func that stops hub + server.
 func startTestHub(t *testing.T, m MetricsReader) (string, context.CancelFunc) {
 	t.Helper()
-	srv, changesDir := newTestServer(t, m)
-	_ = changesDir
+	srv := newTestServer(t, m)
 
 	ts := httptest.NewServer(srv.routes())
 	t.Cleanup(ts.Close)

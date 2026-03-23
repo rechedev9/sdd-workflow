@@ -55,17 +55,17 @@ func (f *fakeMetrics) VerifyHistory(_ context.Context, _ time.Time) ([]store.Ver
 	return f.verifyHistory, nil
 }
 
-func newTestServer(t *testing.T, m MetricsReader) (*Server, string) {
+func newTestServer(t *testing.T, m MetricsReader) *Server {
 	t.Helper()
 	dir := t.TempDir()
 	changesDir := filepath.Join(dir, "changes")
 	_ = os.MkdirAll(changesDir, 0o755)
-	return New(m, changesDir), changesDir
+	return New(m, changesDir)
 }
 
 func TestHandleIndex(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
+	srv := newTestServer(t, &fakeMetrics{})
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 	srv.routes().ServeHTTP(w, req)
@@ -87,7 +87,7 @@ func TestHandleIndex(t *testing.T) {
 
 func TestHandleIndex_NotFound(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
+	srv := newTestServer(t, &fakeMetrics{})
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	w := httptest.NewRecorder()
 	srv.routes().ServeHTTP(w, req)
@@ -99,7 +99,7 @@ func TestHandleIndex_NotFound(t *testing.T) {
 
 func TestStaticDashboardJS(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
+	srv := newTestServer(t, &fakeMetrics{})
 	req := httptest.NewRequest("GET", "/static/dashboard.js", nil)
 	w := httptest.NewRecorder()
 	srv.routes().ServeHTTP(w, req)
@@ -114,7 +114,7 @@ func TestStaticDashboardJS(t *testing.T) {
 
 func TestWSRouteExists(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
+	srv := newTestServer(t, &fakeMetrics{})
 	// Verify /ws route is registered (non-WS request gets a protocol error, not 404).
 	req := httptest.NewRequest("GET", "/ws", nil)
 	w := httptest.NewRecorder()
@@ -128,7 +128,7 @@ func TestWSRouteExists(t *testing.T) {
 
 func TestHubCreated(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestServer(t, &fakeMetrics{})
+	srv := newTestServer(t, &fakeMetrics{})
 	if srv.Hub() == nil {
 		t.Error("expected Hub() to return non-nil hub")
 	}

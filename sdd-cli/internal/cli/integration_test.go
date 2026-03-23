@@ -381,12 +381,11 @@ func assertFile(t *testing.T, path string) {
 }
 
 // run executes sdd with the given args and fatals on error.
-func run(t *testing.T, args ...string) string {
+func run(t *testing.T, args ...string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	err := Run(args, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("sdd %s failed: %v\nstderr: %s", args[0], err, stderr.String())
 	}
-	return stdout.String()
 }

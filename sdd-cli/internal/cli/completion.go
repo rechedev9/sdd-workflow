@@ -14,7 +14,7 @@ var commands = []string{
 	"errors", "dashboard", "quickstart", "completion", "version", "help",
 }
 
-func runCompletion(args []string, stdout io.Writer, stderr io.Writer) error {
+func runCompletion(args []string, stdout io.Writer, _ io.Writer) error {
 	if len(args) < 1 {
 		return errs.Usage("usage: sdd completion <bash|zsh|fish>")
 	}
