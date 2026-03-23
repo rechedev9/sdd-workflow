@@ -3,11 +3,24 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
+
+func TestRunDiff_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDiff([]string{"some-change", "--unknown"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
 
 func TestRunDiff_NoArgs(t *testing.T) {
 	t.Parallel()
@@ -87,5 +100,49 @@ func TestRunDiff_NoBaseRef(t *testing.T) {
 	err := runDiff([]string{"feat-noref"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error when BaseRef is empty")
+	}
+}
+
+func TestRunDiff_Success(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	// Init a minimal git repo in dir so gitDiffFiles works.
+	for _, args := range [][]string{
+		{"init", dir},
+		{"-C", dir, "config", "user.email", "test@test.com"},
+		{"-C", dir, "config", "user.name", "Test"},
+		{"-C", dir, "commit", "--allow-empty", "-m", "init"},
+	} {
+		cmd := exec.Command("git", args...)
+		if err := cmd.Run(); err != nil {
+			t.Skipf("git setup failed: %v", err)
+		}
+	}
+
+	sha, err := gitHeadSHA(dir)
+	if err != nil {
+		t.Skip("cannot get HEAD SHA:", err)
+	}
+
+	changeDir := filepath.Join(dir, "openspec", "changes", "feat-diffok")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	st := state.NewState("feat-diffok", "test diff")
+	st.BaseRef = sha
+	if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Chdir(dir)
+	var stdout, stderr bytes.Buffer
+	if err := runDiff([]string{"feat-diffok"}, &stdout, &stderr); err != nil {
+		t.Fatalf("runDiff: %v", err)
+	}
+	if stdout.Len() == 0 {
+		t.Error("expected JSON output")
 	}
 }
