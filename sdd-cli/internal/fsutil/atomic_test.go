@@ -49,3 +49,16 @@ func TestAtomicWrite_MissingDir(t *testing.T) {
 		t.Error("expected error writing to missing dir, got nil")
 	}
 }
+
+func TestAtomicWrite_RenameFailsDirAtDest(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create a directory at the destination path so os.Rename fails.
+	dest := filepath.Join(dir, "output.txt")
+	if err := os.Mkdir(dest, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := AtomicWrite(dest, []byte("data")); err == nil {
+		t.Error("expected error when destination is a directory, got nil")
+	}
+}

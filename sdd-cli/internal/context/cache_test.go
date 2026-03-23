@@ -273,6 +273,46 @@ func TestLoadPipelineMetrics_VersionMismatch(t *testing.T) {
 	}
 }
 
+func TestLoadPipelineMetrics_CorruptJSON(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Write corrupt JSON — Unmarshal will fail, should return empty metrics.
+	os.WriteFile(filepath.Join(cacheD, "metrics.json"), []byte("{not valid json"), 0o644)
+
+	pm := LoadPipelineMetrics(dir)
+	if pm == nil {
+		t.Fatal("expected non-nil PipelineMetrics for corrupt JSON")
+	}
+	if pm.Version != cacheVersion {
+		t.Errorf("Version = %d, want %d", pm.Version, cacheVersion)
+	}
+	if len(pm.Phases) != 0 {
+		t.Errorf("Phases len = %d, want 0 after corrupt JSON fallback", len(pm.Phases))
+	}
+}
+
+func TestLoadPipelineMetrics_WrongVersion(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cacheD := filepath.Join(dir, ".cache")
+	os.MkdirAll(cacheD, 0o755)
+	// Write metrics with a wrong version number.
+	os.WriteFile(filepath.Join(cacheD, "metrics.json"), []byte(`{"version":999,"phases":{}}`), 0o644)
+
+	pm := LoadPipelineMetrics(dir)
+	if pm == nil {
+		t.Fatal("expected non-nil PipelineMetrics for wrong version")
+	}
+	if pm.Version != cacheVersion {
+		t.Errorf("Version = %d, want %d", pm.Version, cacheVersion)
+	}
+	if len(pm.Phases) != 0 {
+		t.Errorf("Phases len = %d, want 0 after version mismatch fallback", len(pm.Phases))
+	}
+}
+
 func TestWriteMetrics_SilentAtNegativeVerbosity(t *testing.T) {
 	t.Parallel()
 	// verbosity < 0 → should return without logging (no panic).
