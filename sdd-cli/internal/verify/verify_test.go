@@ -427,6 +427,28 @@ func TestArchive(t *testing.T) {
 	}
 }
 
+func TestWriteManifest_AtomicWriteFails(t *testing.T) {
+	t.Parallel()
+	// archivePath is readable, but manifestPath is inside a read-only subdir.
+	root := t.TempDir()
+	archivePath := root // readable dir with no files
+	roDir := filepath.Join(root, "ro")
+	if err := os.Mkdir(roDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Make roDir read-only so AtomicWrite (CreateTemp) fails.
+	if err := os.Chmod(roDir, 0o555); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(roDir, 0o755) })
+
+	manifestPath := filepath.Join(roDir, "manifest.md")
+	err := writeManifest(archivePath, "test-change", manifestPath)
+	if err == nil {
+		t.Fatal("expected error when manifest write destination is read-only")
+	}
+}
+
 func TestWriteManifest_ReadDirFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
