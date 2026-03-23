@@ -214,9 +214,9 @@ func saveContextCache(changeDir, phaseName, skillsPath, precomputedHash string, 
 		inputs := phaseCacheInputs(phaseName)
 		hash = inputHash(changeDir, inputs, skillsPath, phaseName)
 	}
-	hashWithTS := fmt.Sprintf("%s|%d", hash, time.Now().Unix())
+	hashWithTS := strconv.AppendInt(append([]byte(hash), '|'), time.Now().Unix(), 10)
 
-	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), []byte(hashWithTS)); err != nil {
+	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), hashWithTS); err != nil {
 		return err
 	}
 	return fsutil.AtomicWrite(contextCachePath(changeDir, phaseName), content)
@@ -357,9 +357,9 @@ func LoadPipelineMetrics(changeDir string) *PipelineMetrics {
 
 func formatBytes(b int) string {
 	if b < 1024 {
-		return fmt.Sprintf("%dB", b)
+		return strconv.Itoa(b) + "B"
 	}
-	return fmt.Sprintf("%dKB", b/1024)
+	return strconv.Itoa(b/1024) + "KB"
 }
 
 // CheckCacheIntegrity counts stale cache entries in a change directory.
