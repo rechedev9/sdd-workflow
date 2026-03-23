@@ -203,3 +203,26 @@ func TestLoadManifestContents_MissingFile(t *testing.T) {
 		t.Errorf("expected empty string for missing files, got %q", got)
 	}
 }
+
+func TestLoadManifestContents_EmptyFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Empty file — ReadFull returns n=0 → must be skipped (covers the n==0 continue branch).
+	os.WriteFile(filepath.Join(dir, "empty.toml"), []byte{}, 0o644)
+
+	got := loadManifestContents(dir, []string{"empty.toml"})
+	if got != "" {
+		t.Errorf("expected empty string for zero-byte file, got %q", got)
+	}
+}
+
+func TestExtractFirst_SubHeaderBeforeContent(t *testing.T) {
+	t.Parallel()
+	// Hit the continue branch: collecting=true, sub-header encountered before any content.
+	content := "## Target\n### SubHeader\nActual content here\nSecond line"
+	got := extractFirst(content, "Target", 2)
+	if !strings.Contains(got, "Actual content here") {
+		t.Errorf("extractFirst = %q, want content after sub-header", got)
+	}
+}
