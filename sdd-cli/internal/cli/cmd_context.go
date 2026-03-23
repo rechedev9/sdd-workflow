@@ -93,7 +93,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		if err != nil {
 			return errs.WriteError(stderr, "context", err)
 		}
-		phase = positional[1]
+		phase = string(ph)
 		if err := sddctx.Assemble(target, ph, p); err != nil {
 			return errs.WriteError(stderr, "context", err)
 		}
