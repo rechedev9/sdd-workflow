@@ -45,8 +45,9 @@ func AssembleApply(w io.Writer, p *Params) error {
 	specs, _ := ls.Get(3)
 	summary, _ := ls.Get(4)
 
-	currentTask := extractCurrentTask(string(tasksRaw))
-	completedSummary := extractCompletedTasks(string(tasksRaw))
+	tasksStr := string(tasksRaw)
+	currentTask := extractCurrentTask(tasksStr)
+	completedSummary := extractCompletedTasks(tasksStr)
 
 	writeSection(w, "SKILL", skill)
 
