@@ -204,3 +204,34 @@ func TestRunVerify_RecurringForceJSON(t *testing.T) {
 		t.Errorf("change = %v, want ver-force-json", out["change"])
 	}
 }
+
+func TestRunVerify_FailingCommand(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Covers: report.Passed=false → out.Status="failed" + VerifyFailed event + error return.
+	root := setupChange(t, "ver-fail", "failing verify test")
+	writeConfig(t, root, "version: 0\nproject_name: test\ncommands:\n  build: \"false\"\n  lint: \"echo ok\"\n  test: \"echo ok\"\n")
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := runVerify([]string{"ver-fail", "--force"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when build command fails")
+	}
+	if !strings.Contains(err.Error(), "command(s) failed") {
+		t.Errorf("error = %q, want 'command(s) failed'", err.Error())
+	}
+
+	var out map[string]interface{}
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &out); jsonErr != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", jsonErr, stdout.String())
+	}
+	if out["status"] != "failed" {
+		t.Errorf("status = %v, want failed", out["status"])
+	}
+	if passed, _ := out["passed"].(bool); passed {
+		t.Error("passed = true, want false")
+	}
+}
