@@ -132,7 +132,10 @@ func checkBuildTools(cfg *config.Config) CheckResult {
 		if cmd == "" {
 			continue
 		}
-		bin := strings.Fields(cmd)[0]
+		bin := cmd
+		if i := strings.IndexAny(cmd, " \t"); i > 0 {
+			bin = cmd[:i]
+		}
 		if seen[bin] {
 			continue
 		}
