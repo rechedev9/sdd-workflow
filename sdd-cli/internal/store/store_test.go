@@ -686,3 +686,74 @@ func TestRegisterSubscribers_WrongPayloadVerifyFailed(t *testing.T) {
 		t.Errorf("expected 0 errors for wrong payload, got %d", len(errs))
 	}
 }
+
+// closedStore creates a Store and immediately closes its DB to trigger SQL errors.
+func closedStore(t *testing.T) *Store {
+	t.Helper()
+	s := newTestStore(t)
+	s.db.Close()
+	return s
+}
+
+func TestPhaseTokensByChange_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.PhaseTokensByChange(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestPhaseDurations_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.PhaseDurations(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestTokenHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.TokenHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestCacheHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.CacheHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestVerifyHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.VerifyHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestRecentErrors_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.RecentErrors(context.Background(), 10)
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestTokenSummary_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.TokenSummary(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
