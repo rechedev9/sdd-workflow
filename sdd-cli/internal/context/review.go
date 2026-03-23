@@ -88,14 +88,15 @@ func gitDiff(projectDir string) (string, error) {
 		err error
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+
 	var unstagedRes, stagedRes result
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
-		defer cancel()
 		cmd := exec.CommandContext(ctx, "git", "diff")
 		cmd.Dir = projectDir
 		unstagedRes.out, unstagedRes.err = cmd.Output()
@@ -103,8 +104,6 @@ func gitDiff(projectDir string) (string, error) {
 
 	go func() {
 		defer wg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
-		defer cancel()
 		cmd := exec.CommandContext(ctx, "git", "diff", "--cached")
 		cmd.Dir = projectDir
 		stagedRes.out, stagedRes.err = cmd.Output()
