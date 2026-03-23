@@ -432,3 +432,65 @@ func TestWriteMetrics_Cached(t *testing.T) {
 	m := &contextMetrics{Phase: "tasks", Bytes: 512, Tokens: 128, Cached: true, DurationMs: 5}
 	writeMetrics(m, 0)
 }
+
+func TestParseHashFile_Valid(t *testing.T) {
+	t.Parallel()
+	hash, ts, ok := parseHashFile([]byte("abc123|1700000000"))
+	if !ok {
+		t.Fatal("expected ok=true for valid hash file content")
+	}
+	if hash != "abc123" {
+		t.Errorf("hash = %q, want %q", hash, "abc123")
+	}
+	if ts != "1700000000" {
+		t.Errorf("ts = %q, want %q", ts, "1700000000")
+	}
+}
+
+func TestParseHashFile_LegacyNoTimestamp(t *testing.T) {
+	t.Parallel()
+	_, _, ok := parseHashFile([]byte("abc123"))
+	if ok {
+		t.Error("expected ok=false for legacy format without timestamp")
+	}
+}
+
+func TestParseHashFile_WhitespaceTrimmed(t *testing.T) {
+	t.Parallel()
+	hash, ts, ok := parseHashFile([]byte("  def456|999  "))
+	if !ok {
+		t.Fatal("expected ok=true; whitespace should be trimmed")
+	}
+	if hash != "def456" {
+		t.Errorf("hash = %q, want %q", hash, "def456")
+	}
+	if ts != "999" {
+		t.Errorf("ts = %q, want %q", ts, "999")
+	}
+}
+
+func TestSaveContextCache_WithPrecomputedHash(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Use a known precomputed hash — saveContextCache must write it as-is.
+	precomputed := "deadbeef1234"
+	content := []byte("assembled context")
+
+	if err := saveContextCache(dir, "explore", "", precomputed, content); err != nil {
+		t.Fatalf("saveContextCache: %v", err)
+	}
+
+	// Read the written hash file and verify the stored hash matches precomputed.
+	raw, err := os.ReadFile(hashCachePath(dir, "explore"))
+	if err != nil {
+		t.Fatalf("read hash file: %v", err)
+	}
+	stored, _, ok := parseHashFile(raw)
+	if !ok {
+		t.Fatal("hash file has unexpected format")
+	}
+	if stored != precomputed {
+		t.Errorf("stored hash = %q, want %q", stored, precomputed)
+	}
+}
