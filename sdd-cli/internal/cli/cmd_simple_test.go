@@ -43,6 +43,18 @@ func TestRunQuickstart_UnknownFlag(t *testing.T) {
 	}
 }
 
+func TestRunDashboard_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDashboard([]string{"--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunDashboard_InvalidPort(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
