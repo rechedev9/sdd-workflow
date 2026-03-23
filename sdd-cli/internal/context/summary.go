@@ -7,6 +7,17 @@ import (
 	"strings"
 )
 
+// appendArtifactSection reads filename from changeDir, applies extract, and appends
+// "label: <result>" to sections when the file exists and extraction is non-empty.
+func appendArtifactSection(sections []string, changeDir, filename, label string, extract func(string) string) []string {
+	if data, err := os.ReadFile(filepath.Join(changeDir, filename)); err == nil {
+		if s := extract(string(data)); s != "" {
+			return append(sections, label+": "+s)
+		}
+	}
+	return sections
+}
+
 // buildSummary scans existing artifacts in changeDir and produces a compact
 // cumulative context (~500-800 bytes) that carries key decisions forward
 // through the pipeline. Non-fatal: returns empty string if no artifacts exist.
@@ -17,29 +28,10 @@ func buildSummary(changeDir string, p *Params) string {
 	sections = append(sections, fmt.Sprintf("Stack: %s (%s)", p.Config.Stack.Language, p.Config.Stack.BuildTool))
 
 	// Extract key lines from each artifact if it exists.
-	if data, err := os.ReadFile(filepath.Join(changeDir, "exploration.md")); err == nil {
-		if finding := extractFirst(string(data), "##", 3); finding != "" {
-			sections = append(sections, "Exploration: "+finding)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "proposal.md")); err == nil {
-		if intent := extractDecisions(string(data)); intent != "" {
-			sections = append(sections, "Proposal: "+intent)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "design.md")); err == nil {
-		if decision := extractDecisions(string(data)); decision != "" {
-			sections = append(sections, "Design: "+decision)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "review-report.md")); err == nil {
-		if verdict := extractFirst(string(data), "Verdict", 1); verdict != "" {
-			sections = append(sections, "Review: "+verdict)
-		}
-	}
+	sections = appendArtifactSection(sections, changeDir, "exploration.md", "Exploration", func(s string) string { return extractFirst(s, "##", 3) })
+	sections = appendArtifactSection(sections, changeDir, "proposal.md", "Proposal", extractDecisions)
+	sections = appendArtifactSection(sections, changeDir, "design.md", "Design", extractDecisions)
+	sections = appendArtifactSection(sections, changeDir, "review-report.md", "Review", func(s string) string { return extractFirst(s, "Verdict", 1) })
 
 	if len(sections) == 0 {
 		return ""
