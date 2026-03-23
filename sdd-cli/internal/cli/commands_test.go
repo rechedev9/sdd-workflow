@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -180,6 +181,72 @@ func TestResolveDir(t *testing.T) {
 			t.Error("expected error when path is a file, not a directory")
 		}
 	})
+}
+
+func TestResolveChangeDir_FileNotDir(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	// Place a regular file at openspec/changes/<name> so stat succeeds but !IsDir.
+	changesDir := filepath.Join(dir, "openspec", "changes")
+	if err := os.MkdirAll(changesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(changesDir, "feat-file"), []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := resolveChangeDir("feat-file")
+	if err == nil {
+		t.Fatal("expected error when change path is a file, not a directory")
+	}
+}
+
+func TestGitHeadSHA_NotARepo(t *testing.T) {
+	t.Parallel()
+	_, err := gitHeadSHA(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when dir is not a git repo")
+	}
+}
+
+func TestShouldSkipVerify_ReturnTrue(t *testing.T) {
+	t.Parallel()
+	changeDir := t.TempDir()
+
+	// Write a PASSED verify-report.md.
+	report := "**Status:** PASSED\n"
+	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Init a minimal git repo so gitDiffFiles returns an empty list (no commits → HEAD
+	// doesn't exist, so git diff fails → shouldSkipVerify returns false, nil).
+	// Instead, use a git repo that has HEAD: create an empty commit.
+	gitDir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", gitDir},
+		{"-C", gitDir, "config", "user.email", "test@test.com"},
+		{"-C", gitDir, "config", "user.name", "Test"},
+		{"-C", gitDir, "commit", "--allow-empty", "-m", "init"},
+	} {
+		cmd := exec.Command("git", args...)
+		if err := cmd.Run(); err != nil {
+			t.Skipf("git setup failed: %v", err)
+		}
+	}
+
+	// No changed files in a clean repo → gitDiffFiles returns nil → skip=true.
+	skip, err := shouldSkipVerify(gitDir, changeDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !skip {
+		t.Error("expected skip=true: PASSED report + no source changes")
+	}
 }
 
 func TestValidateChangeName(t *testing.T) {
