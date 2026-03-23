@@ -26,8 +26,8 @@ Module: `github.com/rechedev9/shenronSDD/sdd-cli`
 │         └─► internal/cli.Run(args, stdout, stderr)         │
 └─────────────────────────────────────────────────────────────┘
          │
-         │ dispatches to one of 10 subcommand handlers
-         │ all in internal/cli/commands.go
+         │ dispatches to one of 16 subcommand handlers
+         │ cli.go dispatches; each handler in cmd_*.go
          │
     ┌────┴────────────────────────────────────────────┐
     │                                                  │
@@ -380,15 +380,15 @@ Special case: `PhaseSpec` promotes into `specs/{phase}.md` inside a `specs/` dir
 
 `cmd/sdd/main.go` is ≤15 lines. All logic lives in `internal/`. This makes the core testable without process-level integration tests and keeps the entry point trivially auditable.
 
-Tradeoff: the `internal/cli/commands.go` file is long (~670 lines). All command handlers live there rather than in separate files. This is intentional — each handler is a flat sequence of 4–8 steps with no internal branching complexity. Splitting into files would add navigation overhead without reducing cognitive load.
+Command handlers are split into individual `cmd_*.go` files (one per command). Shared helpers (`resolveChangeDir`, `loadChangeState`, `writeJSON`, `getCWD`, `shouldSkipVerify`, etc.) remain in `commands.go` (~246 lines).
 
 ### No cobra
 
 The CLI uses a hand-rolled `switch` dispatch in `cli.Run`. Cobra was listed as an approved dependency in CLAUDE.md but was not adopted. The command surface is simple (no nested subcommands, no flag parsing library needed), and the hand-rolled approach avoids the Cobra init overhead and keeps the binary smaller. Per-command help is stored in a `commandHelp` map.
 
-### No ORM, no CGO, no SQLite
+### No ORM, pure-Go SQLite for telemetry
 
-State is stored as JSON files on disk. This choice keeps the binary statically linkable (`CGO_ENABLED=0`), avoids a database dependency, and makes state human-readable and git-diff-friendly. The tradeoff is that concurrent writes from multiple processes could corrupt state — but the SDD workflow is inherently sequential (one active change at a time in a single session).
+Pipeline state is stored as JSON files on disk — human-readable and git-diff-friendly. Telemetry (phase events, verify history, cache stats) uses SQLite via `modernc.org/sqlite` (pure Go, no CGO). Write concurrency is serialized with a mutex to avoid `SQLITE_BUSY` under contention.
 
 ### Copy-then-remove promotion vs. os.Rename
 

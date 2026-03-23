@@ -12,7 +12,7 @@ read_when:
 
 ```bash
 cd sdd-cli
-CGO_ENABLED=0 go build -o bin/sdd ./cmd/sdd
+go build -o bin/sdd ./cmd/sdd
 ```
 
 ## Test
@@ -36,10 +36,11 @@ Install tools: `make tools` (golangci-lint v2 + gofumpt). Full gate: `make check
    - Add `case "foo":` in `Run()` switch
    - Add line in `printHelp()`
    - Add entry in `commandHelp` map
+   - Add `"foo"` to the completion list in `completion.go`
 
-3. Add tests in `internal/cli/cli_test.go`:
-   - Error rows in `TestRunSubcommands` and `TestRunErrorsWriteJSON`
-   - Dedicated `TestRunFoo` with real fixtures
+3. Add tests in `internal/cli/cmd_foo_test.go`:
+   - Error rows in `TestRunSubcommands` and `TestRunErrorsWriteJSON` (in `cli_test.go`)
+   - Dedicated `TestRunFoo` with real fixtures in the per-command test file
 
 ## Adding a new assembler
 
@@ -62,7 +63,7 @@ When changing what an assembler outputs (new sections, removed sections):
 - No mocks — hand-written fakes only
 - Interfaces only where consumed (consumer-defined)
 - One file per concern within a package
-- `CGO_ENABLED=0` always
+- `CGO_ENABLED=1` (pure-Go SQLite via modernc.org/sqlite)
 - Rule of 3: no abstraction until 3+ real uses
 
 ## Using SDD to improve SDD (dogfooding)
