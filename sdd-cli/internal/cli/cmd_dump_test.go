@@ -108,6 +108,44 @@ func TestRunDump_StatusAndPendingArray(t *testing.T) {
 	}
 }
 
+func TestRunDump_CacheHashWithPipe(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Covers the bytes.Cut pipe-format branch: "{hash}|{unix_seconds}".
+	root := setupChange(t, "dump-pipe", "test pipe hash")
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+
+	changeDir := filepath.Join(root, "openspec", "changes", "dump-pipe")
+	cacheDir := filepath.Join(changeDir, ".cache")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Write hash in "{hash}|{unix_seconds}" format.
+	if err := os.WriteFile(filepath.Join(cacheDir, "design.hash"), []byte("deadbeef|1700000000"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	if err := runDump([]string{"dump-pipe"}, &stdout, &stderr); err != nil {
+		t.Fatalf("runDump: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	keys, ok := out["cache_keys"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("cache_keys should be object, got %T", out["cache_keys"])
+	}
+	if keys["design"] != "deadbeef" {
+		t.Errorf("cache_keys[design] = %v, want deadbeef", keys["design"])
+	}
+}
+
 func TestRunDump_NoConfig(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	root := setupChange(t, "dump-nocfg", "no config")

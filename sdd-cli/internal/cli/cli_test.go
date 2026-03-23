@@ -253,6 +253,49 @@ func TestRunListMultiple(t *testing.T) {
 	}
 }
 
+func TestRunListSkipsInvalidState(t *testing.T) {
+	// Covers the state.Load error branch in runList (silent skip).
+	root := t.TempDir()
+	changesDir := filepath.Join(root, "openspec", "changes")
+
+	// Valid change.
+	validDir := filepath.Join(changesDir, "valid-feat")
+	if err := os.MkdirAll(validDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	st := state.NewState("valid-feat", "ok")
+	if err := state.Save(st, filepath.Join(validDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Invalid change — no state.json, so Load returns error → silently skipped.
+	badDir := filepath.Join(changesDir, "bad-feat")
+	if err := os.MkdirAll(badDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"list"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out struct {
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	// Only the valid change is counted; bad-feat is silently skipped.
+	if out.Count != 1 {
+		t.Errorf("count = %d, want 1 (bad-feat silently skipped)", out.Count)
+	}
+}
+
 func TestRunDiff(t *testing.T) {
 	// Helper: init a git repo with one commit.
 	// Uses /usr/bin/git directly to bypass any git shims.

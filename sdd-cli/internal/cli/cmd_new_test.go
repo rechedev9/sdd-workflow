@@ -57,6 +57,32 @@ func TestRunNew_NoConfig(t *testing.T) {
 	}
 }
 
+func TestRunNew_TextOutput(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Without --json, runNew runs the explore assembler (non-fatal on failure) and returns nil.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	openspecDir := filepath.Join(dir, "openspec")
+	os.MkdirAll(filepath.Join(openspecDir, "changes"), 0o755)
+	configYAML := "version: 1\nproject_name: test\nstack:\n  language: go\ncommands:\n  build: go build ./...\n  test: go test ./...\n"
+	os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	// No --json flag — takes the explore-assembler path; assembly fails non-fatally (no skills dir).
+	err := runNew([]string{"feat-text", "a text change"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Change dir should have been created and state saved.
+	changeDir := filepath.Join(openspecDir, "changes", "feat-text")
+	if _, err := os.Stat(filepath.Join(changeDir, "state.json")); err != nil {
+		t.Errorf("state.json not created: %v", err)
+	}
+}
+
 func TestRunNew_JSONOutput(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()
