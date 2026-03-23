@@ -14,6 +14,9 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
+	for _, arg := range args[1:] {
+		return errUnknownFlag(arg)
+	}
 
 	_, st, err := loadChangeState(stderr, "status", name)
 	if err != nil {
