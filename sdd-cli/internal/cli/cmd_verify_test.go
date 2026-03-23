@@ -98,3 +98,21 @@ func TestShouldSkipVerify_PassedReport(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestShouldSkipVerify_GitError(t *testing.T) {
+	t.Parallel()
+	changeDir := t.TempDir()
+	// Write a PASSED report so we get past the first check.
+	report := "**Status:** PASSED\n"
+	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Use a non-git dir as cwd → gitDiffFiles fails → shouldSkipVerify returns (false, nil).
+	skip, err := shouldSkipVerify(t.TempDir(), changeDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if skip {
+		t.Error("expected skip=false when git error occurs")
+	}
+}
