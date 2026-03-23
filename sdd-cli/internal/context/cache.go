@@ -73,8 +73,10 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 	h := sha256.New()
 	var intBuf [32]byte // scratch buffer for strconv.AppendInt — avoids fmt allocations
 
-	// Version prefix — constant string, no allocation.
-	io.WriteString(h, "v7:") //nolint:errcheck // hash.Hash.Write never errors; matches cacheVersion
+	// Version prefix: "v{cacheVersion}:" — built without fmt allocation.
+	io.WriteString(h, "v")                                               //nolint:errcheck // hash.Hash.Write never errors
+	h.Write(strconv.AppendInt(intBuf[:0], int64(cacheVersion), 10))     //nolint:errcheck
+	io.WriteString(h, ":")                                               //nolint:errcheck
 
 	// Hash the SKILL.md for this phase — fixes correctness bug where
 	// editing a skill wouldn't invalidate cached context.
