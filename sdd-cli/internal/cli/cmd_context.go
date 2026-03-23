@@ -95,9 +95,9 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		if len(ready) > 1 {
 			// Concurrent assembly for parallel phases (spec+design).
-			var names []string
-			for _, r := range ready {
-				names = append(names, string(r))
+			names := make([]string, len(ready))
+			for i, r := range ready {
+				names[i] = string(r)
 			}
 			phase = strings.Join(names, "+")
 			if err := sddctx.AssembleConcurrent(target, ready, p); err != nil {

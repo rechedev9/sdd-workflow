@@ -24,13 +24,13 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		Stale        bool   `json:"stale,omitempty"`
 	}
 
-	changes := make([]changeInfo, 0)
-
 	changesDir := openspecChanges(cwd)
 	entries, err := os.ReadDir(changesDir)
 	if err != nil && !os.IsNotExist(err) {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))
 	}
+
+	changes := make([]changeInfo, 0, len(entries))
 
 	for _, e := range entries {
 		if !e.IsDir() || e.Name() == "archive" {
