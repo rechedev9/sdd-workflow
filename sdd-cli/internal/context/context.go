@@ -221,14 +221,14 @@ func loadArtifact(changeDir, filename string) ([]byte, error) {
 // writeSection writes a labeled section to the output.
 func writeSection(w io.Writer, label string, content []byte) {
 	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	w.Write(content) //nolint:errcheck // error captured by errWriter
+	w.Write(content) //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
 	fmt.Fprintln(w)
 }
 
 // writeSectionStr writes a labeled section with string content.
 func writeSectionStr(w io.Writer, label, content string) {
 	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	io.WriteString(w, content) //nolint:errcheck
+	io.WriteString(w, content) //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
 	fmt.Fprintln(w)
 }
 
