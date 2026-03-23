@@ -757,3 +757,36 @@ func TestTokenSummary_QueryError(t *testing.T) {
 		t.Fatal("expected error on closed DB")
 	}
 }
+
+func TestInsertPhaseEvent_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertPhaseEvent(context.Background(), PhaseEvent{
+		Timestamp: time.Now(), Change: "c", Phase: "explore",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestInsertVerifyEvent_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertVerifyEvent(context.Background(), VerifyEvent{
+		Timestamp: time.Now(), Change: "c", CommandName: "build", Command: "go build",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestInsertVerifyResult_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertVerifyResult(context.Background(), VerifyResult{
+		Timestamp: time.Now(), Change: "c", CommandName: "build",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
