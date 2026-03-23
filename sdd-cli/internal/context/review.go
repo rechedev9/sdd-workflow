@@ -124,6 +124,7 @@ func gitDiff(projectDir string) (string, error) {
 		return "(no changes)", nil
 	}
 	var buf strings.Builder
+	buf.Grow(len(staged) + len(unstaged) + 36) // pre-size: headers are ~36 bytes total
 	if len(staged) > 0 {
 		buf.WriteString("=== STAGED ===\n")
 		buf.Write(staged)
