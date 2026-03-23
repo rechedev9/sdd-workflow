@@ -209,6 +209,44 @@ func TestListWithSpecs(t *testing.T) {
 	}
 }
 
+func TestList_SpecsDirEmpty(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create an empty specs/ directory — List should skip it (len(entries) == 0).
+	os.MkdirAll(filepath.Join(dir, "specs"), 0o755)
+
+	items, err := List(dir)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("item count = %d, want 0 for empty specs dir", len(items))
+	}
+}
+
+func TestList_SpecsDirUnreadable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("spec"), 0o644)
+
+	// Make specs/ unreadable so ReadDir fails — List should skip it.
+	os.Chmod(specsDir, 0o000)
+	t.Cleanup(func() { os.Chmod(specsDir, 0o755) })
+
+	items, err := List(dir)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	// Spec items should be skipped due to ReadDir error.
+	for _, item := range items {
+		if item.Phase == state.PhaseSpec {
+			t.Error("spec item should not appear when specs/ is unreadable")
+		}
+	}
+}
+
 func TestListEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
