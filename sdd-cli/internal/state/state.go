@@ -79,12 +79,9 @@ func (s *State) Advance(completed Phase) error {
 // nextReady returns the first phase in pipeline order whose prerequisites are all completed
 // and which is still pending. Returns "" if nothing is ready (pipeline done).
 func (s *State) nextReady() Phase {
-	for _, p := range AllPhases() {
+	for _, desc := range phase.DefaultRegistry.All() {
+		p := Phase(desc.Name)
 		if s.Phases[p] != StatusPending {
-			continue
-		}
-		desc, ok := phase.DefaultRegistry.Get(string(p))
-		if !ok {
 			continue
 		}
 		if s.prereqsMet(desc) {
@@ -99,12 +96,9 @@ func (s *State) nextReady() Phase {
 // parallel assembly of spec+design when both are ready after propose.
 func (s *State) ReadyPhases() []Phase {
 	var ready []Phase
-	for _, p := range AllPhases() {
+	for _, desc := range phase.DefaultRegistry.All() {
+		p := Phase(desc.Name)
 		if s.Phases[p] != StatusPending {
-			continue
-		}
-		desc, ok := phase.DefaultRegistry.Get(string(p))
-		if !ok {
 			continue
 		}
 		if s.prereqsMet(desc) {
