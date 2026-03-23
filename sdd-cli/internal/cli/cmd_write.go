@@ -92,7 +92,7 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		Command:      "write",
 		Status:       "success",
 		Change:       name,
-		Phase:        phaseStr,
+		Phase:        string(phase),
 		PromotedTo:   promoted,
 		CurrentPhase: string(st.CurrentPhase),
 	}
