@@ -141,17 +141,34 @@ func extractDecisions(content string) string {
 	return extractFirst(content, "##", 3)
 }
 
-// compactSpecs extracts only headings and MUST/SHOULD/GIVEN/WHEN/THEN lines from specs.
-// Reduces a full spec to ~20% of its size while keeping acceptance criteria.
+// compactSpecs extracts headings, requirement bullets, and keyword lines from specs.
+// Keeps: all headings, lines starting with "- " under ### Requirements sections,
+// and lines containing MUST/SHOULD/GIVEN/WHEN/THEN anywhere.
+// Reduces a full spec to ~20-30% of its size while keeping acceptance criteria.
 func compactSpecs(specs string) string {
 	var b strings.Builder
+	inRequirements := false
 	for line := range strings.Lines(specs) {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "#") ||
-			strings.HasPrefix(trimmed, "MUST") ||
+		// Track whether we're inside a Requirements section.
+		if strings.HasPrefix(trimmed, "#") {
+			inRequirements = strings.Contains(trimmed, "Requirements") ||
+				strings.Contains(trimmed, "requirements")
+			b.WriteString(line)
+			b.WriteByte('\n')
+			continue
+		}
+		// Keep all bullets under Requirements headings.
+		if inRequirements && strings.HasPrefix(trimmed, "- ") {
+			b.WriteString(line)
+			b.WriteByte('\n')
+			continue
+		}
+		// Keep keyword lines anywhere.
+		if strings.HasPrefix(trimmed, "MUST") ||
 			strings.HasPrefix(trimmed, "SHOULD") ||
 			strings.HasPrefix(trimmed, "- MUST") ||
 			strings.HasPrefix(trimmed, "- SHOULD") ||

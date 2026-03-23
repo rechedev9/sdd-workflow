@@ -70,6 +70,39 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 	phaseStr := string(ph)
 	start := time.Now()
 
+	// Compact mode bypasses cache — it produces a different output variant
+	// and caching is keyed only by phase + artifact hashes, not by flags.
+	// Compact callers are token-sensitive agents that call once per phase;
+	// the milliseconds saved by caching are not worth the correctness risk.
+	if p.Compact {
+		var buf bytes.Buffer
+		if err := desc.Assemble(&buf, p); err != nil {
+			return err
+		}
+		size := buf.Len()
+		if size > maxContextBytes {
+			return fmt.Errorf("context too large: %s (%d bytes, ~%dK tokens) exceeds limit of %s (~%dK tokens)",
+				formatBytes(size), size, estimateTokens(size)/1000,
+				formatBytes(maxContextBytes), estimateTokens(maxContextBytes)/1000)
+		}
+		if _, err := w.Write(buf.Bytes()); err != nil {
+			return fmt.Errorf("write compact context: %w", err)
+		}
+		p.Broker.Emit(events.Event{
+			Type: events.PhaseAssembled,
+			Payload: events.PhaseAssembledPayload{
+				Phase:      phaseStr,
+				Bytes:      size,
+				Tokens:     estimateTokens(size),
+				Cached:     false,
+				DurationMs: time.Since(start).Milliseconds(),
+				ChangeDir:  p.ChangeDir,
+				SkillsPath: p.SkillsPath,
+			},
+		})
+		return nil
+	}
+
 	// Try cache first.
 	cached, computedHash, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath)
 	if ok {
