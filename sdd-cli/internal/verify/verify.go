@@ -176,6 +176,7 @@ func WriteReport(report *Report, changeDir string) error {
 	path := filepath.Join(changeDir, "verify-report.md")
 
 	var buf bytes.Buffer
+	buf.Grow(256 + len(report.Results)*150) // pre-size: header + ~150 bytes per result
 	buf.WriteString("# Verify Report\n\n")
 	fmt.Fprintf(&buf, "**Timestamp:** %s\n\n", report.Timestamp.Format(time.RFC3339))
 

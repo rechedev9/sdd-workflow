@@ -53,6 +53,7 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 	}
 
 	var b strings.Builder
+	b.Grow(200 + len(entries)*20) // pre-size: header + ~20 bytes per entry
 	b.WriteString("# Archive Manifest\n\n")
 	fmt.Fprintf(&b, "**Change:** %s\n", changeName)
 	fmt.Fprintf(&b, "**Archived:** %s\n\n", time.Now().UTC().Format(time.RFC3339))
