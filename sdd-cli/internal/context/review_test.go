@@ -66,23 +66,111 @@ func TestGitDiff_ErrorOnNonGitDir(t *testing.T) {
 	}
 }
 
-// runCmd runs a command in dir and returns any error.
-func runCmd(dir, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+func TestGitDiff_StagedChanges(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := initBareGitRepo(t, dir); err != nil {
+		t.Skip("cannot init git repo:", err)
+	}
+	// Create and stage a new file.
+	f := filepath.Join(dir, "new.txt")
+	if err := os.WriteFile(f, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runRealGit(dir, "add", "new.txt"); err != nil {
+		t.Fatalf("git add: %v", err)
+	}
+
+	result, err := gitDiff(dir)
+	if err != nil {
+		t.Fatalf("gitDiff: %v", err)
+	}
+	if !strings.Contains(result, "STAGED") {
+		t.Errorf("expected STAGED section, got %q", result)
+	}
+}
+
+func TestGitDiff_UnstagedChanges(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := initBareGitRepo(t, dir); err != nil {
+		t.Skip("cannot init git repo:", err)
+	}
+	// Modify an already-tracked file without staging.
+	readme := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(readme, []byte("modified"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := gitDiff(dir)
+	if err != nil {
+		t.Fatalf("gitDiff: %v", err)
+	}
+	if !strings.Contains(result, "UNSTAGED") {
+		t.Errorf("expected UNSTAGED section, got %q", result)
+	}
+}
+
+func TestGitDiff_StagedAndUnstaged(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := initBareGitRepo(t, dir); err != nil {
+		t.Skip("cannot init git repo:", err)
+	}
+	// Unstaged: modify tracked file.
+	readme := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(readme, []byte("modified"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Staged: add a new file.
+	f := filepath.Join(dir, "staged.txt")
+	if err := os.WriteFile(f, []byte("staged"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runRealGit(dir, "add", "staged.txt"); err != nil {
+		t.Fatalf("git add: %v", err)
+	}
+
+	result, err := gitDiff(dir)
+	if err != nil {
+		t.Fatalf("gitDiff: %v", err)
+	}
+	if !strings.Contains(result, "STAGED") {
+		t.Errorf("expected STAGED section, got %q", result)
+	}
+	if !strings.Contains(result, "UNSTAGED") {
+		t.Errorf("expected UNSTAGED section, got %q", result)
+	}
+}
+
+// realGit returns a path to the real git binary, bypassing any shim.
+func realGit() string {
+	for _, p := range []string{"/usr/bin/git", "/usr/local/bin/git", "/bin/git"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "git"
+}
+
+// runRealGit runs git directly (bypassing any shim) in dir.
+func runRealGit(dir string, args ...string) error {
+	cmd := exec.Command(realGit(), args...)
 	cmd.Dir = dir
 	return cmd.Run()
 }
 
 // initBareGitRepo initialises a minimal git repo in dir with an initial commit.
+// Uses the real git binary directly to bypass any project git shim.
 func initBareGitRepo(t *testing.T, dir string) error {
 	t.Helper()
-	if err := runCmd(dir, "git", "init", "-q"); err != nil {
+	if err := runRealGit(dir, "init", "-q"); err != nil {
 		return err
 	}
-	if err := runCmd(dir, "git", "config", "user.email", "test@test.com"); err != nil {
+	if err := runRealGit(dir, "config", "user.email", "test@test.com"); err != nil {
 		return err
 	}
-	if err := runCmd(dir, "git", "config", "user.name", "Test"); err != nil {
+	if err := runRealGit(dir, "config", "user.name", "Test"); err != nil {
 		return err
 	}
 	// Create an initial commit so HEAD exists.
@@ -90,8 +178,8 @@ func initBareGitRepo(t *testing.T, dir string) error {
 	if err := os.WriteFile(readme, []byte("test"), 0o644); err != nil {
 		return err
 	}
-	if err := runCmd(dir, "git", "add", "README.md"); err != nil {
+	if err := runRealGit(dir, "add", "README.md"); err != nil {
 		return err
 	}
-	return runCmd(dir, "git", "commit", "-q", "-m", "init")
+	return runRealGit(dir, "commit", "-q", "-m", "init")
 }
