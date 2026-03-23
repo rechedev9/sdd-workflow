@@ -34,9 +34,23 @@ func checkConfig(configPath string) (CheckResult, *config.Config) {
 	return CheckResult{Name: "config", Status: "pass", Message: fmt.Sprintf("config.yaml v%d loaded", cfg.Version)}, cfg
 }
 
-func checkCache(changesDir string, cfg *config.Config) CheckResult {
+// eachChangeDir calls fn for each active change directory (skips non-dirs and "archive").
+// Silently returns if changesDir cannot be read.
+func eachChangeDir(changesDir string, fn func(changeDir string)) {
 	entries, err := os.ReadDir(changesDir)
 	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == "archive" {
+			continue
+		}
+		fn(filepath.Join(changesDir, e.Name()))
+	}
+}
+
+func checkCache(changesDir string, cfg *config.Config) CheckResult {
+	if _, err := os.ReadDir(changesDir); err != nil {
 		return CheckResult{Name: "cache", Status: "warn", Message: "cannot read changes directory"}
 	}
 	skillsPath := ""
@@ -44,14 +58,10 @@ func checkCache(changesDir string, cfg *config.Config) CheckResult {
 		skillsPath = cfg.SkillsPath
 	}
 	total := 0
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "archive" {
-			continue
-		}
-		changeDir := filepath.Join(changesDir, e.Name())
+	eachChangeDir(changesDir, func(changeDir string) {
 		n, _ := sddctx.CheckCacheIntegrity(changeDir, skillsPath)
 		total += n
-	}
+	})
 	if total > 0 {
 		return CheckResult{Name: "cache", Status: "warn", Message: fmt.Sprintf("%d stale cache entry(s)", total)}
 	}
@@ -59,20 +69,12 @@ func checkCache(changesDir string, cfg *config.Config) CheckResult {
 }
 
 func checkOrphanedPending(changesDir string) CheckResult {
-	entries, err := os.ReadDir(changesDir)
-	if err != nil {
-		return CheckResult{Name: "orphaned_pending", Status: "pass"}
-	}
 	count := 0
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "archive" {
-			continue
-		}
-		changeDir := filepath.Join(changesDir, e.Name())
+	eachChangeDir(changesDir, func(changeDir string) {
 		pendingDir := filepath.Join(changeDir, ".pending")
 		pfiles, err := os.ReadDir(pendingDir)
 		if err != nil {
-			continue
+			return
 		}
 		for _, pf := range pfiles {
 			if pf.IsDir() || !strings.HasSuffix(pf.Name(), ".md") {
@@ -84,7 +86,7 @@ func checkOrphanedPending(changesDir string) CheckResult {
 				count++
 			}
 		}
-	}
+	})
 	if count > 0 {
 		return CheckResult{Name: "orphaned_pending", Status: "warn", Message: fmt.Sprintf("%d orphaned .pending file(s)", count)}
 	}
