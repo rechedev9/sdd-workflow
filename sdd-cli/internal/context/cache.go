@@ -71,16 +71,19 @@ func readSkillBytes(skillsPath, phaseName string) []byte {
 // Includes SKILL.md so skill edits invalidate the cache (essentially an ETag pattern).
 func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) string {
 	h := sha256.New()
+	var intBuf [32]byte // scratch buffer for strconv.AppendInt — avoids fmt allocations
 
-	// Version prefix.
-	fmt.Fprintf(h, "v%d:", cacheVersion)
+	// Version prefix — constant string, no allocation.
+	io.WriteString(h, "v7:") //nolint:errcheck // hash.Hash.Write never errors; matches cacheVersion
 
 	// Hash the SKILL.md for this phase — fixes correctness bug where
 	// editing a skill wouldn't invalidate cached context.
 	if phaseName != "" {
 		if data := readSkillBytes(skillsPath, phaseName); data != nil {
-			fmt.Fprintf(h, "skill:%d:", len(data))
-			h.Write(data)
+			io.WriteString(h, "skill:")                                       //nolint:errcheck
+			h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10))     //nolint:errcheck
+			io.WriteString(h, ":")                                            //nolint:errcheck
+			h.Write(data)                                                     //nolint:errcheck
 		}
 	}
 
@@ -94,8 +97,11 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(h, "%s:%d:", name, len(data))
-		h.Write(data)
+		io.WriteString(h, name)                                          //nolint:errcheck
+		io.WriteString(h, ":")                                           //nolint:errcheck
+		h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10))    //nolint:errcheck
+		io.WriteString(h, ":")                                           //nolint:errcheck
+		h.Write(data)                                                    //nolint:errcheck
 	}
 
 	return hex.EncodeToString(h.Sum(nil))
@@ -108,6 +114,7 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 	if err != nil {
 		return
 	}
+	var intBuf [32]byte
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -116,8 +123,12 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(h, "specs/%s:%d:", e.Name(), len(data))
-		h.Write(data)
+		io.WriteString(h, "specs/")                                      //nolint:errcheck
+		io.WriteString(h, e.Name())                                      //nolint:errcheck
+		io.WriteString(h, ":")                                           //nolint:errcheck
+		h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10))    //nolint:errcheck
+		io.WriteString(h, ":")                                           //nolint:errcheck
+		h.Write(data)                                                    //nolint:errcheck
 	}
 }
 
