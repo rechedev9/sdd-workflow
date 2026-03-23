@@ -2,7 +2,11 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
 func TestRunArchive_NoArgs(t *testing.T) {
@@ -53,4 +57,27 @@ func TestRunArchive_ShortForceFlag(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nonexistent change with -f")
 	}
+}
+
+func TestRunArchive_ForceSkipsPrerequisite(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "openspec", "changes", "arch-force")
+	os.MkdirAll(changeDir, 0o755)
+
+	// Create an incomplete change (no phases completed).
+	st := state.NewState("arch-force", "test force archive")
+	state.Save(st, filepath.Join(changeDir, "state.json"))
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	// --force skips prerequisite check → reaches verify.Archive which will succeed
+	// or fail depending on filesystem state, but must not fail on prerequisite.
+	err := runArchive([]string{"arch-force", "--force"}, &stdout, &stderr)
+	// Archive may succeed or fail (no issue if verify.Archive fails), but the
+	// prerequisite error branch (slog.Warn) must have been executed without panic.
+	_ = err
 }

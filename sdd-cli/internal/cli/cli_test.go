@@ -384,3 +384,23 @@ func TestRunUnknownCommandHelp(t *testing.T) {
 		t.Fatal("expected error for unknown command + --help")
 	}
 }
+
+func TestRunListChangesNotDir(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := t.TempDir()
+	// Create a file where openspec/changes/ should be, so ReadDir fails with a
+	// non-NotExist error.
+	openspecDir := filepath.Join(root, "openspec")
+	os.MkdirAll(openspecDir, 0o755)
+	os.WriteFile(filepath.Join(openspecDir, "changes"), []byte("block"), 0o644)
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"list"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when changes path is a file")
+	}
+}
