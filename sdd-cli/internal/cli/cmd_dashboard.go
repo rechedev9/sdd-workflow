@@ -35,7 +35,7 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "dashboard", fmt.Errorf("get working directory: %w", err))
 	}
 	dbPath := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
-	changesDir := filepath.Join(cwd, "openspec", "changes")
+	changesDir := openspecChanges(cwd)
 
 	db, err := store.Open(dbPath)
 	if err != nil {

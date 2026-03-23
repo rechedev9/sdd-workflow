@@ -52,7 +52,7 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Ensure config exists.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
+	configPath := openspecConfig(cwd)
 	if _, err := config.Load(configPath); err != nil {
 		return errs.WriteError(stderr, "quickstart", fmt.Errorf("load config (run 'sdd init' first): %w", err))
 	}

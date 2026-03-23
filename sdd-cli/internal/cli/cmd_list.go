@@ -26,7 +26,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 
 	changes := make([]changeInfo, 0)
 
-	changesDir := filepath.Join(cwd, "openspec", "changes")
+	changesDir := openspecChanges(cwd)
 	entries, err := os.ReadDir(changesDir)
 	if err != nil && !os.IsNotExist(err) {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))

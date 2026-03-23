@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
@@ -46,7 +45,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Load config.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
+	configPath := openspecConfig(cwd)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "context", fmt.Errorf("load config: %w", err))

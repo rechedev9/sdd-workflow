@@ -24,9 +24,10 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Phase  string `json:"phase"`
 		Status string `json:"status"`
 	}
-	phases := make([]phaseInfo, 0, len(state.AllPhases()))
-	completed := make([]string, 0, len(state.AllPhases()))
-	for _, p := range state.AllPhases() {
+	allPhases := state.AllPhases()
+	phases := make([]phaseInfo, 0, len(allPhases))
+	completed := make([]string, 0, len(allPhases))
+	for _, p := range allPhases {
 		ps := st.Phases[p]
 		phases = append(phases, phaseInfo{Phase: string(p), Status: string(ps)})
 		if ps == state.StatusCompleted {

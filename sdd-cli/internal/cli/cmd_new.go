@@ -46,7 +46,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Load config.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
+	configPath := openspecConfig(cwd)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("load config (run 'sdd init' first): %w", err))

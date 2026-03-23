@@ -187,8 +187,8 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "doctor", fmt.Errorf("get working directory: %w", err))
 	}
 
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
-	changesDir := filepath.Join(cwd, "openspec", "changes")
+	configPath := openspecConfig(cwd)
+	changesDir := openspecChanges(cwd)
 
 	configResult, cfg := checkConfig(configPath)
 	checks := []CheckResult{

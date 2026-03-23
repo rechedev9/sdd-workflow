@@ -25,8 +25,9 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Count completed phases.
+	allPhases := state.AllPhases()
 	var completed int
-	for _, p := range state.AllPhases() {
+	for _, p := range allPhases {
 		if st.Phases[p] == state.StatusCompleted {
 			completed++
 		}
@@ -68,7 +69,7 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 		Change:       st.Name,
 		CurrentPhase: string(st.CurrentPhase),
 		Completed:    completed,
-		TotalPhases:  len(state.AllPhases()),
+		TotalPhases:  len(allPhases),
 		CacheHits:    pm.CacheHits,
 		CacheMisses:  pm.CacheMisses,
 		TotalTokens:  pm.TotalTokens,

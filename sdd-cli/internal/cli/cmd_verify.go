@@ -42,7 +42,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Load config for commands.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
+	configPath := openspecConfig(cwd)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "verify", fmt.Errorf("load config: %w", err))

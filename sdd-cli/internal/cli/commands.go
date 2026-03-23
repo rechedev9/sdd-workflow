@@ -95,6 +95,17 @@ func resolveChangeDir(name string) (string, error) {
 	return changeDir, nil
 }
 
+// openspecConfig returns the path to openspec/config.yaml in the project root.
+// Used by commands that load config — centralises the magic string.
+func openspecConfig(cwd string) string {
+	return filepath.Join(cwd, "openspec", "config.yaml")
+}
+
+// openspecChanges returns the path to openspec/changes in the project root.
+func openspecChanges(cwd string) string {
+	return filepath.Join(cwd, "openspec", "changes")
+}
+
 // loadChangeState resolves the change directory for name and loads state.json.
 // On error it writes to stderr and returns a wrapped error ready for return.
 // Used by the 7+ commands that start with resolveChangeDir + state.Load.
