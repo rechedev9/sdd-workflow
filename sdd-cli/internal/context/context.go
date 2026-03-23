@@ -238,25 +238,31 @@ func loadArtifact(changeDir, filename string) ([]byte, error) {
 
 // writeSection writes a labeled section to the output.
 func writeSection(w io.Writer, label string, content []byte) {
-	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	w.Write(content) //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
-	fmt.Fprintln(w)
+	io.WriteString(w, "\n--- ")      //nolint:errcheck
+	io.WriteString(w, label)         //nolint:errcheck
+	io.WriteString(w, " ---\n\n")    //nolint:errcheck
+	w.Write(content)                 //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
+	io.WriteString(w, "\n")          //nolint:errcheck
 }
 
 // writeSectionStr writes a labeled section with string content.
 func writeSectionStr(w io.Writer, label, content string) {
-	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	io.WriteString(w, content) //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
-	fmt.Fprintln(w)
+	io.WriteString(w, "\n--- ")      //nolint:errcheck
+	io.WriteString(w, label)         //nolint:errcheck
+	io.WriteString(w, " ---\n\n")    //nolint:errcheck
+	io.WriteString(w, content)       //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
+	io.WriteString(w, "\n")          //nolint:errcheck
 }
 
 // writeChangeSection writes the CHANGE section (Name + Description).
 // Used by every assembler to avoid repeating the same fmt.Sprintf.
 func writeChangeSection(w io.Writer, p *Params) {
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	io.WriteString(w, "\n--- CHANGE ---\n\n") //nolint:errcheck
+	io.WriteString(w, "Name: ")               //nolint:errcheck
+	io.WriteString(w, p.ChangeName)           //nolint:errcheck
+	io.WriteString(w, "\nDescription: ")      //nolint:errcheck
+	io.WriteString(w, p.Description)          //nolint:errcheck
+	io.WriteString(w, "\n")                   //nolint:errcheck
 }
 
 // errRequiredArtifact returns a standard missing-artifact error used by all assemblers.
