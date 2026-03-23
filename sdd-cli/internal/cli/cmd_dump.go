@@ -66,7 +66,13 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		if err != nil {
 			continue
 		}
-		cacheKeys[base] = string(bytes.TrimSpace(raw))
+		trimmed := bytes.TrimSpace(raw)
+		// Hash files use "{hash}|{unix_seconds}" format; expose only the hash portion.
+		if hashPart, _, found := bytes.Cut(trimmed, []byte("|")); found {
+			cacheKeys[base] = string(hashPart)
+		} else {
+			cacheKeys[base] = string(trimmed)
+		}
 	}
 
 	out := struct {
