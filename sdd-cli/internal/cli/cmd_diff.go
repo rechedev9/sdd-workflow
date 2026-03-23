@@ -13,8 +13,8 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
-	for _, arg := range args[1:] {
-		return errUnknownFlag(arg)
+	if len(args) > 1 {
+		return errUnknownFlag(args[1])
 	}
 
 	_, st, err := loadChangeState(stderr, "diff", name)
