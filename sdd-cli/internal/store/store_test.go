@@ -579,6 +579,16 @@ func TestOpen_MkdirFails(t *testing.T) {
 	}
 }
 
+func TestOpen_PragmaFails(t *testing.T) {
+	t.Parallel()
+	// /dev/null is readable/writable but not a valid SQLite database,
+	// so the pragma execution will fail.
+	_, err := Open("/dev/null")
+	if err == nil {
+		t.Fatal("expected error when opening /dev/null as SQLite DB")
+	}
+}
+
 func TestRegisterSubscribers_NilBroker(t *testing.T) {
 	t.Parallel()
 	s := newTestStore(t)
