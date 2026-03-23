@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -108,6 +110,29 @@ func TestCheckRecurringFailures_DifferentChange(t *testing.T) {
 	result := checkRecurringFailures(dir, "feat-a")
 	if result != nil {
 		t.Errorf("expected nil when recurring errors are from different change, got %v", result)
+	}
+}
+
+func TestLoadChangeState_MissingStateJSON(t *testing.T) {
+	t.Parallel()
+	// Create a valid change directory but without state.json — Load should fail.
+	root := t.TempDir()
+	// Set up a fake openspec/changes/feat-x directory structure.
+	changeDir := filepath.Join(root, "openspec", "changes", "feat-x")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Temporarily override cwd via os.Chdir so resolveChangeDir finds the dir.
+	orig, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Skip("cannot chdir:", err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	var stderr bytes.Buffer
+	_, _, err := loadChangeState(&stderr, "test", "feat-x")
+	if err == nil {
+		t.Fatal("expected error when state.json is missing")
 	}
 }
 
