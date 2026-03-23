@@ -39,10 +39,14 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	// Load pipeline metrics.
 	pm := sddctx.LoadPipelineMetrics(changeDir)
 
+	// Compute staleness once — both IsStale and StaleHours call time.Since.
+	staleHours := st.StaleHours()
+	isStale := !st.IsComplete() && staleHours > int(staleThreshold.Hours())
+
 	// Build warnings.
 	warnings := make([]string, 0, 2)
-	if st.IsStale(staleThreshold) {
-		warnings = append(warnings, fmt.Sprintf("change inactive for %d hours", st.StaleHours()))
+	if isStale {
+		warnings = append(warnings, fmt.Sprintf("change inactive for %d hours", staleHours))
 	}
 
 	// Check if last verify failed.
@@ -76,8 +80,8 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheHits:    pm.CacheHits,
 		CacheMisses:  pm.CacheMisses,
 		TotalTokens:  pm.TotalTokens,
-		Stale:        st.IsStale(staleThreshold),
-		StaleHours:   st.StaleHours(),
+		Stale:        isStale,
+		StaleHours:   staleHours,
 		Warnings:     warnings,
 	}
 
