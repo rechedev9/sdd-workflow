@@ -87,11 +87,7 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	counts := log.RecurringFingerprints(1)
 	fmt.Fprintf(stdout, "sdd errors: %d entries, %d unique patterns\n\n", len(log.Entries), len(counts))
-	start := 0
-	if len(log.Entries) > 10 {
-		start = len(log.Entries) - 10
-	}
-	for _, e := range log.Entries[start:] {
+	for _, e := range log.Entries[max(0, len(log.Entries)-10):] {
 		fmt.Fprintf(stdout, "  %.19s  %-8s  exit=%d  %s  [%.8s]\n",
 			e.Timestamp, e.CommandName, e.ExitCode, e.Change, e.Fingerprint)
 	}
