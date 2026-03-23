@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -36,12 +37,13 @@ type ErrorLog struct {
 
 // Fingerprint computes a stable 16-hex-char hash from command + first error line.
 func Fingerprint(command string, errorLines []string) string {
-	first := ""
+	h := sha256.New()
+	io.WriteString(h, command) //nolint:errcheck // hash.Hash.Write never errors
+	h.Write([]byte{0})         //nolint:errcheck
 	if len(errorLines) > 0 {
-		first = errorLines[0]
+		io.WriteString(h, errorLines[0]) //nolint:errcheck
 	}
-	h := sha256.Sum256([]byte(command + "\x00" + first))
-	return fmt.Sprintf("%x", h[:8])
+	return fmt.Sprintf("%x", h.Sum(nil)[:8])
 }
 
 // LogPath returns the path to the global error log.
