@@ -449,6 +449,29 @@ func TestWriteManifest_AtomicWriteFails(t *testing.T) {
 	}
 }
 
+func TestRun_TimeoutWithProgress(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	commands := []CommandSpec{
+		{Name: "hang", Command: "sleep 60"},
+	}
+
+	// Pass a non-nil progress writer to exercise the TimedOut progress branch.
+	// Avoid redirecting the global slog logger to prevent races with other tests.
+	var progress bytes.Buffer
+	report, err := Run(dir, commands, 300*time.Millisecond, &progress)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if report.Passed {
+		t.Fatal("expected report to fail on timeout")
+	}
+	if !report.Results[0].TimedOut {
+		t.Error("expected TimedOut to be true")
+	}
+}
+
 func TestWriteManifest_ReadDirFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
