@@ -425,7 +425,7 @@ func (h *Hub) pruneVerifyCache(activeChangeDirs map[string]struct{}) {
 func (h *Hub) buildErrors(ctx context.Context) []ErrorData {
 	rows, err := h.metrics.RecentErrors(ctx, 20)
 	if err != nil {
-		return nil
+		return []ErrorData{}
 	}
 
 	data := make([]ErrorData, 0, len(rows))
