@@ -222,10 +222,12 @@ func shouldSkipVerify(cwd, changeDir string) (bool, error) {
 }
 
 // writeJSON marshals v as indented JSON and writes it to w followed by a newline.
-// Mirrors the repeated: data, _ := json.MarshalIndent(v, "", "  "); fmt.Fprintln(w, string(data))
+// Uses json.Encoder to stream directly into w, avoiding the intermediate []byte→string copy
+// that json.MarshalIndent + fmt.Fprintln would require.
 func writeJSON(w io.Writer, v any) {
-	data, _ := json.MarshalIndent(v, "", "  ")
-	fmt.Fprintln(w, string(data))
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(v) //nolint:errcheck // stdout write errors are not actionable
 }
 
 // errUnknownFlag returns a usage error for an unrecognised CLI flag.
