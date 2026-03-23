@@ -2,6 +2,7 @@ package cli
 
 import (
 	"io"
+	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -56,7 +57,7 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Completed:    completed,
 		Phases:       phases,
 		IsComplete:   st.IsComplete(),
-		UpdatedAt:    st.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:    st.UpdatedAt.UTC().Format(time.RFC3339),
 		Stale:        st.IsStale(staleThreshold),
 		StaleHours:   st.StaleHours(),
 	}
