@@ -447,3 +447,41 @@ func TestRunListChangesNotDir(t *testing.T) {
 		t.Fatal("expected error when changes path is a file")
 	}
 }
+
+func TestRunDump_LegacyHashFormat(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := setupChange(t, "feat", "test feature")
+
+	// Write a legacy hash file without the "|{timestamp}" suffix.
+	changeDir := filepath.Join(root, "openspec", "changes", "feat")
+	cacheDir := filepath.Join(changeDir, ".cache")
+	os.MkdirAll(cacheDir, 0o755)
+	os.WriteFile(filepath.Join(cacheDir, "explore.hash"), []byte("deadbeef"), 0o644)
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	// Also need a config.yaml for loadConfig.
+	openspecDir := filepath.Join(root, "openspec")
+	os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte("version: 1\n"), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"dump", "feat"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	// cache_keys should contain the legacy hash value directly.
+	cacheKeys, _ := out["cache_keys"].(map[string]interface{})
+	if cacheKeys == nil {
+		t.Fatal("expected cache_keys in dump output")
+	}
+	if cacheKeys["explore"] != "deadbeef" {
+		t.Errorf("cache_keys[explore] = %v, want deadbeef", cacheKeys["explore"])
+	}
+}
