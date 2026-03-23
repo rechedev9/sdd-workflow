@@ -272,3 +272,25 @@ func TestAssembleReview_MissingDesign(t *testing.T) {
 		t.Errorf("error = %q, want mention of 'design artifact'", err.Error())
 	}
 }
+
+func TestAssembleReview_MissingTasks(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Specs and design present, tasks.md absent — triggers errRequiredArtifact for tasks.
+	specsDir := filepath.Join(dir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(specsDir, "feat.md"), []byte("# spec"), 0o644)
+	os.WriteFile(filepath.Join(dir, "design.md"), []byte("# design"), 0o644)
+
+	var buf strings.Builder
+	p := &Params{ChangeDir: dir, ProjectDir: dir}
+	err := AssembleReview(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when tasks.md is missing")
+	}
+	if !strings.Contains(err.Error(), "tasks artifact") {
+		t.Errorf("error = %q, want mention of 'tasks artifact'", err.Error())
+	}
+}
