@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -20,7 +19,7 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(arg, "-"):
 			projectDir = arg
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 

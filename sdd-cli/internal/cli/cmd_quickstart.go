@@ -25,7 +25,7 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(args[i], "-"):
 			positional = append(positional, args[i])
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", args[i]))
+			return errUnknownFlag(args[i])
 		}
 	}
 

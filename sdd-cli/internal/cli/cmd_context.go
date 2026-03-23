@@ -23,7 +23,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(arg, "-"):
 			positional = append(positional, arg)
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 

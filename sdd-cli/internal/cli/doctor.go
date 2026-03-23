@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
@@ -180,7 +179,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		case "--json":
 			jsonOut = true
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 

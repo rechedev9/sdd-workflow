@@ -6,7 +6,6 @@ import (
 	"io"
 	"slices"
 
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 )
 
@@ -17,7 +16,7 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		case "--json":
 			jsonOut = true
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 

@@ -210,3 +210,9 @@ func writeJSON(w io.Writer, v any) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Fprintln(w, string(data))
 }
+
+// errUnknownFlag returns a usage error for an unrecognised CLI flag.
+// Centralises the repeated errs.Usage(fmt.Sprintf("unknown flag: %s", flag)) pattern.
+func errUnknownFlag(flag string) error {
+	return errs.Usage("unknown flag: " + flag)
+}
