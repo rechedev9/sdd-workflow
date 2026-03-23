@@ -87,10 +87,11 @@ func (l *ErrorLog) RecurringFingerprints(threshold int) map[string]int {
 	for _, e := range l.Entries {
 		counts[e.Fingerprint]++
 	}
+	result := make(map[string]int)
 	for fp, n := range counts {
-		if n < threshold {
-			delete(counts, fp)
+		if n >= threshold {
+			result[fp] = n
 		}
 	}
-	return counts
+	return result
 }

@@ -93,16 +93,8 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		start = len(log.Entries) - 10
 	}
 	for _, e := range log.Entries[start:] {
-		fp := e.Fingerprint
-		if len(fp) > 8 {
-			fp = fp[:8]
-		}
-		ts := e.Timestamp
-		if len(ts) > 19 {
-			ts = ts[:19]
-		}
-		fmt.Fprintf(stdout, "  %s  %-8s  exit=%d  %s  [%s]\n",
-			ts, e.CommandName, e.ExitCode, e.Change, fp)
+		fmt.Fprintf(stdout, "  %.19s  %-8s  exit=%d  %s  [%.8s]\n",
+			e.Timestamp, e.CommandName, e.ExitCode, e.Change, e.Fingerprint)
 	}
 	return nil
 }
