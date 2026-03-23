@@ -106,7 +106,9 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 		h.Write(data)                                                    //nolint:errcheck
 	}
 
-	return hex.EncodeToString(h.Sum(nil))
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
+	return hex.EncodeToString(sum[:])
 }
 
 // hashSpecsDir hashes all .md files in specs/ into the provided hasher.
