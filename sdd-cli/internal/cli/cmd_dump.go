@@ -21,6 +21,9 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
+	for _, arg := range args[1:] {
+		return errUnknownFlag(arg)
+	}
 
 	changeDir, st, err := loadChangeState(stderr, "dump", name)
 	if err != nil {

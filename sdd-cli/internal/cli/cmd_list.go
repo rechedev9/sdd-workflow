@@ -10,7 +10,10 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
-func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
+func runList(args []string, stdout io.Writer, stderr io.Writer) error {
+	for _, arg := range args {
+		return errUnknownFlag(arg)
+	}
 	cwd, err := getCWD(stderr, "list")
 	if err != nil {
 		return err
