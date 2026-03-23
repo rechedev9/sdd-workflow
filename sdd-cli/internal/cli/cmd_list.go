@@ -11,8 +11,8 @@ import (
 )
 
 func runList(args []string, stdout io.Writer, stderr io.Writer) error {
-	for _, arg := range args {
-		return errUnknownFlag(arg)
+	if len(args) > 0 {
+		return errUnknownFlag(args[0])
 	}
 	cwd, err := getCWD(stderr, "list")
 	if err != nil {
