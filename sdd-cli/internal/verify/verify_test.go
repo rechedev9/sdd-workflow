@@ -324,6 +324,32 @@ func TestArchive_RenameError(t *testing.T) {
 	}
 }
 
+func TestArchive_RenameFailsByReadOnlyArchiveDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changesDir := filepath.Join(root, "changes")
+	// Pre-create the archive dir as read-only so MkdirAll is a no-op
+	// but os.Rename into it fails (no write permission on the dir).
+	archiveDir := filepath.Join(changesDir, "archive")
+	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(archiveDir, 0o555); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(archiveDir, 0o755) })
+
+	changeDir := filepath.Join(changesDir, "my-change")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when archive dir is read-only")
+	}
+}
+
 func TestArchive_WithPendingDir(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
