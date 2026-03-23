@@ -384,6 +384,48 @@ func TestListPending_ReadDirError(t *testing.T) {
 	}
 }
 
+func TestWritePending_MkdirAllError(t *testing.T) {
+	t.Parallel()
+	// Create a file where .pending/ should be, so MkdirAll fails.
+	root := t.TempDir()
+	barrier := filepath.Join(root, ".pending")
+	os.WriteFile(barrier, []byte("block"), 0o644)
+
+	err := WritePending(root, state.PhaseExplore, []byte("data"))
+	if err == nil {
+		t.Fatal("expected error when .pending is a file, not a directory")
+	}
+}
+
+func TestPromote_WriteFileFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	WritePending(dir, state.PhaseExplore, []byte("# Exploration\n\n## Current State\nOK.\n\n## Relevant Files\n- a.go\n"))
+
+	// Make the change directory read-only so WriteFile fails.
+	os.Chmod(dir, 0o555)
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	_, err := Promote(dir, state.PhaseExplore, true)
+	if err == nil {
+		t.Fatal("expected error when destination directory is read-only")
+	}
+}
+
+func TestPromote_SpecMkdirAllFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	WritePending(dir, state.PhaseSpec, []byte("spec content"))
+
+	// Create a file named "specs" so MkdirAll fails.
+	os.WriteFile(filepath.Join(dir, "specs"), []byte("block"), 0o644)
+
+	_, err := Promote(dir, state.PhaseSpec, true)
+	if err == nil {
+		t.Fatal("expected error when specs/ cannot be created")
+	}
+}
+
 func TestPromoteAllPhases(t *testing.T) {
 	t.Parallel()
 	// Verify every phase with an artifact mapping can be promoted.
