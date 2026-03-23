@@ -334,3 +334,34 @@ func TestBroadcastIfChanged_SameHashSkips(t *testing.T) {
 	// (no clients are connected so no write occurs — just verifying no crash).
 	h.broadcastIfChanged(ctx, "test", "payload", &hash)
 }
+
+func TestBuildHeatmapFromChanges_EmptyPhasesMap(t *testing.T) {
+	t.Parallel()
+	// A state with an empty phases map (no keys) forces the fallback
+	// status = StatusPending inside buildHeatmapFromChanges.
+	st := &state.State{Name: "sparse", Phases: make(map[state.Phase]state.PhaseStatus)}
+	changes := []changeSnapshot{{dir: "/tmp/sparse", state: st}}
+	grid := buildHeatmapFromChanges(changes)
+	allPhases := state.AllPhases()
+	if len(grid) != len(allPhases) {
+		t.Errorf("grid rows = %d, want %d", len(grid), len(allPhases))
+	}
+	for _, row := range grid {
+		if row.Status != string(state.StatusPending) {
+			t.Errorf("phase %s: status = %q, want %q", row.Phase, row.Status, state.StatusPending)
+		}
+	}
+}
+
+func TestBuildKPIFromChanges_MetricsError(t *testing.T) {
+	t.Parallel()
+	// fakeMetrics with nil stats falls back to zero values — no panic, tokens=0.
+	h := newTestHub(t)
+	kpi := h.buildKPIFromChanges(context.Background(), nil)
+	if kpi.ActiveChanges != 0 {
+		t.Errorf("ActiveChanges = %d, want 0", kpi.ActiveChanges)
+	}
+	if kpi.TotalTokens != 0 {
+		t.Errorf("TotalTokens = %d, want 0", kpi.TotalTokens)
+	}
+}
