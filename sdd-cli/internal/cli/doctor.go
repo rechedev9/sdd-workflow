@@ -24,13 +24,13 @@ type CheckResult struct {
 func checkConfig(configPath string) (CheckResult, *config.Config) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		return CheckResult{Name: "config", Status: "fail", Message: err.Error()}, nil
+		return checkFail("config", err.Error()), nil
 	}
 	if cfg.Version != 0 && cfg.Version != config.ConfigVersion {
 		msg := fmt.Sprintf("config version %d, expected %d", cfg.Version, config.ConfigVersion)
-		return CheckResult{Name: "config", Status: "warn", Message: msg}, cfg
+		return checkWarn("config", msg), cfg
 	}
-	return CheckResult{Name: "config", Status: "pass", Message: fmt.Sprintf("config.yaml v%d loaded", cfg.Version)}, cfg
+	return checkPass("config", fmt.Sprintf("config.yaml v%d loaded", cfg.Version)), cfg
 }
 
 // eachChangeDir calls fn for each active change directory (skips non-dirs and "archive").
@@ -50,7 +50,7 @@ func eachChangeDir(changesDir string, fn func(changeDir string)) {
 
 func checkCache(changesDir string, cfg *config.Config) CheckResult {
 	if _, err := os.ReadDir(changesDir); err != nil {
-		return CheckResult{Name: "cache", Status: "warn", Message: "cannot read changes directory"}
+		return checkWarn("cache", "cannot read changes directory")
 	}
 	skillsPath := ""
 	if cfg != nil {
@@ -62,9 +62,9 @@ func checkCache(changesDir string, cfg *config.Config) CheckResult {
 		total += n
 	})
 	if total > 0 {
-		return CheckResult{Name: "cache", Status: "warn", Message: fmt.Sprintf("%d stale cache entry(s)", total)}
+		return checkWarn("cache", fmt.Sprintf("%d stale cache entry(s)", total))
 	}
-	return CheckResult{Name: "cache", Status: "pass", Message: "all cache entries current"}
+	return checkPass("cache", "all cache entries current")
 }
 
 func checkOrphanedPending(changesDir string) CheckResult {
@@ -87,20 +87,20 @@ func checkOrphanedPending(changesDir string) CheckResult {
 		}
 	})
 	if count > 0 {
-		return CheckResult{Name: "orphaned_pending", Status: "warn", Message: fmt.Sprintf("%d orphaned .pending file(s)", count)}
+		return checkWarn("orphaned_pending", fmt.Sprintf("%d orphaned .pending file(s)", count))
 	}
-	return CheckResult{Name: "orphaned_pending", Status: "pass"}
+	return checkPass("orphaned_pending", "")
 }
 
 func checkSkillsPath(cfg *config.Config) CheckResult {
 	if cfg == nil {
-		return CheckResult{Name: "skills_path", Status: "warn", Message: "skipped: config unavailable"}
+		return checkWarn("skills_path", "skipped: config unavailable")
 	}
 	if cfg.SkillsPath == "" {
-		return CheckResult{Name: "skills_path", Status: "warn", Message: "no skills_path configured — using embedded prompts"}
+		return checkWarn("skills_path", "no skills_path configured — using embedded prompts")
 	}
 	if _, err := os.Stat(cfg.SkillsPath); err != nil {
-		return CheckResult{Name: "skills_path", Status: "fail", Message: fmt.Sprintf("skills directory not found: %s", cfg.SkillsPath)}
+		return checkFail("skills_path", fmt.Sprintf("skills directory not found: %s", cfg.SkillsPath))
 	}
 	phases := state.AllPhases()
 	present := 0
@@ -112,14 +112,14 @@ func checkSkillsPath(cfg *config.Config) CheckResult {
 	}
 	msg := fmt.Sprintf("%d/%d SKILL.md files present", present, len(phases))
 	if present < len(phases) {
-		return CheckResult{Name: "skills_path", Status: "warn", Message: msg}
+		return checkWarn("skills_path", msg)
 	}
-	return CheckResult{Name: "skills_path", Status: "pass", Message: msg}
+	return checkPass("skills_path", msg)
 }
 
 func checkBuildTools(cfg *config.Config) CheckResult {
 	if cfg == nil {
-		return CheckResult{Name: "build_tools", Status: "warn", Message: "skipped: config unavailable"}
+		return checkWarn("build_tools", "skipped: config unavailable")
 	}
 	cmds := []string{cfg.Commands.Build, cfg.Commands.Test, cfg.Commands.Lint, cfg.Commands.Format}
 	missing := make([]string, 0, len(cmds))
@@ -139,38 +139,34 @@ func checkBuildTools(cfg *config.Config) CheckResult {
 		}
 	}
 	if len(missing) > 0 {
-		return CheckResult{Name: "build_tools", Status: "fail", Message: fmt.Sprintf("not in PATH: %s", strings.Join(missing, ", "))}
+		return checkFail("build_tools", fmt.Sprintf("not in PATH: %s", strings.Join(missing, ", ")))
 	}
-	return CheckResult{Name: "build_tools", Status: "pass", Message: "all build commands found"}
+	return checkPass("build_tools", "all build commands found")
 }
 
 func checkErrors(cwd string) CheckResult {
 	log := errlog.Load(cwd)
 	if len(log.Entries) == 0 {
-		return CheckResult{Name: "errors", Status: "pass", Message: "no recorded errors"}
+		return checkPass("errors", "no recorded errors")
 	}
 	recurring := log.RecurringFingerprints(3)
 	if len(recurring) > 0 {
-		return CheckResult{
-			Name:    "errors",
-			Status:  "warn",
-			Message: fmt.Sprintf("%d recurring error pattern(s); run 'sdd errors' for details", len(recurring)),
-		}
+		return checkWarn("errors", fmt.Sprintf("%d recurring error pattern(s); run 'sdd errors' for details", len(recurring)))
 	}
-	return CheckResult{
-		Name:    "errors",
-		Status:  "pass",
-		Message: fmt.Sprintf("%d error(s) recorded, no recurring patterns", len(log.Entries)),
-	}
+	return checkPass("errors", fmt.Sprintf("%d error(s) recorded, no recurring patterns", len(log.Entries)))
 }
 
 func checkPprof() CheckResult {
 	val := os.Getenv("SDD_PPROF")
 	if val == "" {
-		return CheckResult{Name: "pprof", Status: "pass", Message: "SDD_PPROF not set (no profiling)"}
+		return checkPass("pprof", "SDD_PPROF not set (no profiling)")
 	}
-	return CheckResult{Name: "pprof", Status: "pass", Message: fmt.Sprintf("SDD_PPROF=%s", val)}
+	return checkPass("pprof", fmt.Sprintf("SDD_PPROF=%s", val))
 }
+
+func checkPass(name, msg string) CheckResult { return CheckResult{Name: name, Status: "pass", Message: msg} }
+func checkWarn(name, msg string) CheckResult { return CheckResult{Name: name, Status: "warn", Message: msg} }
+func checkFail(name, msg string) CheckResult { return CheckResult{Name: name, Status: "fail", Message: msg} }
 
 func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 	jsonOut := false
