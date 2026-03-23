@@ -273,6 +273,37 @@ func TestLoadPipelineMetrics_VersionMismatch(t *testing.T) {
 	}
 }
 
+func TestPhaseCacheInputs_UnknownPhase(t *testing.T) {
+	t.Parallel()
+	// Unknown phase → nil inputs (ok=false branch).
+	inputs := phaseCacheInputs("nonexistent-phase-xyz")
+	if inputs != nil {
+		t.Errorf("expected nil inputs for unknown phase, got %v", inputs)
+	}
+}
+
+func TestPhaseCacheTTL_UnknownPhase(t *testing.T) {
+	t.Parallel()
+	// Unknown phase → zero TTL (ok=false branch).
+	ttl := phaseCacheTTL("nonexistent-phase-xyz")
+	if ttl != 0 {
+		t.Errorf("expected zero TTL for unknown phase, got %v", ttl)
+	}
+}
+
+func TestSaveContextCache_MkdirFails(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// Create a file where .cache/ should be, so MkdirAll fails.
+	barrier := filepath.Join(root, ".cache")
+	os.WriteFile(barrier, []byte("block"), 0o644)
+
+	err := saveContextCache(root, "explore", "", []byte("content"))
+	if err == nil {
+		t.Fatal("expected error when .cache is a file, not a directory")
+	}
+}
+
 func TestLoadPipelineMetrics_CorruptJSON(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
