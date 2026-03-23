@@ -311,7 +311,7 @@ func (h *Hub) buildKPIFromChanges(ctx context.Context, changes []changeSnapshot)
 
 // buildPipelinesFromChanges computes pipeline data using pre-loaded changes.
 func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSnapshot) []PipelineData {
-	tokenMap := make(map[string]int)
+	tokenMap := make(map[string]int, len(changes))
 	if ct, err := h.metrics.PhaseTokensByChange(ctx); err == nil {
 		for _, c := range ct {
 			tokenMap[c.Change] = c.Tokens

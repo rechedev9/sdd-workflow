@@ -83,7 +83,7 @@ func Record(cwd string, entry ErrorEntry) {
 
 // RecurringFingerprints returns fingerprints seen >= threshold times with their counts.
 func (l *ErrorLog) RecurringFingerprints(threshold int) map[string]int {
-	counts := make(map[string]int)
+	counts := make(map[string]int, len(l.Entries))
 	for _, e := range l.Entries {
 		counts[e.Fingerprint]++
 	}

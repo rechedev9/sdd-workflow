@@ -37,7 +37,7 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 			LastSeen    string   `json:"last_seen"`
 			ErrorLines  []string `json:"error_lines"`
 		}
-		groups := make(map[string]*errorGroup)
+		groups := make(map[string]*errorGroup, len(log.Entries))
 		for _, e := range log.Entries {
 			g, ok := groups[e.Fingerprint]
 			if !ok {

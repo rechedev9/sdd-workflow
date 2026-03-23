@@ -202,7 +202,7 @@ func checkRecurringFailures(cwd, changeName string) map[string]int {
 		}
 	}
 
-	matches := make(map[string]int)
+	matches := make(map[string]int, len(changeFingerprints))
 	for _, fp := range changeFingerprints {
 		if count, ok := recurring[fp]; ok {
 			matches[fp] = count
