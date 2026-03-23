@@ -95,8 +95,9 @@ func (s *State) nextReady() Phase {
 // Unlike nextReady (which returns the first), this returns all — enabling
 // parallel assembly of spec+design when both are ready after propose.
 func (s *State) ReadyPhases() []Phase {
-	var ready []Phase
-	for _, desc := range phase.DefaultRegistry.All() {
+	all := phase.DefaultRegistry.All()
+	ready := make([]Phase, 0, len(all))
+	for _, desc := range all {
 		p := Phase(desc.Name)
 		if s.Phases[p] != StatusPending {
 			continue

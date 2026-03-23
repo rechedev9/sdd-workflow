@@ -179,7 +179,7 @@ func loadManifestContents(projectDir string, manifests []string) string {
 // extractCompletedTasks returns a summary of completed task sections.
 func extractCompletedTasks(tasks string) string {
 	lines := strings.Split(tasks, "\n")
-	var completed []string
+	completed := make([]string, 0, len(lines)/2)
 	var currentSection string
 
 	for _, line := range lines {

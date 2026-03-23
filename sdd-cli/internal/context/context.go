@@ -177,7 +177,7 @@ func AssembleConcurrent(w io.Writer, phases []state.Phase, p *Params) error {
 
 	// Write successes in order, collect errors.
 	// Partial output is intentional — better than nothing for the sub-agent.
-	var errs []string
+	errs := make([]string, 0, len(results))
 	for i, r := range results {
 		if r.err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", phases[i], r.err))

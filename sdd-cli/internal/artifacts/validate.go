@@ -61,7 +61,7 @@ func Validate(phase state.Phase, content []byte) error {
 		return nil
 	}
 
-	var missing []string
+	missing := make([]string, 0, len(rules))
 	for _, r := range rules {
 		if !r.check(content) {
 			missing = append(missing, r.name)
