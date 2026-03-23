@@ -1,6 +1,7 @@
 package state
 
 import (
+	"sync"
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
@@ -74,12 +75,21 @@ func (s *State) StaleHours() int {
 	return int(time.Since(s.UpdatedAt).Hours())
 }
 
+var (
+	allPhasesOnce   sync.Once
+	allPhasesCache  []Phase
+)
+
 // AllPhases returns the ordered pipeline phases from the registry.
+// The result is cached after the first call — safe because the registry
+// is sealed (immutable) once any name is read from it.
 func AllPhases() []Phase {
-	all := phase.DefaultRegistry.AllNames()
-	result := make([]Phase, len(all))
-	for i, n := range all {
-		result[i] = Phase(n)
-	}
-	return result
+	allPhasesOnce.Do(func() {
+		all := phase.DefaultRegistry.AllNames()
+		allPhasesCache = make([]Phase, len(all))
+		for i, n := range all {
+			allPhasesCache[i] = Phase(n)
+		}
+	})
+	return allPhasesCache
 }

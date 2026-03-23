@@ -54,18 +54,16 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 	pm := sddctx.LoadPipelineMetrics(changeDir)
 
 	// Read cache hash files.
-	cacheKeys := make(map[string]string)
 	cacheDir := filepath.Join(changeDir, ".cache")
-	hashFiles, err := filepath.Glob(filepath.Join(cacheDir, "*.hash"))
-	if err == nil {
-		for _, hf := range hashFiles {
-			base := strings.TrimSuffix(filepath.Base(hf), ".hash")
-			raw, err := os.ReadFile(hf)
-			if err != nil {
-				continue
-			}
-			cacheKeys[base] = string(bytes.TrimSpace(raw))
+	hashFiles, _ := filepath.Glob(filepath.Join(cacheDir, "*.hash"))
+	cacheKeys := make(map[string]string, len(hashFiles))
+	for _, hf := range hashFiles {
+		base := strings.TrimSuffix(filepath.Base(hf), ".hash")
+		raw, err := os.ReadFile(hf)
+		if err != nil {
+			continue
 		}
+		cacheKeys[base] = string(bytes.TrimSpace(raw))
 	}
 
 	out := struct {
