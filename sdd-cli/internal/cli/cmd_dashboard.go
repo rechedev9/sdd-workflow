@@ -17,10 +17,14 @@ import (
 
 func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 	port := "8811"
-	for i, arg := range args {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch {
 		case (arg == "--port" || arg == "-p") && i+1 < len(args):
 			port = args[i+1]
+			i++ // skip port value
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 
