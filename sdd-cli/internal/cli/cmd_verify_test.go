@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 )
 
 // repoRoot is the git repo root — used as cwd for shouldSkipVerify so that
@@ -113,5 +115,33 @@ func TestShouldSkipVerify_GitError(t *testing.T) {
 	skip := shouldSkipVerify(t.TempDir(), changeDir)
 	if skip {
 		t.Error("expected skip=false when git error occurs")
+	}
+}
+
+// TestCheckRecurringFailures_NoMatchForChange verifies that recurring fingerprints
+// from a different change do not block the target change.
+func TestCheckRecurringFailures_NoMatchForChange(t *testing.T) {
+	t.Parallel()
+	cwd := t.TempDir()
+
+	// Plant 3 recurring failures for "other-change", not for "my-change".
+	fp := errlog.Fingerprint("go build ./...", []string{"some error"})
+	entry := errlog.ErrorEntry{
+		Timestamp:   "2026-01-01T00:00:00Z",
+		Change:      "other-change",
+		CommandName: "build",
+		Command:     "go build ./...",
+		ExitCode:    1,
+		ErrorLines:  []string{"some error"},
+		Fingerprint: fp,
+	}
+	for i := 0; i < 3; i++ {
+		errlog.Record(cwd, entry)
+	}
+
+	// "my-change" has no failures → no match → should return nil.
+	matches := checkRecurringFailures(cwd, "my-change")
+	if matches != nil {
+		t.Errorf("checkRecurringFailures = %v, want nil (no failures for my-change)", matches)
 	}
 }
