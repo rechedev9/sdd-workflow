@@ -81,10 +81,13 @@ func extractCurrentTask(tasks string) string {
 		return tasks
 	}
 
-	// Walk back to find the section header.
+	// Walk back to find the section header (## or # level only).
+	// Stops at ## or # to avoid splitting a section at a sub-header (###).
 	start := firstIncomplete
 	for j := firstIncomplete - 1; j >= 0; j-- {
-		if strings.HasPrefix(lines[j], "#") {
+		h := strings.TrimSpace(lines[j])
+		if strings.HasPrefix(h, "## ") || h == "##" ||
+			strings.HasPrefix(h, "# ") || h == "#" {
 			start = j
 			break
 		}
