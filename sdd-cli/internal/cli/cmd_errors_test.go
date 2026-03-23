@@ -207,6 +207,55 @@ func TestRunErrors_JSONNilErrorLines(t *testing.T) {
 	}
 }
 
+func TestRunErrors_JSONMultipleGroups(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Two distinct fingerprints trigger the sort comparison closure.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	fp1 := errlog.Fingerprint("go build", []string{"err1"})
+	fp2 := errlog.Fingerprint("go test", []string{"err2"})
+	// fp1 gets 2 entries, fp2 gets 1 — sort should put fp1 first.
+	for i := 0; i < 2; i++ {
+		errlog.Record(dir, errlog.ErrorEntry{
+			Change: "feat-a", CommandName: "build",
+			Command: "go build", ExitCode: 1,
+			ErrorLines: []string{"err1"}, Fingerprint: fp1,
+		})
+	}
+	errlog.Record(dir, errlog.ErrorEntry{
+		Change: "feat-b", CommandName: "test",
+		Command: "go test", ExitCode: 1,
+		ErrorLines: []string{"err2"}, Fingerprint: fp2,
+	})
+
+	var stdout, stderr bytes.Buffer
+	if err := runErrors([]string{"--json"}, &stdout, &stderr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var out struct {
+		Total  int `json:"total"`
+		Groups []struct {
+			Count int `json:"count"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout.String())
+	}
+	if out.Total != 3 {
+		t.Errorf("total = %d, want 3", out.Total)
+	}
+	if len(out.Groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(out.Groups))
+	}
+	// Sorted by count descending: fp1 (2) before fp2 (1).
+	if out.Groups[0].Count != 2 {
+		t.Errorf("groups[0].count = %d, want 2 (highest count first)", out.Groups[0].Count)
+	}
+}
+
 func TestRunErrors_JSONWithEntries(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()
