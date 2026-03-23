@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 )
@@ -206,6 +207,17 @@ type contextMetrics struct {
 	Tokens     int
 	Cached     bool
 	DurationMs int64
+}
+
+// metricsFromPayload converts a PhaseAssembledPayload to contextMetrics.
+func metricsFromPayload(p events.PhaseAssembledPayload) *contextMetrics {
+	return &contextMetrics{
+		Phase:      p.Phase,
+		Bytes:      p.Bytes,
+		Tokens:     p.Tokens,
+		Cached:     p.Cached,
+		DurationMs: p.DurationMs,
+	}
 }
 
 // writeMetrics logs context metrics via slog.

@@ -23,29 +23,8 @@ func RegisterSubscribers(broker *events.Broker, stderr io.Writer, verbosity int)
 		if !ok {
 			return
 		}
-		m := &contextMetrics{
-			Phase:      p.Phase,
-			Bytes:      p.Bytes,
-			Tokens:     p.Tokens,
-			Cached:     p.Cached,
-			DurationMs: p.DurationMs,
-		}
+		m := metricsFromPayload(p)
 		recordMetrics(p.ChangeDir, m)
-	})
-
-	// Stderr output — prints metrics line.
-	broker.Subscribe(events.PhaseAssembled, func(e events.Event) {
-		p, ok := e.Payload.(events.PhaseAssembledPayload)
-		if !ok || stderr == nil {
-			return
-		}
-		m := &contextMetrics{
-			Phase:      p.Phase,
-			Bytes:      p.Bytes,
-			Tokens:     p.Tokens,
-			Cached:     p.Cached,
-			DurationMs: p.DurationMs,
-		}
 		writeMetrics(stderr, m, verbosity)
 	})
 
