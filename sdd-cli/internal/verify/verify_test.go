@@ -272,6 +272,24 @@ func TestWriteReport_TimedOut(t *testing.T) {
 	}
 }
 
+func TestArchive_MkdirFails(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// Create changeDir inside "changes/"; put a file at "changes/archive" so MkdirAll fails.
+	changesDir := filepath.Join(root, "changes")
+	if err := os.MkdirAll(changesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Block archive directory creation by placing a file there.
+	os.WriteFile(filepath.Join(changesDir, "archive"), []byte("block"), 0o644)
+	changeDir := filepath.Join(changesDir, "my-change")
+	os.MkdirAll(changeDir, 0o755)
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when archive directory cannot be created")
+	}
+}
+
 func TestArchive_RenameError(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
