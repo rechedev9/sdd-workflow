@@ -39,6 +39,18 @@ func TestRunArchive_ChangeNotFound(t *testing.T) {
 	}
 }
 
+func TestRunArchive_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runArchive([]string{"some-change", "--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunArchive_ForceFlag(t *testing.T) {
 	t.Parallel()
 	// --force with a nonexistent change still fails at resolveChangeDir,
