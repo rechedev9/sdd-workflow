@@ -39,6 +39,10 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 	}
 
+	// Compute staleness once — both IsStale and StaleHours call time.Since.
+	staleHours := st.StaleHours()
+	isStale := !st.IsComplete() && staleHours > int(staleThreshold.Hours())
+
 	out := struct {
 		Command      string      `json:"command"`
 		Status       string      `json:"status"`
@@ -61,8 +65,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Phases:       phases,
 		IsComplete:   st.IsComplete(),
 		UpdatedAt:    st.UpdatedAt.UTC().Format(time.RFC3339),
-		Stale:        st.IsStale(staleThreshold),
-		StaleHours:   st.StaleHours(),
+		Stale:        isStale,
+		StaleHours:   staleHours,
 	}
 
 	writeJSON(stdout, out)
