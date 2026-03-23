@@ -646,3 +646,43 @@ func TestRegisterSubscribers_VerifyFailed(t *testing.T) {
 		t.Error("expected at least one row after VerifyFailed event")
 	}
 }
+
+func TestRegisterSubscribers_WrongPayloadPhaseAssembled(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	// Emit PhaseAssembled with wrong payload type — subscriber must not panic.
+	b.Emit(events.Event{Type: events.PhaseAssembled, Payload: "wrong"})
+
+	// No rows should be inserted.
+	ctx := context.Background()
+	rows, err := s.PhaseTokensByChange(ctx)
+	if err != nil {
+		t.Fatalf("PhaseTokensByChange: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("expected 0 rows for wrong payload, got %d", len(rows))
+	}
+}
+
+func TestRegisterSubscribers_WrongPayloadVerifyFailed(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	// Emit VerifyFailed with wrong payload type — subscriber must not panic.
+	b.Emit(events.Event{Type: events.VerifyFailed, Payload: 42})
+
+	// No rows should be inserted.
+	ctx := context.Background()
+	errs, err := s.RecentErrors(ctx, 10)
+	if err != nil {
+		t.Fatalf("RecentErrors: %v", err)
+	}
+	if len(errs) != 0 {
+		t.Errorf("expected 0 errors for wrong payload, got %d", len(errs))
+	}
+}
