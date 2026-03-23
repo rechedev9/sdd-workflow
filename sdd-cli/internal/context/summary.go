@@ -33,10 +33,6 @@ func buildSummary(changeDir string, p *Params) string {
 	sections = appendArtifactSection(sections, changeDir, "design.md", "Design", extractDecisions)
 	sections = appendArtifactSection(sections, changeDir, "review-report.md", "Review", func(s string) string { return extractFirst(s, "Verdict", 1) })
 
-	if len(sections) == 0 {
-		return ""
-	}
-
 	return strings.Join(sections, "\n")
 }
 
