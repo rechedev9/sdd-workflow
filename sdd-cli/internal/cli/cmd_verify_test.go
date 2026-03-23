@@ -56,10 +56,7 @@ func TestShouldSkipVerify_NoReport(t *testing.T) {
 	t.Parallel()
 	changeDir := t.TempDir()
 	// No verify-report.md → cannot skip.
-	skip, err := shouldSkipVerify(repoRoot, changeDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	skip := shouldSkipVerify(repoRoot, changeDir)
 	if skip {
 		t.Error("expected skip=false when no report exists")
 	}
@@ -73,10 +70,7 @@ func TestShouldSkipVerify_FailedReport(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	skip, err := shouldSkipVerify(repoRoot, changeDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	skip := shouldSkipVerify(repoRoot, changeDir)
 	if skip {
 		t.Error("expected skip=false for failed report")
 	}
@@ -91,12 +85,8 @@ func TestShouldSkipVerify_PassedReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	// shouldSkipVerify runs git diff HEAD from repoRoot.
-	// If there are staged/unstaged changes the result may be false,
-	// but the function itself should not return an error.
-	_, err := shouldSkipVerify(repoRoot, changeDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	// Result may be true or false depending on working tree state.
+	_ = shouldSkipVerify(repoRoot, changeDir)
 }
 
 func TestShouldSkipVerify_GitError(t *testing.T) {
@@ -107,11 +97,8 @@ func TestShouldSkipVerify_GitError(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Use a non-git dir as cwd → gitDiffFiles fails → shouldSkipVerify returns (false, nil).
-	skip, err := shouldSkipVerify(t.TempDir(), changeDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	// Use a non-git dir as cwd → gitDiffFiles fails → shouldSkipVerify returns false.
+	skip := shouldSkipVerify(t.TempDir(), changeDir)
 	if skip {
 		t.Error("expected skip=false when git error occurs")
 	}

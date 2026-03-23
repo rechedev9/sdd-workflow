@@ -48,7 +48,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Smart-skip: reuse last verify if no source files changed.
-	if skip, _ := shouldSkipVerify(cwd, changeDir); skip {
+	if shouldSkipVerify(cwd, changeDir) {
 		slog.Info("verify skipped", "reason", "no source changes since last PASS")
 
 		// Record smart-skip as passing results for dashboard charts.

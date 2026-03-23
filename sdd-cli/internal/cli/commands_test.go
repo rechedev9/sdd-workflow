@@ -223,9 +223,7 @@ func TestShouldSkipVerify_ReturnTrue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Init a minimal git repo so gitDiffFiles returns an empty list (no commits → HEAD
-	// doesn't exist, so git diff fails → shouldSkipVerify returns false, nil).
-	// Instead, use a git repo that has HEAD: create an empty commit.
+	// Use a git repo that has HEAD: create an empty commit so gitDiffFiles succeeds.
 	gitDir := t.TempDir()
 	for _, args := range [][]string{
 		{"init", gitDir},
@@ -240,10 +238,7 @@ func TestShouldSkipVerify_ReturnTrue(t *testing.T) {
 	}
 
 	// No changed files in a clean repo → gitDiffFiles returns nil → skip=true.
-	skip, err := shouldSkipVerify(gitDir, changeDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	skip := shouldSkipVerify(gitDir, changeDir)
 	if !skip {
 		t.Error("expected skip=true: PASSED report + no source changes")
 	}

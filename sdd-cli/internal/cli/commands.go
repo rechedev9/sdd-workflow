@@ -193,32 +193,32 @@ func gitDiffFiles(dir, ref string) ([]string, error) {
 // shouldSkipVerify returns true if verify can be skipped because:
 // 1. verify-report.md exists and contains PASSED
 // 2. No source files (excluding openspec/) changed since HEAD
-// Returns (false, nil) on any error — never skips when unsure.
-func shouldSkipVerify(cwd, changeDir string) (bool, error) {
+// Returns false on any error — never skips when unsure.
+func shouldSkipVerify(cwd, changeDir string) bool {
 	// Check existing report is PASSED.
 	reportPath := filepath.Join(changeDir, "verify-report.md")
 	data, err := os.ReadFile(reportPath)
 	if err != nil {
-		return false, nil // no report → can't skip
+		return false // no report → can't skip
 	}
 	if !bytes.Contains(data, []byte("**Status:** PASSED")) {
-		return false, nil // last run failed → must re-verify
+		return false // last run failed → must re-verify
 	}
 
 	// Check for source file changes.
 	files, err := gitDiffFiles(cwd, "HEAD")
 	if err != nil {
-		return false, nil // git error → don't skip
+		return false // git error → don't skip
 	}
 
 	// Filter out openspec/ files — those aren't source code.
 	for _, f := range files {
 		if !strings.HasPrefix(f, "openspec/") {
-			return false, nil // source file changed → must verify
+			return false // source file changed → must verify
 		}
 	}
 
-	return true, nil // no source changes + last verify passed → skip
+	return true // no source changes + last verify passed → skip
 }
 
 // writeJSON marshals v as indented JSON and writes it to w followed by a newline.
