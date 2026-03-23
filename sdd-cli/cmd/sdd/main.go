@@ -75,6 +75,12 @@ func main() {
 	stopProfile := startProfile(os.Getenv("SDD_PPROF"))
 	defer stopProfile()
 
+	os.Exit(run())
+}
+
+// run executes the CLI and returns an exit code. Separated from main so that
+// deferred cleanup (log flush, profiler stop) in main runs before os.Exit.
+func run() (code int) {
 	defer func() {
 		if r := recover(); r != nil {
 			ts := time.Now()
@@ -90,11 +96,12 @@ func main() {
 			} else {
 				slog.Error("panic recovered", "crash_log", name)
 			}
-			os.Exit(3)
+			code = 3
 		}
 	}()
 
 	if err := cli.Run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		os.Exit(cli.ExitCode(err))
+		return cli.ExitCode(err)
 	}
+	return 0
 }

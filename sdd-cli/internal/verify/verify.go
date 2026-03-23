@@ -94,11 +94,12 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 		report.Results = append(report.Results, result)
 
 		if progress != nil {
-			if result.Passed {
+			switch {
+			case result.Passed:
 				slog.Info("verify passed", "command", spec.Name, "duration", result.Duration.Round(time.Millisecond))
-			} else if result.TimedOut {
+			case result.TimedOut:
 				slog.Error("verify timeout", "command", spec.Name, "timeout", timeout)
-			} else {
+			default:
 				slog.Error("verify failed", "command", spec.Name, "exit_code", result.ExitCode)
 			}
 		}
