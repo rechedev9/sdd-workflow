@@ -162,9 +162,11 @@ func loadManifestContents(projectDir string, manifests []string) string {
 			continue
 		}
 		// Cap at 2KB per manifest to keep context lean.
-		content := string(data)
-		if len(content) > 2048 {
-			content = content[:2048] + "\n... (truncated)"
+		var content string
+		if len(data) > 2048 {
+			content = string(data[:2048]) + "\n... (truncated)"
+		} else {
+			content = string(data)
 		}
 		parts = append(parts, fmt.Sprintf("### %s\n\n```\n%s\n```", m, content))
 	}
