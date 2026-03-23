@@ -39,6 +39,32 @@ func TestRunDiff_ChangeNotFound(t *testing.T) {
 	}
 }
 
+func TestRunDiff_GitError(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	// Create a change with a BaseRef so we get past the empty-check.
+	changeDir := filepath.Join(dir, "openspec", "changes", "feat-giterr")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	st := state.NewState("feat-giterr", "test change")
+	st.BaseRef = "abc1234" // non-empty so we proceed to gitDiffFiles
+	if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	// dir is not a git repo → gitDiffFiles returns an error.
+	var stdout, stderr bytes.Buffer
+	err := runDiff([]string{"feat-giterr"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when git diff fails")
+	}
+}
+
 func TestRunDiff_NoBaseRef(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()

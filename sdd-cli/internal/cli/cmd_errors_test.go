@@ -90,6 +90,87 @@ func TestRunErrors_TextWithEntries(t *testing.T) {
 	}
 }
 
+func TestRunErrors_JSONDedupeTimestamp(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	fp := errlog.Fingerprint("go test", []string{"FAIL"})
+	// First entry — older timestamp.
+	errlog.Record(dir, errlog.ErrorEntry{
+		Change: "old", CommandName: "test",
+		Command: "go test", ExitCode: 1,
+		Timestamp:   "2026-01-01T00:00:00Z",
+		ErrorLines:  []string{"FAIL old"},
+		Fingerprint: fp,
+	})
+	// Second entry — same fingerprint, newer timestamp → should update LastSeen.
+	errlog.Record(dir, errlog.ErrorEntry{
+		Change: "new", CommandName: "test",
+		Command: "go test", ExitCode: 1,
+		Timestamp:   "2026-06-01T00:00:00Z",
+		ErrorLines:  []string{"FAIL new"},
+		Fingerprint: fp,
+	})
+
+	var stdout, stderr bytes.Buffer
+	if err := runErrors([]string{"--json"}, &stdout, &stderr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var out struct {
+		Total  int `json:"total"`
+		Groups []struct {
+			Count    int    `json:"count"`
+			LastSeen string `json:"last_seen"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout.String())
+	}
+	if out.Total != 2 {
+		t.Errorf("total = %d, want 2", out.Total)
+	}
+	if len(out.Groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (deduped)", len(out.Groups))
+	}
+	if out.Groups[0].Count != 2 {
+		t.Errorf("count = %d, want 2", out.Groups[0].Count)
+	}
+	if out.Groups[0].LastSeen != "2026-06-01T00:00:00Z" {
+		t.Errorf("last_seen = %q, want newer timestamp", out.Groups[0].LastSeen)
+	}
+}
+
+func TestRunErrors_TextMoreThanTen(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	// Record 12 entries to trigger the start = len-10 path.
+	for i := 0; i < 12; i++ {
+		fp := errlog.Fingerprint("go build", []string{"err"})
+		errlog.Record(dir, errlog.ErrorEntry{
+			Change: "feat-z", CommandName: "build",
+			Command: "go build", ExitCode: 1,
+			ErrorLines:  []string{"err"},
+			Fingerprint: fp,
+		})
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := runErrors(nil, &stdout, &stderr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "entries") {
+		t.Errorf("expected 'entries' in output, got %q", got)
+	}
+}
+
 func TestRunErrors_JSONWithEntries(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()
