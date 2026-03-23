@@ -423,20 +423,12 @@ func (h *Hub) buildErrors(ctx context.Context) []ErrorData {
 
 	data := make([]ErrorData, 0, len(rows))
 	for _, r := range rows {
-		fp := r.Fingerprint
-		if len(fp) > 8 {
-			fp = fp[:8]
-		}
-		ts := r.Timestamp
-		if len(ts) > 19 {
-			ts = ts[:19]
-		}
 		data = append(data, ErrorData{
-			Timestamp:   ts,
+			Timestamp:   r.Timestamp[:min(len(r.Timestamp), 19)],
 			CommandName: r.CommandName,
 			ExitCode:    r.ExitCode,
 			Change:      r.Change,
-			Fingerprint: fp,
+			Fingerprint: r.Fingerprint[:min(len(r.Fingerprint), 8)],
 			FirstLine:   r.FirstLine,
 		})
 	}
