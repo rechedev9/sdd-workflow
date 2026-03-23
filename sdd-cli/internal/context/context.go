@@ -169,12 +169,12 @@ func AssembleConcurrent(w io.Writer, phases []state.Phase, p *Params) error {
 
 	for i, phase := range phases {
 		wg.Add(1)
-		go func(idx int, ph state.Phase) {
+		go func() {
 			defer wg.Done()
 			var buf bytes.Buffer
-			err := Assemble(&buf, ph, p)
-			results[idx] = result{data: buf.Bytes(), err: err}
-		}(i, phase)
+			err := Assemble(&buf, phase, p)
+			results[i] = result{data: buf.Bytes(), err: err}
+		}()
 	}
 
 	wg.Wait()
