@@ -24,7 +24,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		Stale        bool   `json:"stale,omitempty"`
 	}
 
-	var changes []changeInfo
+	changes := make([]changeInfo, 0)
 
 	changesDir := filepath.Join(cwd, "openspec", "changes")
 	entries, err := os.ReadDir(changesDir)
