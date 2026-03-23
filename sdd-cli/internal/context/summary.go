@@ -25,8 +25,8 @@ func appendArtifactSection(sections []string, changeDir, filename, label string,
 func buildSummary(changeDir string, p *Params) string {
 	sections := make([]string, 0, 6)
 
-	sections = append(sections, fmt.Sprintf("Change: %s — %s", p.ChangeName, p.Description))
-	sections = append(sections, fmt.Sprintf("Stack: %s (%s)", p.Config.Stack.Language, p.Config.Stack.BuildTool))
+	sections = append(sections, "Change: "+p.ChangeName+" — "+p.Description)
+	sections = append(sections, "Stack: "+p.Config.Stack.Language+" ("+p.Config.Stack.BuildTool+")")
 
 	// Extract key lines from each artifact if it exists.
 	sections = appendArtifactSection(sections, changeDir, "exploration.md", "Exploration", func(s string) string { return extractFirst(s, "##", 3) })
