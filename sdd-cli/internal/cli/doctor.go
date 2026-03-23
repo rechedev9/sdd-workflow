@@ -216,16 +216,16 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		printDoctorTable(stdout, checks)
 	}
 
+	if aggregateStatus(checks) != "fail" {
+		return nil
+	}
 	failCount := 0
 	for _, c := range checks {
 		if c.Status == "fail" {
 			failCount++
 		}
 	}
-	if failCount > 0 {
-		return fmt.Errorf("doctor: %d check(s) failed", failCount)
-	}
-	return nil
+	return fmt.Errorf("doctor: %d check(s) failed", failCount)
 }
 
 func aggregateStatus(checks []CheckResult) string {
