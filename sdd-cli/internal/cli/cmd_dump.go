@@ -49,6 +49,9 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return errs.WriteError(stderr, "dump", fmt.Errorf("list pending: %w", err))
 	}
+	if pending == nil {
+		pending = []artifacts.ArtifactInfo{}
+	}
 
 	// Load pipeline metrics.
 	pm := sddctx.LoadPipelineMetrics(changeDir)
@@ -68,6 +71,7 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	out := struct {
 		Command   string                   `json:"command"`
+		Status    string                   `json:"status"`
 		Change    string                   `json:"change"`
 		State     *state.State             `json:"state"`
 		Config    *config.Config           `json:"config"`
@@ -77,6 +81,7 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheKeys map[string]string        `json:"cache_keys"`
 	}{
 		Command:   "dump",
+		Status:    "success",
 		Change:    name,
 		State:     st,
 		Config:    cfg,
