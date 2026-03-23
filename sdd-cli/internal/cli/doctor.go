@@ -35,21 +35,6 @@ func checkConfig(configPath string) (CheckResult, *config.Config) {
 	return checkPass("config", fmt.Sprintf("config.yaml v%d loaded", cfg.Version)), cfg
 }
 
-// eachChangeDir calls fn for each active change directory (skips non-dirs and "archive").
-// Silently returns if changesDir cannot be read.
-func eachChangeDir(changesDir string, fn func(changeDir string)) {
-	entries, err := os.ReadDir(changesDir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "archive" {
-			continue
-		}
-		fn(filepath.Join(changesDir, e.Name()))
-	}
-}
-
 func checkCache(changesDir string, cfg *config.Config) CheckResult {
 	if _, err := os.ReadDir(changesDir); err != nil {
 		return checkWarn("cache", "cannot read changes directory")

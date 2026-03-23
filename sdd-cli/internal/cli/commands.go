@@ -235,3 +235,18 @@ func writeJSON(w io.Writer, v any) {
 func errUnknownFlag(flag string) error {
 	return errs.Usage("unknown flag: " + flag)
 }
+
+// eachChangeDir calls fn for each active change directory (skips non-dirs and "archive").
+// Silently returns if changesDir cannot be read.
+func eachChangeDir(changesDir string, fn func(changeDir string)) {
+	entries, err := os.ReadDir(changesDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == "archive" {
+			continue
+		}
+		fn(filepath.Join(changesDir, e.Name()))
+	}
+}
