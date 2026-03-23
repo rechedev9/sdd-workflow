@@ -146,6 +146,18 @@ func TestRunDump_CacheHashWithPipe(t *testing.T) {
 	}
 }
 
+func TestRunDump_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDump([]string{"some-change", "--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunDump_NoConfig(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	root := setupChange(t, "dump-nocfg", "no config")
