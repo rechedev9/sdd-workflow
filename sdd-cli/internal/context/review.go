@@ -16,10 +16,7 @@ import (
 func AssembleReview(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
 		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-review") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
+		loadSpecsLoader(p.ChangeDir),
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
 		func() ([]byte, error) {

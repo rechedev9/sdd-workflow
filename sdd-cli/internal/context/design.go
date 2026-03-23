@@ -16,10 +16,7 @@ func AssembleDesign(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
 		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-design") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
+		loadSpecsLoader(p.ChangeDir),
 		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
 	}
 
@@ -55,6 +52,15 @@ func AssembleDesign(w io.Writer, p *Params) error {
 	writeSection(w, "SPECIFICATIONS", specs)
 
 	return nil
+}
+
+// loadSpecsLoader returns a loader closure that reads spec files as bytes.
+// Used by assemblers that register loadSpecs as a lazy-load task.
+func loadSpecsLoader(changeDir string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		s, err := loadSpecs(changeDir)
+		return []byte(s), err
+	}
 }
 
 // loadSpecs reads all .md files from the specs/ directory, concatenated.
