@@ -236,22 +236,18 @@ func loadArtifact(changeDir, filename string) ([]byte, error) {
 	return data, nil
 }
 
-// writeSection writes a labeled section to the output.
-func writeSection(w io.Writer, label string, content []byte) {
-	io.WriteString(w, "\n--- ")      //nolint:errcheck
-	io.WriteString(w, label)         //nolint:errcheck
-	io.WriteString(w, " ---\n\n")    //nolint:errcheck
-	w.Write(content)                 //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
-	io.WriteString(w, "\n")          //nolint:errcheck
-}
-
 // writeSectionStr writes a labeled section with string content.
 func writeSectionStr(w io.Writer, label, content string) {
-	io.WriteString(w, "\n--- ")      //nolint:errcheck
-	io.WriteString(w, label)         //nolint:errcheck
-	io.WriteString(w, " ---\n\n")    //nolint:errcheck
-	io.WriteString(w, content)       //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
-	io.WriteString(w, "\n")          //nolint:errcheck
+	io.WriteString(w, "\n--- ")   //nolint:errcheck
+	io.WriteString(w, label)      //nolint:errcheck
+	io.WriteString(w, " ---\n\n") //nolint:errcheck
+	io.WriteString(w, content)    //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
+	io.WriteString(w, "\n")       //nolint:errcheck
+}
+
+// writeSection writes a labeled section to the output.
+func writeSection(w io.Writer, label string, content []byte) {
+	writeSectionStr(w, label, string(content))
 }
 
 // writeChangeSection writes the CHANGE section (Name + Description).
