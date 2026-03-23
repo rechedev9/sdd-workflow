@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
@@ -41,10 +40,9 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Load config for commands.
-	configPath := openspecConfig(cwd)
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(stderr, "verify", cwd)
 	if err != nil {
-		return errs.WriteError(stderr, "verify", fmt.Errorf("load config: %w", err))
+		return err
 	}
 
 	// Smart-skip: reuse last verify if no source files changed.

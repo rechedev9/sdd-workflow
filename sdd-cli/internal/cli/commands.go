@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -119,6 +120,17 @@ func openspecConfig(cwd string) string {
 // openspecChanges returns the path to openspec/changes in the project root.
 func openspecChanges(cwd string) string {
 	return filepath.Join(cwd, "openspec", "changes")
+}
+
+// loadConfig reads openspec/config.yaml from cwd.
+// On error it writes to stderr and returns a wrapped error ready for return.
+// Used by commands that need the project config after resolving cwd.
+func loadConfig(stderr io.Writer, cmd, cwd string) (*config.Config, error) {
+	cfg, err := config.Load(openspecConfig(cwd))
+	if err != nil {
+		return nil, errs.WriteError(stderr, cmd, fmt.Errorf("load config: %w", err))
+	}
+	return cfg, nil
 }
 
 // loadChangeState resolves the change directory for name and loads state.json.
