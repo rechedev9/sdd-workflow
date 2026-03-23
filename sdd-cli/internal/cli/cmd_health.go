@@ -1,12 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
@@ -51,7 +51,7 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	// Check if last verify failed.
 	reportPath := filepath.Join(changeDir, "verify-report.md")
 	if data, err := os.ReadFile(reportPath); err == nil {
-		if strings.Contains(string(data), "**Status:** FAILED") {
+		if bytes.Contains(data, []byte("**Status:** FAILED")) {
 			warnings = append(warnings, "last verify FAILED")
 		}
 	}

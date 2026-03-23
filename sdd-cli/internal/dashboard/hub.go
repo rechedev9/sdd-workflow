@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -8,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -397,7 +397,7 @@ func (h *Hub) cachedVerifyStatus(changeDir string) string {
 	status := "ok"
 	bufp := verifyBufPool.Get().(*[]byte)
 	n, _ := f.Read(*bufp)
-	if n > 0 && strings.Contains(string((*bufp)[:n]), "**Status:** FAILED") {
+	if n > 0 && bytes.Contains((*bufp)[:n], []byte("**Status:** FAILED")) {
 		status = "error"
 	}
 	verifyBufPool.Put(bufp)
