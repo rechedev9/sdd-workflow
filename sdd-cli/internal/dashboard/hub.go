@@ -124,6 +124,14 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 // jsonHash returns the SHA-256 hash of the JSON encoding of v.
+// broadcastIfChanged broadcasts data only when its JSON hash differs from lastHash.
+func (h *Hub) broadcastIfChanged(ctx context.Context, msgType string, data any, lastHash *[sha256.Size]byte) {
+	if hash := jsonHash(data); hash != *lastHash {
+		h.broadcast(ctx, wsMessage{Type: msgType, Data: data})
+		*lastHash = hash
+	}
+}
+
 func jsonHash(v any) [sha256.Size]byte {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -159,25 +167,13 @@ func (h *Hub) poll(ctx context.Context) {
 	}
 
 	// Pipelines — hash-based diffing instead of reflect.DeepEqual.
-	pipelines := h.buildPipelinesFromChanges(ctx, changes)
-	if hash := jsonHash(pipelines); hash != h.lastPipelinesHash {
-		h.broadcast(ctx, wsMessage{Type: "pipelines", Data: pipelines})
-		h.lastPipelinesHash = hash
-	}
+	h.broadcastIfChanged(ctx, "pipelines", h.buildPipelinesFromChanges(ctx, changes), &h.lastPipelinesHash)
 
 	// Errors — hash-based diffing.
-	errors := h.buildErrors(ctx)
-	if hash := jsonHash(errors); hash != h.lastErrorsHash {
-		h.broadcast(ctx, wsMessage{Type: "errors", Data: errors})
-		h.lastErrorsHash = hash
-	}
+	h.broadcastIfChanged(ctx, "errors", h.buildErrors(ctx), &h.lastErrorsHash)
 
 	// Heatmap — hash-based diffing.
-	heatmap := buildHeatmapFromChanges(changes)
-	if hash := jsonHash(heatmap); hash != h.lastHeatmapHash {
-		h.broadcast(ctx, wsMessage{Type: "chart:heatmap", Data: heatmap})
-		h.lastHeatmapHash = hash
-	}
+	h.broadcastIfChanged(ctx, "chart:heatmap", buildHeatmapFromChanges(changes), &h.lastHeatmapHash)
 
 	// Chart data — incremental by timestamp.
 	tokenSince := h.parseSinceTS(h.lastTokenTS)
@@ -188,10 +184,7 @@ func (h *Hub) poll(ctx context.Context) {
 	}
 
 	if rows, err := h.metrics.PhaseDurations(ctx); err == nil && len(rows) > 0 {
-		if hash := jsonHash(rows); hash != h.lastDurationsHash {
-			h.broadcast(ctx, wsMessage{Type: "chart:durations", Data: rows})
-			h.lastDurationsHash = hash
-		}
+		h.broadcastIfChanged(ctx, "chart:durations", rows, &h.lastDurationsHash)
 	}
 
 	cacheSince := h.parseSinceTS(h.lastCacheTS)
