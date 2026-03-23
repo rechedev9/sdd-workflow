@@ -54,8 +54,9 @@ func AssembleClean(w io.Writer, p *Params) error {
 		writeSection(w, "PIPELINE CONTEXT", summary)
 	}
 
+	tasksStr := string(tasks)
 	writeSection(w, "VERIFY REPORT", verifyReport)
-	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(string(tasks)))
+	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(tasksStr))
 	writeSection(w, "TASKS", tasks)
 
 	if len(design) > 0 {
