@@ -12,6 +12,7 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
@@ -83,6 +84,12 @@ func checkOrphanedPending(changesDir string) CheckResult {
 			ph := state.Phase(strings.TrimSuffix(pf.Name(), ".md"))
 			artifactFile, ok := artifacts.ArtifactFileName(ph)
 			if !ok {
+				continue
+			}
+			// Skip phases that reuse a predecessor's artifact (e.g. apply → tasks.md).
+			// That artifact exists from the predecessor phase and is not evidence of
+			// this phase being promoted.
+			if desc, ok := phase.DefaultRegistry.Get(string(ph)); ok && desc.RecoverSkip {
 				continue
 			}
 			// spec promotes into specs/{pendingFileName}; others promote directly.

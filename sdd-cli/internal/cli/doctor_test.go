@@ -330,6 +330,23 @@ func TestCheckOrphanedPendingSkipsSubdirs(t *testing.T) {
 	}
 }
 
+func TestCheckOrphanedPendingSkipsRecoverSkipPhase(t *testing.T) {
+	// apply.ArtifactFile == "tasks.md" (same as tasks phase).
+	// Having .pending/apply.md with tasks.md present should NOT be flagged as
+	// orphaned — tasks.md predates the apply phase.
+	t.Parallel()
+	dir := t.TempDir()
+	changeDir := filepath.Join(dir, "my-change")
+	pendingDir := filepath.Join(changeDir, ".pending")
+	os.MkdirAll(pendingDir, 0o755)
+	os.WriteFile(filepath.Join(pendingDir, "apply.md"), []byte("apply content"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("tasks content"), 0o644)
+	r := checkOrphanedPending(dir)
+	if r.Status != "pass" {
+		t.Errorf("expected pass (apply skipped due to RecoverSkip), got %q: %s", r.Status, r.Message)
+	}
+}
+
 // --- checkBuildTools ---
 
 func TestCheckBuildToolsNilConfig(t *testing.T) {
