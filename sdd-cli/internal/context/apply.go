@@ -13,9 +13,9 @@ import (
 // sdd-apply SKILL.md.
 func AssembleApply(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-apply") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		skillLoader(p.SkillsPath, "sdd-apply"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
+		artifactLoader(p.ChangeDir, "design.md"),
 		loadSpecsLoader(p.ChangeDir),
 		buildSummaryLoader(p),
 	}

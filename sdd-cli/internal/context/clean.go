@@ -12,11 +12,11 @@ import (
 // sdd-clean SKILL.md.
 func AssembleClean(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-clean") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "verify-report.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		skillLoader(p.SkillsPath, "sdd-clean"),
+		artifactLoader(p.ChangeDir, "verify-report.md"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
 		buildSummaryLoader(p),
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		artifactLoader(p.ChangeDir, "design.md"),
 		func() ([]byte, error) {
 			s, err := loadSpecs(p.ChangeDir)
 			if err != nil {

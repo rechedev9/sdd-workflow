@@ -11,8 +11,8 @@ import (
 // Includes: proposal.md, cumulative summary, project stack, sdd-spec SKILL.md.
 func AssembleSpec(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-spec") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
+		skillLoader(p.SkillsPath, "sdd-spec"),
+		artifactLoader(p.ChangeDir, "proposal.md"),
 		buildSummaryLoader(p),
 	}
 

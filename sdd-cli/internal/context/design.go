@@ -14,8 +14,8 @@ import (
 // Includes: spec files (MUST/SHOULD requirements), proposal.md, sdd-design SKILL.md.
 func AssembleDesign(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-design") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
+		skillLoader(p.SkillsPath, "sdd-design"),
+		artifactLoader(p.ChangeDir, "proposal.md"),
 		loadSpecsLoader(p.ChangeDir),
 		buildSummaryLoader(p),
 	}
@@ -52,6 +52,18 @@ func AssembleDesign(w io.Writer, p *Params) error {
 	writeSection(w, "SPECIFICATIONS", specs)
 
 	return nil
+}
+
+// artifactLoader returns a loader closure that reads a named artifact file.
+// Used by assemblers to register artifact loads as lazy-load tasks.
+func artifactLoader(changeDir, name string) func() ([]byte, error) {
+	return func() ([]byte, error) { return loadArtifact(changeDir, name) }
+}
+
+// skillLoader returns a loader closure that reads a named skill file.
+// Used by assemblers to register skill loads as lazy-load tasks.
+func skillLoader(skillsPath, name string) func() ([]byte, error) {
+	return func() ([]byte, error) { return loadSkill(skillsPath, name) }
 }
 
 // loadSpecsLoader returns a loader closure that reads spec files as bytes.

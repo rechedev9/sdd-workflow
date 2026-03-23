@@ -11,8 +11,8 @@ import (
 // Includes: exploration.md, project context, file tree, sdd-propose SKILL.md.
 func AssemblePropose(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-propose") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "exploration.md") },
+		skillLoader(p.SkillsPath, "sdd-propose"),
+		artifactLoader(p.ChangeDir, "exploration.md"),
 		func() ([]byte, error) {
 			ft, err := gitFileTree(p.ProjectDir)
 			return []byte(ft), err

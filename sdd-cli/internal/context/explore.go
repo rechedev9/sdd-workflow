@@ -16,7 +16,7 @@ import (
 // Includes: file tree (via git ls-files), config summary, sdd-explore SKILL.md.
 func AssembleExplore(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-explore") },
+		skillLoader(p.SkillsPath, "sdd-explore"),
 		func() ([]byte, error) {
 			ft, err := gitFileTree(p.ProjectDir)
 			return []byte(ft), err

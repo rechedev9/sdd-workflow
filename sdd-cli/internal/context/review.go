@@ -15,10 +15,10 @@ import (
 // Optionally includes AGENTS.md / CLAUDE.md if present.
 func AssembleReview(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-review") },
+		skillLoader(p.SkillsPath, "sdd-review"),
 		loadSpecsLoader(p.ChangeDir),
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		artifactLoader(p.ChangeDir, "design.md"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
 		func() ([]byte, error) {
 			d, err := gitDiff(p.ProjectDir)
 			if err != nil {
