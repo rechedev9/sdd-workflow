@@ -170,7 +170,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		broker.Emit(events.Event{
 			Type:    events.VerifyFailed,
-			Payload: events.VerifyFailedPayload{Change: name, Results: failedCmds},
+			Payload: events.VerifyFailedPayload{Change: name, ProjectDir: cwd, Results: failedCmds},
 		})
 	}
 

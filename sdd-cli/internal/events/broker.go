@@ -65,8 +65,9 @@ type StateAdvancedPayload struct {
 
 // VerifyFailedPayload is emitted when sdd verify has one or more failed commands.
 type VerifyFailedPayload struct {
-	Change  string
-	Results []VerifyFailedCommand
+	Change     string
+	ProjectDir string // project root; avoids os.Getwd() in subscriber
+	Results    []VerifyFailedCommand
 }
 
 // VerifyFailedCommand captures one failed command from a verify run.
