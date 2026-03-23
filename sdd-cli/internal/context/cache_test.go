@@ -273,6 +273,29 @@ func TestLoadPipelineMetrics_VersionMismatch(t *testing.T) {
 	}
 }
 
+func TestInputHash_SpecsDirWithSubdirAndNonMd(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+
+	// Add a .md file, a non-.md file, and a subdirectory — only the .md file should affect the hash.
+	os.WriteFile(filepath.Join(specsDir, "real.md"), []byte("spec content"), 0o644)
+	os.WriteFile(filepath.Join(specsDir, "readme.txt"), []byte("ignored"), 0o644)
+	os.MkdirAll(filepath.Join(specsDir, "subdir"), 0o755)
+
+	h1 := inputHash(dir, []string{"specs/"}, "", "")
+
+	// Remove the non-.md and subdir — hash should be the same.
+	os.Remove(filepath.Join(specsDir, "readme.txt"))
+	os.Remove(filepath.Join(specsDir, "subdir"))
+	h2 := inputHash(dir, []string{"specs/"}, "", "")
+
+	if h1 != h2 {
+		t.Error("non-.md files and subdirs should not affect the spec hash")
+	}
+}
+
 func TestPhaseCacheInputs_UnknownPhase(t *testing.T) {
 	t.Parallel()
 	// Unknown phase → nil inputs (ok=false branch).
