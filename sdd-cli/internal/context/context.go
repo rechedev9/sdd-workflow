@@ -71,7 +71,8 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 	start := time.Now()
 
 	// Try cache first.
-	if cached, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath); ok {
+	cached, inputHash, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath)
+	if ok {
 		size := len(cached)
 		if _, err := w.Write(cached); err != nil {
 			return fmt.Errorf("write cached context: %w", err)
@@ -95,6 +96,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 				DurationMs: time.Since(start).Milliseconds(),
 				ChangeDir:  p.ChangeDir,
 				SkillsPath: p.SkillsPath,
+				InputHash:  inputHash,
 			},
 		})
 
@@ -138,6 +140,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 			ChangeDir:  p.ChangeDir,
 			SkillsPath: p.SkillsPath,
 			Content:    content,
+			InputHash:  inputHash,
 		},
 	})
 

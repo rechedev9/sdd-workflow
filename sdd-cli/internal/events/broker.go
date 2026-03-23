@@ -35,6 +35,7 @@ type PhaseAssembledPayload struct {
 	ChangeDir  string
 	SkillsPath string
 	Content    []byte // non-nil only on cache miss (for cache subscriber)
+	InputHash  string // pre-computed input hash; reused by saveContextCache to avoid double-hashing
 }
 
 // CacheHitPayload is emitted when cached context is reused.

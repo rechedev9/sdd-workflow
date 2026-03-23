@@ -77,7 +77,7 @@ func TestRegisterSubscribers_PhaseAssembled_CacheContent(t *testing.T) {
 	})
 
 	// The cache file should now exist.
-	if _, ok := tryCachedContext(dir, "propose", ""); !ok {
+	if _, _, ok := tryCachedContext(dir, "propose", ""); !ok {
 		t.Error("expected cached context to be stored after PhaseAssembled with Content")
 	}
 }
@@ -113,7 +113,7 @@ func TestRegisterSubscribers_PhaseAssembled_Cached_SkipsCache(t *testing.T) {
 	})
 
 	// No cache should have been written.
-	if _, ok := tryCachedContext(dir, "explore", ""); ok {
+	if _, _, ok := tryCachedContext(dir, "explore", ""); ok {
 		t.Error("cached=true should skip cache persistence")
 	}
 }

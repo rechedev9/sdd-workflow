@@ -736,7 +736,7 @@ func TestAssemble_CacheHit(t *testing.T) {
 
 	// Pre-save cache for "explore" (no inputs needed).
 	cached := []byte("cached context data")
-	if err := saveContextCache(changeDir, "explore", p.SkillsPath, cached); err != nil {
+	if err := saveContextCache(changeDir, "explore", p.SkillsPath, "", cached); err != nil {
 		t.Fatalf("saveContextCache: %v", err)
 	}
 

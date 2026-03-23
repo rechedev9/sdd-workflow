@@ -33,7 +33,7 @@ func RegisterSubscribers(broker *events.Broker, verbosity int) {
 		if !ok || p.Cached || p.Content == nil {
 			return
 		}
-		_ = saveContextCache(p.ChangeDir, p.Phase, p.SkillsPath, p.Content) // best-effort cache; don't block pipeline
+		_ = saveContextCache(p.ChangeDir, p.Phase, p.SkillsPath, p.InputHash, p.Content) // best-effort cache; don't block pipeline
 	})
 
 	// Error collection — records verify failures to global error log.

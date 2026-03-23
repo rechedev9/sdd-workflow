@@ -138,26 +138,30 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 // matches the current artifacts, and the TTL hasn't expired.
 // Hash file format: "{hex_hash}|{unix_seconds}"
 // Legacy files without "|" produce a cache miss (silent upgrade).
-func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, bool) {
+// The computed input hash is always returned so callers can reuse it
+// (e.g. to avoid recomputing the hash in saveContextCache on a miss).
+func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, string, bool) {
 	inputs := phaseCacheInputs(phaseName)
+
+	// Compute once — returned to caller regardless of hit/miss.
+	currentHash := inputHash(changeDir, inputs, skillsPath, phaseName)
 
 	raw, err := os.ReadFile(hashCachePath(changeDir, phaseName))
 	if err != nil {
-		return nil, false
+		return nil, currentHash, false
 	}
 
 	// Parse "hash|timestamp" format.
 	hashB, tsB, ok := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
 	if !ok {
-		return nil, false // legacy format without timestamp → miss
+		return nil, currentHash, false // legacy format without timestamp → miss
 	}
 	storedHash := string(hashB)
 	tsStr := string(tsB)
 
 	// Check content hash (includes SKILL.md).
-	currentHash := inputHash(changeDir, inputs, skillsPath, phaseName)
 	if storedHash != currentHash {
-		return nil, false
+		return nil, currentHash, false
 	}
 
 	// Check TTL.
@@ -165,16 +169,16 @@ func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, bool) {
 		ts := mustParseInt64(tsStr)
 		age := time.Since(time.Unix(ts, 0))
 		if age > ttl {
-			return nil, false // expired
+			return nil, currentHash, false // expired
 		}
 	}
 
 	cached, err := os.ReadFile(contextCachePath(changeDir, phaseName))
 	if err != nil {
-		return nil, false
+		return nil, currentHash, false
 	}
 
-	return cached, true
+	return cached, currentHash, true
 }
 
 func mustParseInt64(s string) int64 {
@@ -187,14 +191,20 @@ func mustParseInt64(s string) int64 {
 
 // saveContextCache stores the assembled context and its input hash with timestamp.
 // Format: "{hash}|{unix_seconds}"
-func saveContextCache(changeDir, phaseName, skillsPath string, content []byte) error {
+// If precomputedHash is non-empty it is used directly, avoiding a redundant
+// inputHash call when the caller already computed the hash (e.g. on a cache miss
+// in tryCachedContext).
+func saveContextCache(changeDir, phaseName, skillsPath, precomputedHash string, content []byte) error {
 	dir := cacheDir(changeDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create cache dir: %w", err)
 	}
 
-	inputs := phaseCacheInputs(phaseName)
-	hash := inputHash(changeDir, inputs, skillsPath, phaseName)
+	hash := precomputedHash
+	if hash == "" {
+		inputs := phaseCacheInputs(phaseName)
+		hash = inputHash(changeDir, inputs, skillsPath, phaseName)
+	}
 	hashWithTS := fmt.Sprintf("%s|%d", hash, time.Now().Unix())
 
 	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), []byte(hashWithTS)); err != nil {

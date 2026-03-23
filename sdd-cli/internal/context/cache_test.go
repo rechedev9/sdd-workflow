@@ -160,12 +160,12 @@ func TestSaveContextCache_ThenInvalidate(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("original"), 0o644)
 
 	// Save context.
-	if err := saveContextCache(dir, "propose", "", []byte("content")); err != nil {
+	if err := saveContextCache(dir, "propose", "", "", []byte("content")); err != nil {
 		t.Fatalf("saveContextCache: %v", err)
 	}
 
 	// Should hit.
-	_, ok := tryCachedContext(dir, "propose", "")
+	_, _, ok := tryCachedContext(dir, "propose", "")
 	if !ok {
 		t.Error("expected cache hit after save")
 	}
@@ -174,7 +174,7 @@ func TestSaveContextCache_ThenInvalidate(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "exploration.md"), []byte("modified"), 0o644)
 
 	// Now the hash should mismatch → miss.
-	_, ok = tryCachedContext(dir, "propose", "")
+	_, _, ok = tryCachedContext(dir, "propose", "")
 	if ok {
 		t.Error("expected cache miss after input artifact changed")
 	}
@@ -221,12 +221,12 @@ func TestSaveAndTryCachedContext(t *testing.T) {
 
 	content := []byte("assembled context for explore")
 	// Save with empty skillsPath — no external skill file.
-	if err := saveContextCache(dir, "explore", "", content); err != nil {
+	if err := saveContextCache(dir, "explore", "", "", content); err != nil {
 		t.Fatalf("saveContextCache: %v", err)
 	}
 
 	// Should hit cache on first try.
-	cached, ok := tryCachedContext(dir, "explore", "")
+	cached, _, ok := tryCachedContext(dir, "explore", "")
 	if !ok {
 		t.Fatal("expected cache hit after saveContextCache")
 	}
@@ -238,7 +238,7 @@ func TestSaveAndTryCachedContext(t *testing.T) {
 func TestTryCachedContext_Miss_NoHashFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	_, ok := tryCachedContext(dir, "explore", "")
+	_, _, ok := tryCachedContext(dir, "explore", "")
 	if ok {
 		t.Error("expected cache miss when no hash file")
 	}
@@ -252,7 +252,7 @@ func TestTryCachedContext_Miss_LegacyFormat(t *testing.T) {
 	// Write legacy hash without "|".
 	os.WriteFile(filepath.Join(cacheD, "explore.hash"), []byte("legacyhash"), 0o644)
 
-	_, ok := tryCachedContext(dir, "explore", "")
+	_, _, ok := tryCachedContext(dir, "explore", "")
 	if ok {
 		t.Error("expected cache miss for legacy hash format")
 	}
@@ -322,7 +322,7 @@ func TestSaveContextCache_MkdirFails(t *testing.T) {
 	barrier := filepath.Join(root, ".cache")
 	os.WriteFile(barrier, []byte("block"), 0o644)
 
-	err := saveContextCache(root, "explore", "", []byte("content"))
+	err := saveContextCache(root, "explore", "", "", []byte("content"))
 	if err == nil {
 		t.Fatal("expected error when .cache is a file, not a directory")
 	}
@@ -405,7 +405,7 @@ func TestTryCachedContext_TTLExpired(t *testing.T) {
 	os.WriteFile(hashCachePath(dir, phaseName), []byte(fmt.Sprintf("%s|0", hash)), 0o644)
 	os.WriteFile(contextCachePath(dir, phaseName), []byte("cached context"), 0o644)
 
-	data, hit := tryCachedContext(dir, phaseName, "")
+	data, _, hit := tryCachedContext(dir, phaseName, "")
 	if hit {
 		t.Error("expected cache miss due to TTL expiry, got hit")
 	}
