@@ -19,7 +19,10 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	for i := 0; i < len(args); i++ {
 		switch {
-		case args[i] == "--spec" && i+1 < len(args):
+		case args[i] == "--spec":
+			if i+1 >= len(args) {
+				return errs.Usage("--spec requires a path argument")
+			}
 			specPath = args[i+1]
 			i++ // consume next
 		case !strings.HasPrefix(args[i], "-"):
