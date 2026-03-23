@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
 func TestRunVerify_NoConfig(t *testing.T) {
@@ -91,6 +95,71 @@ func TestRunVerify_RecurringFailuresBlocked(t *testing.T) {
 		t.Error("--force should bypass recurring-failure warning")
 	}
 	_ = stdout
+}
+
+func TestRunVerify_SmartSkip(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Smart-skip fires when verify-report.md is PASSED and git diff shows no source changes.
+	gitBin := "/usr/bin/git"
+	if _, err := os.Stat(gitBin); err != nil {
+		gitBin = "git"
+	}
+
+	root := t.TempDir()
+
+	// Init a git repo with one committed file so git diff HEAD works.
+	mustRun := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(gitBin, args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	mustRun("init")
+	mustRun("config", "user.email", "test@test.com")
+	mustRun("config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRun("add", "main.go")
+	mustRun("commit", "-m", "initial")
+
+	// Create change with state.json and a PASSED verify-report.md.
+	changeDir := filepath.Join(root, "openspec", "changes", "sk-feat")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+	st := state.NewState("sk-feat", "smart skip test")
+	if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+	report := "**Status:** PASSED\n\nAll commands succeeded.\n"
+	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := runVerify([]string{"sk-feat"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runVerify smart-skip: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	if out["skipped"] != true {
+		t.Errorf("skipped = %v, want true", out["skipped"])
+	}
+	if out["passed"] != true {
+		t.Errorf("passed = %v, want true", out["passed"])
+	}
 }
 
 func TestRunVerify_RecurringForceJSON(t *testing.T) {
