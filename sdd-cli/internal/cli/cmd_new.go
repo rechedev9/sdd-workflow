@@ -53,7 +53,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Create change directory.
-	changeDir := filepath.Join(cwd, "openspec", "changes", name)
+	changeDir := filepath.Join(openspecChanges(cwd), name)
 	if err := os.MkdirAll(changeDir, 0o755); err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("create change dir: %w", err))
 	}

@@ -58,7 +58,7 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Create change directory structure.
-	changeDir := filepath.Join(cwd, "openspec", "changes", name)
+	changeDir := filepath.Join(openspecChanges(cwd), name)
 	specsDir := filepath.Join(changeDir, "specs")
 	for _, d := range []string{changeDir, specsDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {

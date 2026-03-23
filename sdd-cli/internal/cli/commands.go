@@ -32,7 +32,7 @@ func newBroker(verbosity int, db *store.Store) *events.Broker {
 
 // tryOpenStore opens the SQLite store best-effort. Returns nil if unavailable.
 func tryOpenStore(cwd string) *store.Store {
-	path := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
+	path := openspecDB(cwd)
 	db, err := store.Open(path)
 	if err != nil {
 		return nil
@@ -120,6 +120,11 @@ func openspecConfig(cwd string) string {
 // openspecChanges returns the path to openspec/changes in the project root.
 func openspecChanges(cwd string) string {
 	return filepath.Join(cwd, "openspec", "changes")
+}
+
+// openspecDB returns the path to the SQLite store in openspec/.cache/sdd.db.
+func openspecDB(cwd string) string {
+	return filepath.Join(cwd, "openspec", ".cache", "sdd.db")
 }
 
 // loadConfig reads openspec/config.yaml from cwd.

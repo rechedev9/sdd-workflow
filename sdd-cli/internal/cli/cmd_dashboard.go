@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -34,7 +33,7 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dbPath := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
+	dbPath := openspecDB(cwd)
 	changesDir := openspecChanges(cwd)
 
 	db, err := store.Open(dbPath)
