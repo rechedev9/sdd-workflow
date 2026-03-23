@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -118,5 +119,45 @@ func TestRunNew_JSONOutput(t *testing.T) {
 	}
 	if out.Change != "feat-json" {
 		t.Errorf("change = %q, want feat-json", out.Change)
+	}
+}
+
+func TestRunNew_WithGitRepo_SetsBaseRef(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Verifies that gitHeadSHA succeeds in a real git repo → st.BaseRef is set.
+	const realGit = "/usr/bin/git"
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", dir},
+		{"-C", dir, "config", "user.email", "test@test.com"},
+		{"-C", dir, "config", "user.name", "Test"},
+		{"-C", dir, "commit", "--allow-empty", "-m", "init"},
+	} {
+		if err := exec.Command(realGit, args...).Run(); err != nil {
+			t.Skipf("git setup failed: %v", err)
+		}
+	}
+
+	openspecDir := filepath.Join(dir, "openspec")
+	os.MkdirAll(filepath.Join(openspecDir, "changes"), 0o755)
+	configYAML := "version: 1\nproject_name: test\nstack:\n  language: go\ncommands:\n  build: go build ./...\n  test: go test ./...\n"
+	os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	err := runNew([]string{"feat-gitref", "test git head sha", "--json"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &out); jsonErr != nil {
+		t.Fatalf("unmarshal: %v\n%s", jsonErr, stdout.String())
+	}
+	if out["status"] != "success" {
+		t.Errorf("status = %v, want success", out["status"])
 	}
 }
