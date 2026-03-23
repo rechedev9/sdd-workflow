@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -84,11 +83,8 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 		}
 	}
 
-	sorted := make([]string, len(inputs))
-	copy(sorted, inputs)
-	slices.Sort(sorted)
-
-	for _, name := range sorted {
+	// CacheInputs are pre-sorted at phase registration time; iterate directly.
+	for _, name := range inputs {
 		if name == "specs/" {
 			hashSpecsDir(h, changeDir)
 			continue

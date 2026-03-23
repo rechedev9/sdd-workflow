@@ -10,6 +10,7 @@ package phase
 
 import (
 	"io"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -68,6 +69,10 @@ func (r *Registry) Register(p Phase) {
 		if existing.Name == p.Name {
 			panic("phase: duplicate registration: " + p.Name)
 		}
+	}
+	// Sort CacheInputs once at registration so inputHash can skip the alloc+sort.
+	if len(p.CacheInputs) > 1 {
+		slices.Sort(p.CacheInputs)
 	}
 	r.phases = append(r.phases, p)
 }
