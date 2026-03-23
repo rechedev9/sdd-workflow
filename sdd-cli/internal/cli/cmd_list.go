@@ -29,7 +29,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))
 	}
 
-	var changes []changeInfo
+	changes := make([]changeInfo, 0)
 	eachChangeDir(changesDir, func(changeDir string) {
 		st, err := state.Load(filepath.Join(changeDir, "state.json"))
 		if err != nil {
