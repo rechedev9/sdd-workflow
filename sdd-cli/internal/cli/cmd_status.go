@@ -41,7 +41,7 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Compute staleness once — both IsStale and StaleHours call time.Since.
 	staleHours := st.StaleHours()
-	isStale := !st.IsComplete() && staleHours > int(staleThreshold.Hours())
+	isStale := !st.IsComplete() && staleHours >= int(staleThreshold.Hours())
 
 	out := struct {
 		Command      string      `json:"command"`

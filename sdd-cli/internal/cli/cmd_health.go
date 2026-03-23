@@ -41,7 +41,7 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Compute staleness once — both IsStale and StaleHours call time.Since.
 	staleHours := st.StaleHours()
-	isStale := !st.IsComplete() && staleHours > int(staleThreshold.Hours())
+	isStale := !st.IsComplete() && staleHours >= int(staleThreshold.Hours())
 
 	// Build warnings.
 	warnings := make([]string, 0, 2)
