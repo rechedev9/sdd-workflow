@@ -66,11 +66,13 @@ func resolveDir(dir string) (string, error) {
 
 // validateChangeName rejects names that contain path separators or special
 // directory components, preventing path traversal when used in filepath.Join.
+// "archive" is reserved: eachChangeDir silently skips it, so a change named
+// "archive" would be invisible to list, doctor, and health commands.
 func validateChangeName(name string) error {
 	if name == "" {
 		return fmt.Errorf("change name must not be empty")
 	}
-	if name == "." || name == ".." {
+	if name == "." || name == ".." || name == "archive" {
 		return fmt.Errorf("change name must not be %q", name)
 	}
 	if strings.ContainsAny(name, `/\`) {
