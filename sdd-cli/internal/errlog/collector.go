@@ -38,8 +38,8 @@ type ErrorLog struct {
 // Fingerprint computes a stable 16-hex-char hash from command + first error line.
 func Fingerprint(command string, errorLines []string) string {
 	h := sha256.New()
-	io.WriteString(h, command) //nolint:errcheck // hash.Hash.Write never errors
-	h.Write([]byte{0})         //nolint:errcheck
+	io.WriteString(h, command)   //nolint:errcheck // hash.Hash.Write never errors
+	io.WriteString(h, "\x00")   //nolint:errcheck // NUL separator; string constant avoids heap alloc
 	if len(errorLines) > 0 {
 		io.WriteString(h, errorLines[0]) //nolint:errcheck
 	}
