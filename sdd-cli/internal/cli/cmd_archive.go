@@ -21,6 +21,8 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 		switch arg {
 		case "--force", "-f":
 			force = true
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 

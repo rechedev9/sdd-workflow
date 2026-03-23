@@ -23,6 +23,8 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		switch arg {
 		case "--force", "-f":
 			force = true
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 	phase, err := state.ResolvePhase(phaseStr)
