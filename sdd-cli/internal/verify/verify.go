@@ -4,6 +4,7 @@ package verify
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -157,7 +158,8 @@ func runOne(workDir string, spec CommandSpec, timeout time.Duration) *CommandRes
 	}
 
 	// Non-zero exit.
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		result.ExitCode = exitErr.ExitCode()
 	} else {
 		result.ExitCode = -1

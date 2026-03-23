@@ -52,8 +52,7 @@ func Promote(changeDir string, phase state.Phase, force bool) (string, error) {
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
 		return "", fmt.Errorf("write promoted: %w", err)
 	}
-	if err := os.Remove(src); err != nil {
-		// Non-fatal — artifact was promoted, just cleanup failed.
+	if err := os.Remove(src); err != nil { //nolint:nilerr // non-fatal: artifact is promoted; source cleanup failure is not an error
 		return dst, nil
 	}
 

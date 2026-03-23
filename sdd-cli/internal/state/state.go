@@ -144,11 +144,11 @@ func Load(path string) (*State, error) {
 
 	var s State
 	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptState, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptState, err)
 	}
 
 	if err := validate(&s); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptState, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptState, err)
 	}
 
 	return &s, nil
