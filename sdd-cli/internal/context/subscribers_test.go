@@ -1,7 +1,6 @@
 package context
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
@@ -10,15 +9,14 @@ import (
 func TestRegisterSubscribers_NilBroker(t *testing.T) {
 	t.Parallel()
 	// Should not panic.
-	RegisterSubscribers(nil, nil, 0)
+	RegisterSubscribers(nil, 0)
 }
 
 func TestRegisterSubscribers_PhaseAssembled_RecordsMetrics(t *testing.T) {
 	t.Parallel()
 	b := events.NewBroker()
 	dir := t.TempDir()
-	var stderr bytes.Buffer
-	RegisterSubscribers(b, &stderr, 0)
+	RegisterSubscribers(b, 0)
 
 	b.Emit(events.Event{
 		Type: events.PhaseAssembled,
@@ -44,7 +42,7 @@ func TestRegisterSubscribers_PhaseAssembled_NilStderr(t *testing.T) {
 	b := events.NewBroker()
 	dir := t.TempDir()
 	// nil stderr — writeMetrics subscriber should skip (no panic).
-	RegisterSubscribers(b, nil, 0)
+	RegisterSubscribers(b, 0)
 
 	b.Emit(events.Event{
 		Type: events.PhaseAssembled,
@@ -62,7 +60,7 @@ func TestRegisterSubscribers_PhaseAssembled_CacheContent(t *testing.T) {
 	t.Parallel()
 	b := events.NewBroker()
 	dir := t.TempDir()
-	RegisterSubscribers(b, nil, -1)
+	RegisterSubscribers(b, -1)
 
 	// Emit with non-nil Content — should trigger cache persistence.
 	b.Emit(events.Event{

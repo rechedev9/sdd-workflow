@@ -1,7 +1,6 @@
 package context
 
 import (
-	"io"
 	"os"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 // RegisterSubscribers wires the default event subscribers for metrics
 // recording, stderr output, and cache persistence.
 // Safe to call with a nil broker (no-op).
-func RegisterSubscribers(broker *events.Broker, stderr io.Writer, verbosity int) {
+func RegisterSubscribers(broker *events.Broker, verbosity int) {
 	if broker == nil {
 		return
 	}
@@ -25,7 +24,7 @@ func RegisterSubscribers(broker *events.Broker, stderr io.Writer, verbosity int)
 		}
 		m := metricsFromPayload(p)
 		recordMetrics(p.ChangeDir, m)
-		writeMetrics(stderr, m, verbosity)
+		writeMetrics(m, verbosity)
 	})
 
 	// Cache persistence — saves assembled context for next run.

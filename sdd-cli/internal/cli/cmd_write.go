@@ -44,7 +44,7 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 	if db != nil {
 		defer db.Close()
 	}
-	broker := newBroker(stderr, 0, db)
+	broker := newBroker(0, db)
 	prevPhase := string(st.CurrentPhase)
 
 	// Promote pending artifact.

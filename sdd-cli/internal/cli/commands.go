@@ -22,9 +22,9 @@ import (
 
 // newBroker creates and wires a broker with default subscribers.
 // db may be nil — SQLite subscribers are skipped when nil.
-func newBroker(stderr io.Writer, verbosity int, db *store.Store) *events.Broker {
+func newBroker(verbosity int, db *store.Store) *events.Broker {
 	broker := events.NewBroker()
-	sddctx.RegisterSubscribers(broker, stderr, verbosity)
+	sddctx.RegisterSubscribers(broker, verbosity)
 	store.RegisterSubscribers(broker, db)
 	return broker
 }

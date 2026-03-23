@@ -156,7 +156,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Emit VerifyFailed event for error collection.
 	if !report.Passed {
-		broker := newBroker(stderr, 0, db)
+		broker := newBroker(0, db)
 		failedCmds := make([]events.VerifyFailedCommand, 0, len(report.Results))
 		for _, r := range report.Results {
 			if !r.Passed {

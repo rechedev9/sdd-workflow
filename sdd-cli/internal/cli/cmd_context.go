@@ -54,7 +54,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 	if db != nil {
 		defer db.Close()
 	}
-	broker := newBroker(stderr, int(verbosity), db)
+	broker := newBroker(int(verbosity), db)
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  st.Name,

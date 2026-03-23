@@ -221,7 +221,7 @@ func metricsFromPayload(p events.PhaseAssembledPayload) *contextMetrics {
 }
 
 // writeMetrics logs context metrics via slog.
-func writeMetrics(_ io.Writer, m *contextMetrics, verbosity int) {
+func writeMetrics(m *contextMetrics, verbosity int) {
 	if verbosity < 0 {
 		return
 	}
