@@ -45,13 +45,7 @@ func tryOpenStore(cwd string) *store.Store {
 const staleThreshold = 24 * time.Hour
 
 func resolveDir(dir string) (string, error) {
-	var abs string
-	var err error
-	if dir == "." {
-		abs, err = os.Getwd()
-	} else {
-		abs, err = filepath.Abs(dir)
-	}
+	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return "", fmt.Errorf("resolve directory: %w", err)
 	}
