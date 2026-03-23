@@ -2,17 +2,12 @@ package state
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 )
 
 func ResolvePhase(input string) (Phase, error) {
 	phases := AllPhases()
-
-	if slices.Contains(phases, Phase(input)) {
-		return Phase(input), nil
-	}
 
 	if idx, err := strconv.Atoi(input); err == nil {
 		if idx < 0 || idx >= len(phases) {
@@ -21,10 +16,14 @@ func ResolvePhase(input string) (Phase, error) {
 		return phases[idx], nil
 	}
 
+	// Single pass: check exact match first, then collect prefix matches.
 	lower := strings.ToLower(input)
 	var matches []string
 	for _, p := range phases {
 		// Phase names are already lowercase; no need to ToLower(p).
+		if string(p) == lower {
+			return p, nil // exact match wins immediately
+		}
 		if strings.HasPrefix(string(p), lower) {
 			matches = append(matches, string(p))
 		}
