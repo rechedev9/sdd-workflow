@@ -4,8 +4,8 @@ package errlog
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,7 +43,9 @@ func Fingerprint(command string, errorLines []string) string {
 	if len(errorLines) > 0 {
 		io.WriteString(h, errorLines[0]) //nolint:errcheck
 	}
-	return fmt.Sprintf("%x", h.Sum(nil)[:8])
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
+	return hex.EncodeToString(sum[:8])
 }
 
 // LogPath returns the path to the global error log.
