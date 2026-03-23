@@ -40,11 +40,10 @@ func buildSummary(changeDir string, p *Params) string {
 // then returns up to n non-empty content lines following it.
 // Used to pull key decisions from artifacts without loading the entire file.
 func extractFirst(content, keyword string, maxLines int) string {
-	lines := strings.Split(content, "\n")
 	result := make([]string, 0, maxLines)
 
 	collecting := false
-	for _, line := range lines {
+	for line := range strings.Lines(content) {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -88,13 +87,12 @@ func isDecisionKey(s string) bool {
 }
 
 func extractDecisions(content string) string {
-	lines := strings.Split(content, "\n")
 	kvPairs := make([]string, 0, 5)
 	headerLines := make([]string, 0, 3)
 	inFence := false
 	inDecisionSection := false
 
-	for _, line := range lines {
+	for line := range strings.Lines(content) {
 		trimmed := strings.TrimSpace(line)
 
 		if strings.HasPrefix(trimmed, "```") {
@@ -178,11 +176,10 @@ func loadManifestContents(projectDir string, manifests []string) string {
 
 // extractCompletedTasks returns a summary of completed task sections.
 func extractCompletedTasks(tasks string) string {
-	lines := strings.Split(tasks, "\n")
-	completed := make([]string, 0, len(lines)/2)
+	completed := make([]string, 0, 16)
 	var currentSection string
 
-	for _, line := range lines {
+	for line := range strings.Lines(tasks) {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "##") {
 			currentSection = trimmed
