@@ -244,6 +244,54 @@ func TestShouldSkipVerify_ReturnTrue(t *testing.T) {
 	}
 }
 
+func TestShouldSkipVerify_SourceFileChanged(t *testing.T) {
+	t.Parallel()
+	changeDir := t.TempDir()
+
+	// Write a PASSED verify-report.md.
+	report := "**Status:** PASSED\n"
+	if err := os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte(report), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set up a git repo with a committed file, then modify it to produce a diff.
+	// Use /usr/bin/git directly to bypass the git-policy shim.
+	const realGit = "/usr/bin/git"
+	gitDir := t.TempDir()
+	srcFile := filepath.Join(gitDir, "main.go")
+	for _, args := range [][]string{
+		{"init", gitDir},
+		{"-C", gitDir, "config", "user.email", "test@test.com"},
+		{"-C", gitDir, "config", "user.name", "Test"},
+	} {
+		if err := exec.Command(realGit, args...).Run(); err != nil {
+			t.Skipf("git setup failed: %v", err)
+		}
+	}
+	// Commit a source file.
+	if err := os.WriteFile(srcFile, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"-C", gitDir, "add", "main.go"},
+		{"-C", gitDir, "commit", "-m", "init"},
+	} {
+		if err := exec.Command(realGit, args...).Run(); err != nil {
+			t.Skipf("git commit failed: %v", err)
+		}
+	}
+	// Modify the source file so git diff HEAD shows it as changed.
+	if err := os.WriteFile(srcFile, []byte("package main\n// changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-openspec/ file changed → must not skip.
+	skip := shouldSkipVerify(gitDir, changeDir)
+	if skip {
+		t.Error("expected skip=false: source file has uncommitted changes")
+	}
+}
+
 func TestValidateChangeName(t *testing.T) {
 	t.Parallel()
 
