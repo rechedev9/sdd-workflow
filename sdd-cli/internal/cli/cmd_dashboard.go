@@ -19,8 +19,11 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 	port := "8811"
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		switch {
-		case (arg == "--port" || arg == "-p") && i+1 < len(args):
+		switch arg {
+		case "--port", "-p":
+			if i+1 >= len(args) {
+				return errs.Usage("--port requires a port number")
+			}
 			port = args[i+1]
 			i++ // skip port value
 		default:
