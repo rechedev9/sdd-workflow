@@ -227,7 +227,9 @@ func writeSection(w io.Writer, label string, content []byte) {
 
 // writeSectionStr writes a labeled section with string content.
 func writeSectionStr(w io.Writer, label, content string) {
-	writeSection(w, label, []byte(content))
+	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
+	io.WriteString(w, content) //nolint:errcheck
+	fmt.Fprintln(w)
 }
 
 // writeChangeSection writes the CHANGE section (Name + Description).
