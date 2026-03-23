@@ -247,6 +247,76 @@ func TestRun_ProgressOutput(t *testing.T) {
 	}
 }
 
+func TestWriteReport_TimedOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	report := &Report{
+		Timestamp: time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC),
+		Passed:    false,
+		Results: []*CommandResult{
+			{Name: "build", Command: "go build ./...", Passed: false, TimedOut: true, Duration: 5 * time.Minute, ExitCode: -1},
+		},
+	}
+
+	if err := WriteReport(report, dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "verify-report.md"))
+	if err != nil {
+		t.Fatalf("read report: %v", err)
+	}
+	if !strings.Contains(string(data), "Timed out") {
+		t.Error("expected report to contain 'Timed out'")
+	}
+}
+
+func TestArchive_RenameError(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "changes", "my-change")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(changeDir, "state.json"), []byte(`{}`), 0o644)
+
+	// Make the parent directory read-only so rename fails.
+	parentDir := filepath.Join(root, "changes")
+	os.Chmod(parentDir, 0o555)
+	t.Cleanup(func() { os.Chmod(parentDir, 0o755) })
+
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when rename fails due to read-only parent")
+	}
+}
+
+func TestArchive_WithPendingDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "changes", "feat")
+	pendingDir := filepath.Join(changeDir, ".pending")
+	if err := os.MkdirAll(pendingDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(changeDir, "exploration.md"), []byte("# Exploration"), 0o644)
+	os.WriteFile(filepath.Join(pendingDir, "propose.md"), []byte("# Pending"), 0o644)
+
+	result, err := Archive(changeDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	manifest, err := os.ReadFile(result.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	// .pending should not appear in manifest.
+	if strings.Contains(string(manifest), ".pending") {
+		t.Error("manifest should not list .pending directory")
+	}
+}
+
 func TestArchive(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
