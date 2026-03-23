@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
-	"path/filepath"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -23,20 +21,14 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 		switch arg {
 		case "--force", "-f":
 			force = true
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 
-	// Resolve change directory.
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "archive", name)
 	if err != nil {
-		return errs.WriteError(stderr, "archive", err)
-	}
-
-	// Load state and verify pipeline is ready for archive.
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "archive", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	if err := st.CanTransition(state.PhaseArchive); err != nil {
@@ -67,7 +59,6 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 		ManifestPath: result.ManifestPath,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

@@ -253,6 +253,49 @@ func TestRunListMultiple(t *testing.T) {
 	}
 }
 
+func TestRunListSkipsInvalidState(t *testing.T) {
+	// Covers the state.Load error branch in runList (silent skip).
+	root := t.TempDir()
+	changesDir := filepath.Join(root, "openspec", "changes")
+
+	// Valid change.
+	validDir := filepath.Join(changesDir, "valid-feat")
+	if err := os.MkdirAll(validDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	st := state.NewState("valid-feat", "ok")
+	if err := state.Save(st, filepath.Join(validDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Invalid change — no state.json, so Load returns error → silently skipped.
+	badDir := filepath.Join(changesDir, "bad-feat")
+	if err := os.MkdirAll(badDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"list"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out struct {
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	// Only the valid change is counted; bad-feat is silently skipped.
+	if out.Count != 1 {
+		t.Errorf("count = %d, want 1 (bad-feat silently skipped)", out.Count)
+	}
+}
+
 func TestRunDiff(t *testing.T) {
 	// Helper: init a git repo with one commit.
 	// Uses /usr/bin/git directly to bypass any git shims.
@@ -355,4 +398,131 @@ func TestRunDiff(t *testing.T) {
 			t.Errorf("stderr = %q, want base_ref error", stderr.String())
 		}
 	})
+
+	t.Run("no changed files", func(t *testing.T) {
+		// Uses Chdir — do not mark parallel.
+		root := t.TempDir()
+		sha := initGitRepo(t, root)
+
+		// Create change with BaseRef but make no changes after the commit.
+		changeDir := filepath.Join(root, "openspec", "changes", "clean")
+		if err := os.MkdirAll(changeDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		st := state.NewState("clean", "desc")
+		st.BaseRef = sha
+		if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+			t.Fatal(err)
+		}
+
+		orig, _ := os.Getwd()
+		t.Cleanup(func() { os.Chdir(orig) })
+		os.Chdir(root)
+
+		var stdout, stderr bytes.Buffer
+		err := Run([]string{"diff", "clean"}, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+		}
+
+		var out struct {
+			Files []string `json:"files"`
+			Count int      `json:"count"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+			t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+		}
+		if out.Count != 0 {
+			t.Errorf("count = %d, want 0 for clean working tree", out.Count)
+		}
+		if out.Files == nil {
+			t.Error("expected non-nil files slice even when empty")
+		}
+	})
+}
+
+func TestRunPerCommandHelp(t *testing.T) {
+	t.Parallel()
+	// Covers the commandHelp lookup branch in Run (sdd <cmd> --help).
+	for _, cmd := range []string{"init", "new", "context", "verify", "dump", "doctor"} {
+		for _, flag := range []string{"--help", "-h"} {
+			var stdout, stderr bytes.Buffer
+			err := Run([]string{cmd, flag}, &stdout, &stderr)
+			if err != nil {
+				t.Errorf("Run(%q %q): unexpected error: %v", cmd, flag, err)
+				continue
+			}
+			if stdout.Len() == 0 {
+				t.Errorf("Run(%q %q): expected help output, got nothing", cmd, flag)
+			}
+		}
+	}
+}
+
+func TestRunUnknownCommandHelp(t *testing.T) {
+	t.Parallel()
+	// An unrecognised command with --help falls through to the unknown-command error.
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"nonexistent", "--help"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown command + --help")
+	}
+}
+
+func TestRunListChangesNotDir(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := t.TempDir()
+	// Create a file where openspec/changes/ should be, so ReadDir fails with a
+	// non-NotExist error.
+	openspecDir := filepath.Join(root, "openspec")
+	os.MkdirAll(openspecDir, 0o755)
+	os.WriteFile(filepath.Join(openspecDir, "changes"), []byte("block"), 0o644)
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"list"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when changes path is a file")
+	}
+}
+
+func TestRunDump_LegacyHashFormat(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := setupChange(t, "feat", "test feature")
+
+	// Write a legacy hash file without the "|{timestamp}" suffix.
+	changeDir := filepath.Join(root, "openspec", "changes", "feat")
+	cacheDir := filepath.Join(changeDir, ".cache")
+	os.MkdirAll(cacheDir, 0o755)
+	os.WriteFile(filepath.Join(cacheDir, "explore.hash"), []byte("deadbeef"), 0o644)
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	// Also need a config.yaml for loadConfig.
+	openspecDir := filepath.Join(root, "openspec")
+	os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte("version: 1\n"), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"dump", "feat"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	// cache_keys should contain the legacy hash value directly.
+	cacheKeys, _ := out["cache_keys"].(map[string]interface{})
+	if cacheKeys == nil {
+		t.Fatal("expected cache_keys in dump output")
+	}
+	if cacheKeys["explore"] != "deadbeef" {
+		t.Errorf("cache_keys[explore] = %v, want deadbeef", cacheKeys["explore"])
+	}
 }

@@ -209,6 +209,44 @@ func TestListWithSpecs(t *testing.T) {
 	}
 }
 
+func TestList_SpecsDirEmpty(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create an empty specs/ directory — List should skip it (len(entries) == 0).
+	os.MkdirAll(filepath.Join(dir, "specs"), 0o755)
+
+	items, err := List(dir)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("item count = %d, want 0 for empty specs dir", len(items))
+	}
+}
+
+func TestList_SpecsDirUnreadable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("spec"), 0o644)
+
+	// Make specs/ unreadable so ReadDir fails — List should skip it.
+	os.Chmod(specsDir, 0o000)
+	t.Cleanup(func() { os.Chmod(specsDir, 0o755) })
+
+	items, err := List(dir)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	// Spec items should be skipped due to ReadDir error.
+	for _, item := range items {
+		if item.Phase == state.PhaseSpec {
+			t.Error("spec item should not appear when specs/ is unreadable")
+		}
+	}
+}
+
 func TestListEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -247,6 +285,32 @@ func TestListPendingEmpty(t *testing.T) {
 	}
 	if items != nil {
 		t.Errorf("expected nil for missing .pending dir, got %v", items)
+	}
+}
+
+func TestArtifactFileNameUnknownPhase(t *testing.T) {
+	t.Parallel()
+	_, ok := ArtifactFileName(state.Phase("nonexistent"))
+	if ok {
+		t.Error("expected ok=false for unknown phase")
+	}
+}
+
+func TestReadUnknownPhase(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, err := Read(dir, state.Phase("nonexistent"))
+	if err == nil {
+		t.Error("expected error for unknown phase")
+	}
+}
+
+func TestReadFileMissing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, err := ReadFile(dir, "nonexistent.md")
+	if err == nil {
+		t.Error("expected error for missing file")
 	}
 }
 
@@ -308,6 +372,98 @@ func TestPromoteForceBypass(t *testing.T) {
 	}
 }
 
+func TestPromote_NoArtifactMapping(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Manually create a pending file for an unknown phase.
+	pendingDir := filepath.Join(dir, ".pending")
+	os.MkdirAll(pendingDir, 0o755)
+	os.WriteFile(filepath.Join(pendingDir, "unknown-phase.md"), []byte("content"), 0o644)
+
+	_, err := Promote(dir, state.Phase("unknown-phase"), true)
+	if err == nil {
+		t.Fatal("expected error for unknown phase with no artifact mapping")
+	}
+}
+
+func TestPromote_RemoveFails_ReturnsDestWithoutError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	content := []byte("# Exploration\n\n## Current State\nWorks.\n\n## Relevant Files\n- main.go\n")
+	WritePending(dir, state.PhaseExplore, content)
+
+	// Make .pending/ read-only so os.Remove fails.
+	pendingDir := filepath.Join(dir, ".pending")
+	os.Chmod(pendingDir, 0o555)
+	t.Cleanup(func() { os.Chmod(pendingDir, 0o755) })
+
+	dst, err := Promote(dir, state.PhaseExplore, true)
+	if err != nil {
+		t.Fatalf("expected success even when Remove fails, got: %v", err)
+	}
+	if dst == "" {
+		t.Error("expected non-empty dst path")
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Errorf("promoted file missing: %v", err)
+	}
+}
+
+func TestListPending_ReadDirError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pendingDir := filepath.Join(dir, ".pending")
+	// Create .pending as a file (not a dir) so ReadDir returns an error that isn't NotExist.
+	os.WriteFile(pendingDir, []byte("not a dir"), 0o644)
+
+	_, err := ListPending(dir)
+	if err == nil {
+		t.Fatal("expected error when .pending is a file, not a directory")
+	}
+}
+
+func TestWritePending_MkdirAllError(t *testing.T) {
+	t.Parallel()
+	// Create a file where .pending/ should be, so MkdirAll fails.
+	root := t.TempDir()
+	barrier := filepath.Join(root, ".pending")
+	os.WriteFile(barrier, []byte("block"), 0o644)
+
+	err := WritePending(root, state.PhaseExplore, []byte("data"))
+	if err == nil {
+		t.Fatal("expected error when .pending is a file, not a directory")
+	}
+}
+
+func TestPromote_WriteFileFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	WritePending(dir, state.PhaseExplore, []byte("# Exploration\n\n## Current State\nOK.\n\n## Relevant Files\n- a.go\n"))
+
+	// Make the change directory read-only so WriteFile fails.
+	os.Chmod(dir, 0o555)
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	_, err := Promote(dir, state.PhaseExplore, true)
+	if err == nil {
+		t.Fatal("expected error when destination directory is read-only")
+	}
+}
+
+func TestPromote_SpecMkdirAllFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	WritePending(dir, state.PhaseSpec, []byte("spec content"))
+
+	// Create a file named "specs" so MkdirAll fails.
+	os.WriteFile(filepath.Join(dir, "specs"), []byte("block"), 0o644)
+
+	_, err := Promote(dir, state.PhaseSpec, true)
+	if err == nil {
+		t.Fatal("expected error when specs/ cannot be created")
+	}
+}
+
 func TestPromoteAllPhases(t *testing.T) {
 	t.Parallel()
 	// Verify every phase with an artifact mapping can be promoted.
@@ -331,5 +487,43 @@ func TestPromoteAllPhases(t *testing.T) {
 				t.Errorf("promoted file missing: %v", err)
 			}
 		})
+	}
+}
+
+func TestWritePending_WriteError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pendingDir := filepath.Join(dir, ".pending")
+	if err := os.MkdirAll(pendingDir, 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Make .pending/ read-only so WriteFile fails.
+	if err := os.Chmod(pendingDir, 0o555); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(pendingDir, 0o755) })
+
+	err := WritePending(dir, state.PhaseExplore, []byte("content"))
+	if err == nil {
+		t.Fatal("expected error writing to read-only .pending dir")
+	}
+}
+
+func TestPromote_ReadError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create pending file then make it unreadable.
+	if err := WritePending(dir, state.PhaseExplore, []byte("content")); err != nil {
+		t.Fatalf("setup WritePending: %v", err)
+	}
+	pendingFile := PendingPath(dir, state.PhaseExplore)
+	if err := os.Chmod(pendingFile, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(pendingFile, 0o644) })
+
+	_, err := Promote(dir, state.PhaseExplore, true)
+	if err == nil {
+		t.Fatal("expected error reading unreadable pending file")
 	}
 }

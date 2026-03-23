@@ -2,13 +2,11 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -19,10 +17,17 @@ import (
 
 func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 	port := "8811"
-	for i, arg := range args {
-		switch {
-		case (arg == "--port" || arg == "-p") && i+1 < len(args):
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "--port", "-p":
+			if i+1 >= len(args) {
+				return errs.Usage("--port requires a port number")
+			}
 			port = args[i+1]
+			i++ // skip port value
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 
@@ -31,12 +36,12 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.Usage(fmt.Sprintf("invalid port: %s (must be 1024-65535)", port))
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "dashboard")
 	if err != nil {
-		return errs.WriteError(stderr, "dashboard", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
-	dbPath := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
-	changesDir := filepath.Join(cwd, "openspec", "changes")
+	dbPath := openspecDB(cwd)
+	changesDir := openspecChanges(cwd)
 
 	db, err := store.Open(dbPath)
 	if err != nil {
@@ -56,8 +61,7 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 		Status:  "running",
 		URL:     "http://" + addr,
 	}
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

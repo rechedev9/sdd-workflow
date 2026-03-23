@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
@@ -18,9 +19,10 @@ type ArtifactInfo struct {
 
 // List returns all existing artifacts in the change directory.
 func List(changeDir string) ([]ArtifactInfo, error) {
-	var result []ArtifactInfo
+	phases := state.AllPhases()
+	result := make([]ArtifactInfo, 0, len(phases))
 
-	for _, phase := range state.AllPhases() {
+	for _, phase := range phases {
 		name, ok := ArtifactFileName(phase)
 		if !ok {
 			continue
@@ -74,17 +76,24 @@ func ListPending(changeDir string) ([]ArtifactInfo, error) {
 		return nil, fmt.Errorf("read .pending directory: %w", err)
 	}
 
-	var result []ArtifactInfo
+	result := make([]ArtifactInfo, 0, len(entries))
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil {
 			continue
 		}
-		result = append(result, ArtifactInfo{
+		// Derive phase from filename: "spec.md" → PhaseSpec.
+		// Leaves Phase empty for files that don't follow the pattern.
+		phase := state.Phase(strings.TrimSuffix(e.Name(), ".md"))
+		ai := ArtifactInfo{
 			Filename: e.Name(),
 			Path:     filepath.Join(pendingDir, e.Name()),
 			Size:     info.Size(),
-		})
+		}
+		if _, ok := ArtifactFileName(phase); ok {
+			ai.Phase = phase
+		}
+		result = append(result, ai)
 	}
 	return result, nil
 }

@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -60,7 +61,7 @@ func Validate(phase state.Phase, content []byte) error {
 		return nil
 	}
 
-	var missing []string
+	missing := make([]string, 0, len(rules))
 	for _, r := range rules {
 		if !r.check(content) {
 			missing = append(missing, r.name)
@@ -73,16 +74,20 @@ func Validate(phase state.Phase, content []byte) error {
 }
 
 func containsStr(s string) func([]byte) bool {
+	b := []byte(s)
 	return func(content []byte) bool {
-		return strings.Contains(string(content), s)
+		return bytes.Contains(content, b)
 	}
 }
 
 func containsAny(options ...string) func([]byte) bool {
+	bs := make([][]byte, len(options))
+	for i, opt := range options {
+		bs[i] = []byte(opt)
+	}
 	return func(content []byte) bool {
-		text := string(content)
-		for _, opt := range options {
-			if strings.Contains(text, opt) {
+		for _, b := range bs {
+			if bytes.Contains(content, b) {
 				return true
 			}
 		}

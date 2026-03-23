@@ -253,3 +253,34 @@ func TestLoadInvalidYAML(t *testing.T) {
 		t.Fatal("expected error for invalid YAML")
 	}
 }
+
+func TestLoadVersionMismatch_Warns(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	// Write a config with a future version — Load should succeed with a slog warning.
+	os.WriteFile(path, []byte("version: 999\nproject_name: test\n"), 0o644)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Version != 999 {
+		t.Errorf("version = %d, want 999", cfg.Version)
+	}
+}
+
+func TestSave_MkdirAllError(t *testing.T) {
+	t.Parallel()
+	// Create a file where the parent dir should be, so MkdirAll fails.
+	root := t.TempDir()
+	barrier := filepath.Join(root, "notadir")
+	os.WriteFile(barrier, []byte("block"), 0o644)
+	path := filepath.Join(barrier, "subdir", "config.yaml")
+
+	cfg := &Config{ProjectName: "test"}
+	err := Save(cfg, path)
+	if err == nil {
+		t.Fatal("expected error when MkdirAll fails")
+	}
+}

@@ -14,25 +14,23 @@ import (
 // Includes: spec files (MUST/SHOULD requirements), proposal.md, sdd-design SKILL.md.
 func AssembleDesign(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-design") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		skillLoader(p.SkillsPath, "sdd-design"),
+		artifactLoader(p.ChangeDir, "proposal.md"),
+		loadSpecsLoader(p.ChangeDir),
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("design requires proposal artifact: %w", e)
+			return errRequiredArtifact("design", "proposal artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("design requires spec artifacts: %w", e)
+			return errRequiredArtifact("design", "spec artifacts", e)
 		}
 	}
 
@@ -43,10 +41,7 @@ func AssembleDesign(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	writeSectionStr(w, "PROJECT", projectContext(p))
 
@@ -60,6 +55,33 @@ func AssembleDesign(w io.Writer, p *Params) error {
 	return nil
 }
 
+// artifactLoader returns a loader closure that reads a named artifact file.
+// Used by assemblers to register artifact loads as lazy-load tasks.
+func artifactLoader(changeDir, name string) func() ([]byte, error) {
+	return func() ([]byte, error) { return loadArtifact(changeDir, name) }
+}
+
+// skillLoader returns a loader closure that reads a named skill file.
+// Used by assemblers to register skill loads as lazy-load tasks.
+func skillLoader(skillsPath, name string) func() ([]byte, error) {
+	return func() ([]byte, error) { return loadSkill(skillsPath, name) }
+}
+
+// loadSpecsLoader returns a loader closure that reads spec files as bytes.
+// Used by assemblers that register loadSpecs as a lazy-load task.
+func loadSpecsLoader(changeDir string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		s, err := loadSpecs(changeDir)
+		return []byte(s), err
+	}
+}
+
+// buildSummaryLoader returns a loader closure that builds the pipeline summary.
+// Used by assemblers that include a cumulative context section.
+func buildSummaryLoader(p *Params) func() ([]byte, error) {
+	return func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil }
+}
+
 // loadSpecs reads all .md files from the specs/ directory, concatenated.
 func loadSpecs(changeDir string) (string, error) {
 	specsDir := filepath.Join(changeDir, "specs")
@@ -68,7 +90,22 @@ func loadSpecs(changeDir string) (string, error) {
 		return "", fmt.Errorf("read specs directory: %w", err)
 	}
 
-	var parts []string
+	var b strings.Builder
+	// Pre-size: sum .md file sizes (from DirEntry.Info, cached from ReadDir) + headers.
+	// Filters match the load loop to avoid over-allocating for dirs and non-.md files.
+	var totalEst int
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		if info, err := e.Info(); err == nil {
+			totalEst += int(info.Size()) + 20
+		}
+	}
+	if totalEst > 0 {
+		b.Grow(totalEst)
+	}
+	count := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -77,12 +114,19 @@ func loadSpecs(changeDir string) (string, error) {
 		if err != nil {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("### %s\n\n%s", e.Name(), string(data)))
+		if count > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("### ")
+		b.WriteString(e.Name())
+		b.WriteString("\n\n")
+		b.Write(data)
+		count++
 	}
 
-	if len(parts) == 0 {
+	if count == 0 {
 		return "", fmt.Errorf("no spec files found in %s", specsDir)
 	}
 
-	return strings.Join(parts, "\n\n"), nil
+	return b.String(), nil
 }

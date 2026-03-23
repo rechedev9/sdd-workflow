@@ -35,6 +35,7 @@ type PhaseAssembledPayload struct {
 	ChangeDir  string
 	SkillsPath string
 	Content    []byte // non-nil only on cache miss (for cache subscriber)
+	InputHash  string // pre-computed input hash; reused by saveContextCache to avoid double-hashing
 }
 
 // CacheHitPayload is emitted when cached context is reused.
@@ -64,8 +65,9 @@ type StateAdvancedPayload struct {
 
 // VerifyFailedPayload is emitted when sdd verify has one or more failed commands.
 type VerifyFailedPayload struct {
-	Change  string
-	Results []VerifyFailedCommand
+	Change     string
+	ProjectDir string // project root; avoids os.Getwd() in subscriber
+	Results    []VerifyFailedCommand
 }
 
 // VerifyFailedCommand captures one failed command from a verify run.
@@ -107,24 +109,31 @@ func (b *Broker) Subscribe(t EventType, h Handler) {
 
 // Emit dispatches an event to all subscribers for its type.
 // Nil-safe: calling on a nil *Broker is a no-op.
-// Serialized via mutex — concurrent Emit() calls are safe.
+// The handler slice is copied under the lock, then handlers are called
+// without holding the lock — allowing handlers to call Subscribe or Emit
+// without deadlocking.
 // Each subscriber is called with panic recovery.
 func (b *Broker) Emit(e Event) {
 	if b == nil {
 		return
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	handlers := make([]Handler, len(b.subs[e.Type]))
+	copy(handlers, b.subs[e.Type])
+	b.mu.Unlock()
 
-	handlers := b.subs[e.Type]
 	for _, h := range handlers {
-		func(handler Handler) {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("event subscriber panic", "event", string(e.Type), "panic", fmt.Sprint(r))
-				}
-			}()
-			handler(e)
-		}(h)
+		callHandler(h, e)
 	}
+}
+
+// callHandler invokes h(e) with panic recovery so a panicking subscriber
+// cannot crash the process or prevent other subscribers from running.
+func callHandler(h Handler, e Event) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("event subscriber panic", "event", string(e.Type), "panic", fmt.Sprint(r))
+		}
+	}()
+	h(e)
 }

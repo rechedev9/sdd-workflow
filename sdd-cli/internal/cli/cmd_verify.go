@@ -2,16 +2,13 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
@@ -29,6 +26,8 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		switch arg {
 		case "--force", "-f":
 			force = true
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 
@@ -37,20 +36,19 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "verify", err)
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "verify")
 	if err != nil {
-		return errs.WriteError(stderr, "verify", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config for commands.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(stderr, "verify", cwd)
 	if err != nil {
-		return errs.WriteError(stderr, "verify", fmt.Errorf("load config: %w", err))
+		return err
 	}
 
 	// Smart-skip: reuse last verify if no source files changed.
-	if skip, _ := shouldSkipVerify(cwd, changeDir); skip {
+	if shouldSkipVerify(cwd, changeDir) {
 		slog.Info("verify skipped", "reason", "no source changes since last PASS")
 
 		// Record smart-skip as passing results for dashboard charts.
@@ -72,7 +70,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 			Status     string `json:"status"`
 			Change     string `json:"change"`
 			Passed     bool   `json:"passed"`
-			Skipped    bool   `json:"skipped,omitempty"`
+			Skipped    bool   `json:"skipped"`
 			ReportPath string `json:"report_path"`
 		}{
 			Command:    "verify",
@@ -82,8 +80,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 			Skipped:    true,
 			ReportPath: filepath.Join(changeDir, "verify-report.md"),
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 
@@ -155,13 +152,12 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		out.Status = "failed"
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 
 	// Emit VerifyFailed event for error collection.
 	if !report.Passed {
-		broker := newBroker(stderr, 0, db)
-		var failedCmds []events.VerifyFailedCommand
+		broker := newBroker(0, db)
+		failedCmds := make([]events.VerifyFailedCommand, 0, len(report.Results))
 		for _, r := range report.Results {
 			if !r.Passed {
 				failedCmds = append(failedCmds, events.VerifyFailedCommand{
@@ -174,7 +170,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		broker.Emit(events.Event{
 			Type:    events.VerifyFailed,
-			Payload: events.VerifyFailedPayload{Change: name, Results: failedCmds},
+			Payload: events.VerifyFailedPayload{Change: name, ProjectDir: cwd, Results: failedCmds},
 		})
 	}
 
@@ -193,22 +189,18 @@ func checkRecurringFailures(cwd, changeName string) map[string]int {
 		return nil
 	}
 
-	// Collect fingerprints from this change's recent failures.
-	var changeFingerprints []string
-	for i := len(log.Entries) - 1; i >= 0; i-- {
+	// Match recent failures for this change against the recurring set.
+	// Build matches directly — no intermediate slice needed.
+	matches := make(map[string]int, 10)
+	seen := 0
+	for i := len(log.Entries) - 1; i >= 0 && seen < 10; i-- {
 		e := log.Entries[i]
-		if e.Change == changeName {
-			changeFingerprints = append(changeFingerprints, e.Fingerprint)
+		if e.Change != changeName {
+			continue
 		}
-		if len(changeFingerprints) >= 10 {
-			break
-		}
-	}
-
-	matches := make(map[string]int)
-	for _, fp := range changeFingerprints {
-		if count, ok := recurring[fp]; ok {
-			matches[fp] = count
+		seen++
+		if count, ok := recurring[e.Fingerprint]; ok {
+			matches[e.Fingerprint] = count
 		}
 	}
 	if len(matches) == 0 {

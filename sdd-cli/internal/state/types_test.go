@@ -1,6 +1,9 @@
 package state
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNewState(t *testing.T) {
 	t.Parallel()
@@ -32,6 +35,51 @@ func TestNewState(t *testing.T) {
 		if status != StatusPending {
 			t.Errorf("phase %q status = %q, want %q", p, status, StatusPending)
 		}
+	}
+}
+
+func TestIsStale(t *testing.T) {
+	t.Parallel()
+
+	t.Run("completed_never_stale", func(t *testing.T) {
+		t.Parallel()
+		s := NewState("feat", "desc")
+		for p := range s.Phases {
+			s.Phases[p] = StatusCompleted
+		}
+		s.UpdatedAt = time.Now().Add(-72 * time.Hour)
+		if s.IsStale(time.Hour) {
+			t.Error("completed state should never be stale")
+		}
+	})
+
+	t.Run("not_stale_when_recent", func(t *testing.T) {
+		t.Parallel()
+		s := NewState("feat", "desc")
+		s.UpdatedAt = time.Now().Add(-30 * time.Minute)
+		if s.IsStale(time.Hour) {
+			t.Error("state updated 30m ago should not be stale with 1h threshold")
+		}
+	})
+
+	t.Run("stale_when_old", func(t *testing.T) {
+		t.Parallel()
+		s := NewState("feat", "desc")
+		s.UpdatedAt = time.Now().Add(-2 * time.Hour)
+		if !s.IsStale(time.Hour) {
+			t.Error("state updated 2h ago should be stale with 1h threshold")
+		}
+	})
+}
+
+func TestStaleHours(t *testing.T) {
+	t.Parallel()
+
+	s := NewState("feat", "desc")
+	s.UpdatedAt = time.Now().Add(-3*time.Hour - 45*time.Minute)
+	h := s.StaleHours()
+	if h != 3 {
+		t.Errorf("StaleHours = %d, want 3", h)
 	}
 }
 

@@ -10,6 +10,7 @@ package phase
 
 import (
 	"io"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -27,8 +28,6 @@ type AssemblerParams struct {
 	ProjectDir  string
 	Config      *config.Config
 	SkillsPath  string
-	Stderr      io.Writer      // for metrics output; nil = discard
-	Verbosity   int            // -1=quiet, 0=default, 1=verbose, 2=debug
 	Broker      *events.Broker // event broker; nil = no events
 }
 
@@ -53,6 +52,7 @@ type Phase struct {
 // Read-only after first Get()/All()/AllNames() call.
 type Registry struct {
 	phases []Phase
+	byName map[string]int // name → index in phases; populated by Register
 	sealed atomic.Bool
 }
 
@@ -66,11 +66,17 @@ func (r *Registry) Register(p Phase) {
 	if p.Name == "" {
 		panic("phase: Register called with empty Name")
 	}
-	for _, existing := range r.phases {
-		if existing.Name == p.Name {
-			panic("phase: duplicate registration: " + p.Name)
-		}
+	if r.byName == nil {
+		r.byName = make(map[string]int, 16)
 	}
+	if _, dup := r.byName[p.Name]; dup {
+		panic("phase: duplicate registration: " + p.Name)
+	}
+	// Sort CacheInputs once at registration so inputHash can skip the alloc+sort.
+	if len(p.CacheInputs) > 1 {
+		slices.Sort(p.CacheInputs)
+	}
+	r.byName[p.Name] = len(r.phases)
 	r.phases = append(r.phases, p)
 }
 
@@ -81,11 +87,9 @@ func (r *Registry) SetAssembler(name string, fn Assembler) {
 	if r.sealed.Load() {
 		panic("phase: SetAssembler called on sealed registry")
 	}
-	for i := range r.phases {
-		if r.phases[i].Name == name {
-			r.phases[i].Assemble = fn
-			return
-		}
+	if i, ok := r.byName[name]; ok {
+		r.phases[i].Assemble = fn
+		return
 	}
 	panic("phase: SetAssembler called for unknown phase: " + name)
 }
@@ -94,10 +98,8 @@ func (r *Registry) SetAssembler(name string, fn Assembler) {
 // Seals the registry on first call.
 func (r *Registry) Get(name string) (Phase, bool) {
 	r.sealed.Store(true)
-	for _, p := range r.phases {
-		if p.Name == name {
-			return p, true
-		}
+	if i, ok := r.byName[name]; ok {
+		return r.phases[i], true
 	}
 	return Phase{}, false
 }

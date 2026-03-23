@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -11,24 +10,22 @@ import (
 // Includes: spec files, design.md, sdd-tasks SKILL.md.
 func AssembleTasks(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-tasks") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
+		skillLoader(p.SkillsPath, "sdd-tasks"),
+		artifactLoader(p.ChangeDir, "design.md"),
+		loadSpecsLoader(p.ChangeDir),
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("tasks requires design artifact: %w", e)
+			return errRequiredArtifact("tasks", "design artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("tasks requires spec artifacts: %w", e)
+			return errRequiredArtifact("tasks", "spec artifacts", e)
 		}
 	}
 
@@ -38,10 +35,7 @@ func AssembleTasks(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	writeSection(w, "SPECIFICATIONS", specs)
 	writeSection(w, "DESIGN", design)

@@ -120,6 +120,20 @@ func TestRun_SkipsEmptyCommands(t *testing.T) {
 	}
 }
 
+func TestRun_ZeroTimeoutUsesDefault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Pass timeout=0 — Run must substitute DefaultTimeout and still succeed.
+	report, err := Run(dir, []CommandSpec{{Name: "ok", Command: "true"}}, 0, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !report.Passed {
+		t.Error("expected report to pass with timeout=0 (defaults to DefaultTimeout)")
+	}
+}
+
 func TestErrorLines(t *testing.T) {
 	t.Parallel()
 
@@ -247,6 +261,120 @@ func TestRun_ProgressOutput(t *testing.T) {
 	}
 }
 
+func TestWriteReport_TimedOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	report := &Report{
+		Timestamp: time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC),
+		Passed:    false,
+		Results: []*CommandResult{
+			{Name: "build", Command: "go build ./...", Passed: false, TimedOut: true, Duration: 5 * time.Minute, ExitCode: -1},
+		},
+	}
+
+	if err := WriteReport(report, dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "verify-report.md"))
+	if err != nil {
+		t.Fatalf("read report: %v", err)
+	}
+	if !strings.Contains(string(data), "Timed out") {
+		t.Error("expected report to contain 'Timed out'")
+	}
+}
+
+func TestArchive_MkdirFails(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// Create changeDir inside "changes/"; put a file at "changes/archive" so MkdirAll fails.
+	changesDir := filepath.Join(root, "changes")
+	if err := os.MkdirAll(changesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Block archive directory creation by placing a file there.
+	os.WriteFile(filepath.Join(changesDir, "archive"), []byte("block"), 0o644)
+	changeDir := filepath.Join(changesDir, "my-change")
+	os.MkdirAll(changeDir, 0o755)
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when archive directory cannot be created")
+	}
+}
+
+func TestArchive_RenameError(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "changes", "my-change")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(changeDir, "state.json"), []byte(`{}`), 0o644)
+
+	// Make the parent directory read-only so rename fails.
+	parentDir := filepath.Join(root, "changes")
+	os.Chmod(parentDir, 0o555)
+	t.Cleanup(func() { os.Chmod(parentDir, 0o755) })
+
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when rename fails due to read-only parent")
+	}
+}
+
+func TestArchive_RenameFailsByReadOnlyArchiveDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changesDir := filepath.Join(root, "changes")
+	// Pre-create the archive dir as read-only so MkdirAll is a no-op
+	// but os.Rename into it fails (no write permission on the dir).
+	archiveDir := filepath.Join(changesDir, "archive")
+	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(archiveDir, 0o555); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(archiveDir, 0o755) })
+
+	changeDir := filepath.Join(changesDir, "my-change")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Archive(changeDir)
+	if err == nil {
+		t.Fatal("expected error when archive dir is read-only")
+	}
+}
+
+func TestArchive_WithPendingDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "changes", "feat")
+	pendingDir := filepath.Join(changeDir, ".pending")
+	if err := os.MkdirAll(pendingDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(changeDir, "exploration.md"), []byte("# Exploration"), 0o644)
+	os.WriteFile(filepath.Join(pendingDir, "propose.md"), []byte("# Pending"), 0o644)
+
+	result, err := Archive(changeDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	manifest, err := os.ReadFile(result.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	// .pending should not appear in manifest.
+	if strings.Contains(string(manifest), ".pending") {
+		t.Error("manifest should not list .pending directory")
+	}
+}
+
 func TestArchive(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -322,5 +450,65 @@ func TestArchive(t *testing.T) {
 	}
 	if !strings.Contains(manifest, "exploration.md") {
 		t.Error("expected manifest to list exploration.md")
+	}
+}
+
+func TestWriteManifest_AtomicWriteFails(t *testing.T) {
+	t.Parallel()
+	// archivePath is readable, but manifestPath is inside a read-only subdir.
+	root := t.TempDir()
+	archivePath := root // readable dir with no files
+	roDir := filepath.Join(root, "ro")
+	if err := os.Mkdir(roDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Make roDir read-only so AtomicWrite (CreateTemp) fails.
+	if err := os.Chmod(roDir, 0o555); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(roDir, 0o755) })
+
+	manifestPath := filepath.Join(roDir, "manifest.md")
+	err := writeManifest(archivePath, "test-change", manifestPath)
+	if err == nil {
+		t.Fatal("expected error when manifest write destination is read-only")
+	}
+}
+
+func TestRun_TimeoutWithProgress(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	commands := []CommandSpec{
+		{Name: "hang", Command: "sleep 60"},
+	}
+
+	// Pass a non-nil progress writer to exercise the TimedOut progress branch.
+	// Avoid redirecting the global slog logger to prevent races with other tests.
+	var progress bytes.Buffer
+	report, err := Run(dir, commands, 300*time.Millisecond, &progress)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if report.Passed {
+		t.Fatal("expected report to fail on timeout")
+	}
+	if !report.Results[0].TimedOut {
+		t.Error("expected TimedOut to be true")
+	}
+}
+
+func TestWriteManifest_ReadDirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Make dir unreadable so os.ReadDir inside writeManifest fails.
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	err := writeManifest(dir, "test-change", filepath.Join(dir, "manifest.md"))
+	if err == nil {
+		t.Fatal("expected error when archive directory is unreadable")
 	}
 }

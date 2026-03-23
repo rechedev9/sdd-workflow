@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
@@ -237,6 +238,37 @@ func TestAssembleTasksNoDesign(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := AssembleTasks(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when design.md is missing")
+	}
+}
+
+func TestAssembleTasksNoSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
+	// specs/ directory absent → AssembleTasks must error
+
+	var buf bytes.Buffer
+	err := AssembleTasks(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when specs/ is missing")
+	}
+}
+
+func TestAssembleApplyNoDesign(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Do something\n"), 0o644)
+	specsDir := filepath.Join(changeDir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n"), 0o644)
+	// design.md absent → AssembleApply must error
+
+	var buf bytes.Buffer
+	err := AssembleApply(&buf, p)
 	if err == nil {
 		t.Fatal("expected error when design.md is missing")
 	}
@@ -570,6 +602,31 @@ func TestLoadSpecsMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestLoadSpecs_UnreadableFileSkipped(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+
+	// Readable spec.
+	os.WriteFile(filepath.Join(specsDir, "good.md"), []byte("readable content"), 0o644)
+	// Unreadable spec — ReadFile will fail, should be skipped.
+	unreadable := filepath.Join(specsDir, "secret.md")
+	os.WriteFile(unreadable, []byte("secret"), 0o000)
+	t.Cleanup(func() { os.Chmod(unreadable, 0o644) })
+
+	specs, err := loadSpecs(dir)
+	if err != nil {
+		t.Fatalf("loadSpecs: %v", err)
+	}
+	if !strings.Contains(specs, "readable content") {
+		t.Error("expected readable spec in output")
+	}
+	if strings.Contains(specs, "secret") {
+		t.Error("unreadable spec should be skipped")
+	}
+}
+
 // --- Embedded Skills Tests ---
 
 func TestLoadSkillEmbedFallback(t *testing.T) {
@@ -682,6 +739,113 @@ func TestInputHashEmbeddedFallback(t *testing.T) {
 	}
 }
 
+func TestAssemble_InvalidPhase(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+
+	var buf bytes.Buffer
+	err := Assemble(&buf, state.Phase("nonexistent"), p)
+	if err == nil {
+		t.Fatal("expected error for invalid phase")
+	}
+	if !strings.Contains(err.Error(), "no assembler") {
+		t.Errorf("expected 'no assembler' in error, got: %v", err)
+	}
+}
+
+func TestAssemble_CacheHit(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+
+	// Pre-save cache for "explore" (no inputs needed).
+	cached := []byte("cached context data")
+	if err := saveContextCache(changeDir, "explore", p.SkillsPath, "", cached); err != nil {
+		t.Fatalf("saveContextCache: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	if buf.String() != string(cached) {
+		t.Errorf("output = %q, want %q", buf.String(), cached)
+	}
+}
+
+func TestAssemble_SizeGuard(t *testing.T) {
+	t.Parallel()
+	_, skillsDir, p := setupFixture(t)
+	p.Broker = nil // nil Broker is safe
+
+	// Write a >100KB SKILL.md for sdd-explore so assembled output exceeds limit.
+	hugeSkill := bytes.Repeat([]byte("x"), maxContextBytes+1024)
+	skillFile := filepath.Join(skillsDir, "sdd-explore", "SKILL.md")
+	if err := os.WriteFile(skillFile, hugeSkill, 0o644); err != nil {
+		t.Fatalf("write huge skill: %v", err)
+	}
+
+	var buf bytes.Buffer
+	err := Assemble(&buf, state.PhaseExplore, p)
+	if err == nil {
+		t.Fatal("expected size guard error")
+	}
+	if !strings.Contains(err.Error(), "context too large") {
+		t.Errorf("expected 'context too large' in error, got: %v", err)
+	}
+}
+
+func TestAssembleApply_NoSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Do something\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
+	// specs/ absent → AssembleApply must error on spec artifacts
+
+	var buf bytes.Buffer
+	err := AssembleApply(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when specs/ is missing")
+	}
+	if !strings.Contains(err.Error(), "spec artifacts") {
+		t.Errorf("expected 'spec artifacts' in error, got: %v", err)
+	}
+}
+
+func TestAssembleClean_WithDesignAndSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte("# Verify Report\nVerdict: PASS\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [x] All done\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nuse middleware\n"), 0o644)
+	specsDir := filepath.Join(changeDir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\nMUST work\n"), 0o644)
+
+	var buf bytes.Buffer
+	err := AssembleClean(&buf, p)
+	if err != nil {
+		t.Fatalf("AssembleClean: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "--- DESIGN ---") {
+		t.Error("missing DESIGN section")
+	}
+	if !strings.Contains(out, "use middleware") {
+		t.Error("missing design content")
+	}
+	if !strings.Contains(out, "--- SPECIFICATIONS ---") {
+		t.Error("missing SPECIFICATIONS section")
+	}
+	if !strings.Contains(out, "MUST work") {
+		t.Error("missing spec content")
+	}
+}
+
 func TestInputHashDiskVsEmbedded(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -693,5 +857,30 @@ func TestInputHashDiskVsEmbedded(t *testing.T) {
 	hashEmbed := inputHash(dir, nil, "", "explore")
 	if hashDisk == hashEmbed {
 		t.Error("disk and embedded hashes should differ when skill content differs")
+	}
+}
+
+func TestGitFileTree_NonGitDir(t *testing.T) {
+	t.Parallel()
+	// Non-git directory → git ls-files fails → error returned.
+	_, err := gitFileTree(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error from gitFileTree on non-git directory")
+	}
+}
+
+func TestGitFileTree_ValidRepo(t *testing.T) {
+	t.Parallel()
+	// Use the current package directory — it's inside the git repo.
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Skip("cannot get cwd:", err)
+	}
+	out, err := gitFileTree(cwd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out == "" {
+		t.Error("expected non-empty file tree")
 	}
 }

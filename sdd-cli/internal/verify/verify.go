@@ -4,6 +4,7 @@ package verify
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -78,6 +79,7 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 	report := &Report{
 		Timestamp: time.Now().UTC(),
 		Passed:    true,
+		Results:   make([]*CommandResult, 0, len(commands)),
 	}
 
 	for _, spec := range commands {
@@ -93,11 +95,12 @@ func Run(workDir string, commands []CommandSpec, timeout time.Duration, progress
 		report.Results = append(report.Results, result)
 
 		if progress != nil {
-			if result.Passed {
+			switch {
+			case result.Passed:
 				slog.Info("verify passed", "command", spec.Name, "duration", result.Duration.Round(time.Millisecond))
-			} else if result.TimedOut {
+			case result.TimedOut:
 				slog.Error("verify timeout", "command", spec.Name, "timeout", timeout)
-			} else {
+			default:
 				slog.Error("verify failed", "command", spec.Name, "exit_code", result.ExitCode)
 			}
 		}
@@ -142,7 +145,6 @@ func runOne(workDir string, spec CommandSpec, timeout time.Duration) *CommandRes
 
 	if err == nil {
 		result.Passed = true
-		result.ExitCode = 0
 		return result
 	}
 
@@ -156,7 +158,8 @@ func runOne(workDir string, spec CommandSpec, timeout time.Duration) *CommandRes
 	}
 
 	// Non-zero exit.
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		result.ExitCode = exitErr.ExitCode()
 	} else {
 		result.ExitCode = -1
@@ -173,6 +176,7 @@ func WriteReport(report *Report, changeDir string) error {
 	path := filepath.Join(changeDir, "verify-report.md")
 
 	var buf bytes.Buffer
+	buf.Grow(256 + len(report.Results)*150) // pre-size: header + ~150 bytes per result
 	buf.WriteString("# Verify Report\n\n")
 	fmt.Fprintf(&buf, "**Timestamp:** %s\n\n", report.Timestamp.Format(time.RFC3339))
 

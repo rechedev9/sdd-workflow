@@ -1,12 +1,11 @@
 package cli
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
@@ -19,21 +18,19 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
-
-	changeDir, err := resolveChangeDir(name)
-	if err != nil {
-		return errs.WriteError(stderr, "health", err)
+	if len(args) > 1 {
+		return errUnknownFlag(args[1])
 	}
 
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
+	changeDir, st, err := loadChangeState(stderr, "health", name)
 	if err != nil {
-		return errs.WriteError(stderr, "health", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	// Count completed phases.
+	allPhases := state.AllPhases()
 	var completed int
-	for _, p := range state.AllPhases() {
+	for _, p := range allPhases {
 		if st.Phases[p] == state.StatusCompleted {
 			completed++
 		}
@@ -42,16 +39,20 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	// Load pipeline metrics.
 	pm := sddctx.LoadPipelineMetrics(changeDir)
 
+	// Compute staleness once — both IsStale and StaleHours call time.Since.
+	staleHours := st.StaleHours()
+	isStale := !st.IsComplete() && staleHours >= int(staleThreshold.Hours())
+
 	// Build warnings.
-	var warnings []string
-	if st.IsStale(staleThreshold) {
-		warnings = append(warnings, fmt.Sprintf("change inactive for %d hours", st.StaleHours()))
+	warnings := make([]string, 0, 2)
+	if isStale {
+		warnings = append(warnings, fmt.Sprintf("change inactive for %d hours", staleHours))
 	}
 
 	// Check if last verify failed.
 	reportPath := filepath.Join(changeDir, "verify-report.md")
 	if data, err := os.ReadFile(reportPath); err == nil {
-		if strings.Contains(string(data), "**Status:** FAILED") {
+		if bytes.Contains(data, []byte("**Status:** FAILED")) {
 			warnings = append(warnings, "last verify FAILED")
 		}
 	}
@@ -66,8 +67,8 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheHits    int      `json:"cache_hits"`
 		CacheMisses  int      `json:"cache_misses"`
 		TotalTokens  int      `json:"total_tokens"`
-		Stale        bool     `json:"stale,omitempty"`
-		StaleHours   int      `json:"stale_hours,omitempty"`
+		Stale        bool     `json:"stale"`
+		StaleHours   int      `json:"stale_hours"`
 		Warnings     []string `json:"warnings,omitempty"`
 	}{
 		Command:      "health",
@@ -75,16 +76,15 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 		Change:       st.Name,
 		CurrentPhase: string(st.CurrentPhase),
 		Completed:    completed,
-		TotalPhases:  len(state.AllPhases()),
+		TotalPhases:  len(allPhases),
 		CacheHits:    pm.CacheHits,
 		CacheMisses:  pm.CacheMisses,
 		TotalTokens:  pm.TotalTokens,
-		Stale:        st.IsStale(staleThreshold),
-		StaleHours:   st.StaleHours(),
+		Stale:        isStale,
+		StaleHours:   staleHours,
 		Warnings:     warnings,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

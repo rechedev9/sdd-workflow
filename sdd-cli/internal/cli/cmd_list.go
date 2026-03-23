@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,10 +10,13 @@ import (
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
-func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
-	cwd, err := os.Getwd()
+func runList(args []string, stdout io.Writer, stderr io.Writer) error {
+	if len(args) > 0 {
+		return errUnknownFlag(args[0])
+	}
+	cwd, err := getCWD(stderr, "list")
 	if err != nil {
-		return errs.WriteError(stderr, "list", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	type changeInfo struct {
@@ -22,28 +24,20 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		CurrentPhase string `json:"current_phase"`
 		Description  string `json:"description"`
 		IsComplete   bool   `json:"is_complete"`
-		Stale        bool   `json:"stale,omitempty"`
+		Stale        bool   `json:"stale"`
 	}
 
-	var changes []changeInfo
-
-	changesDir := filepath.Join(cwd, "openspec", "changes")
-	entries, err := os.ReadDir(changesDir)
-	if err != nil && !os.IsNotExist(err) {
+	changesDir := openspecChanges(cwd)
+	if _, err := os.ReadDir(changesDir); err != nil && !os.IsNotExist(err) {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))
 	}
 
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "archive" {
-			continue
-		}
-
-		statePath := filepath.Join(changesDir, e.Name(), "state.json")
-		st, err := state.Load(statePath)
+	changes := make([]changeInfo, 0)
+	eachChangeDir(changesDir, func(changeDir string) {
+		st, err := state.Load(filepath.Join(changeDir, "state.json"))
 		if err != nil {
-			continue // skip entries without valid state
+			return // skip entries without valid state
 		}
-
 		changes = append(changes, changeInfo{
 			Name:         st.Name,
 			CurrentPhase: string(st.CurrentPhase),
@@ -51,7 +45,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 			IsComplete:   st.IsComplete(),
 			Stale:        st.IsStale(staleThreshold),
 		})
-	}
+	})
 
 	out := struct {
 		Command string       `json:"command"`
@@ -65,7 +59,6 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		Changes: changes,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

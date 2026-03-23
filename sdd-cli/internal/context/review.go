@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
@@ -15,13 +16,10 @@ import (
 // Optionally includes AGENTS.md / CLAUDE.md if present.
 func AssembleReview(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-review") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
+		skillLoader(p.SkillsPath, "sdd-review"),
+		loadSpecsLoader(p.ChangeDir),
+		artifactLoader(p.ChangeDir, "design.md"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
 		func() ([]byte, error) {
 			d, err := gitDiff(p.ProjectDir)
 			if err != nil {
@@ -32,25 +30,26 @@ func AssembleReview(w io.Writer, p *Params) error {
 		func() ([]byte, error) {
 			rules, err := loadProjectRules(p.ProjectDir)
 			if err != nil {
-				return nil, nil // non-fatal
+				return nil, nil //nolint:nilerr // project rules are optional
 			}
 			return rules, nil
 		},
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("review requires spec artifacts: %w", e)
+			return errRequiredArtifact("review", "spec artifacts", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("review requires design artifact: %w", e)
+			return errRequiredArtifact("review", "design artifact", e)
 		}
 		if _, e := ls.Get(3); e != nil {
-			return fmt.Errorf("review requires tasks artifact: %w", e)
+			return errRequiredArtifact("review", "tasks artifact", e)
 		}
 	}
 
@@ -63,14 +62,12 @@ func AssembleReview(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
+	tasksStr := string(tasks)
 	writeSection(w, "SPECIFICATIONS", specs)
 	writeSection(w, "DESIGN", design)
-	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(string(tasks)))
+	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(tasksStr))
 	writeSection(w, "TASKS", tasks)
 	if len(diff) > 0 {
 		writeSection(w, "GIT DIFF", diff)
@@ -84,34 +81,62 @@ func AssembleReview(w io.Writer, p *Params) error {
 }
 
 // gitDiff runs git diff and returns staged + unstaged changes.
+// The two git commands are issued in parallel to halve wall-clock latency
+// on repos where git diff takes tens of milliseconds.
 func gitDiff(projectDir string) (string, error) {
-	// Unstaged changes.
-	cmd := exec.CommandContext(context.Background(), "git", "diff")
-	cmd.Dir = projectDir
-	unstaged, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git diff: %w", err)
+	type result struct {
+		out []byte
+		err error
 	}
 
-	// Staged changes.
-	cmd = exec.CommandContext(context.Background(), "git", "diff", "--cached")
-	cmd.Dir = projectDir
-	staged, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git diff --cached: %w", err)
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+
+	var unstagedRes, stagedRes result
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		cmd := exec.CommandContext(ctx, "git", "diff")
+		cmd.Dir = projectDir
+		unstagedRes.out, unstagedRes.err = cmd.Output()
+	}()
+
+	go func() {
+		defer wg.Done()
+		cmd := exec.CommandContext(ctx, "git", "diff", "--cached")
+		cmd.Dir = projectDir
+		stagedRes.out, stagedRes.err = cmd.Output()
+	}()
+
+	wg.Wait()
+
+	if unstagedRes.err != nil {
+		return "", fmt.Errorf("git diff: %w", unstagedRes.err)
+	}
+	if stagedRes.err != nil {
+		return "", fmt.Errorf("git diff --cached: %w", stagedRes.err)
 	}
 
-	var parts []string
-	if len(staged) > 0 {
-		parts = append(parts, "=== STAGED ===\n"+string(staged))
-	}
-	if len(unstaged) > 0 {
-		parts = append(parts, "=== UNSTAGED ===\n"+string(unstaged))
-	}
-	if len(parts) == 0 {
+	unstaged, staged := unstagedRes.out, stagedRes.out
+	if len(staged) == 0 && len(unstaged) == 0 {
 		return "(no changes)", nil
 	}
-	return strings.Join(parts, "\n"), nil
+	var buf strings.Builder
+	buf.Grow(len(staged) + len(unstaged) + 36) // pre-size: headers are ~36 bytes total
+	if len(staged) > 0 {
+		buf.WriteString("=== STAGED ===\n")
+		buf.Write(staged)
+	}
+	if len(unstaged) > 0 {
+		if buf.Len() > 0 {
+			buf.WriteByte('\n')
+		}
+		buf.WriteString("=== UNSTAGED ===\n")
+		buf.Write(unstaged)
+	}
+	return buf.String(), nil
 }
 
 // loadProjectRules tries to load AGENTS.md or CLAUDE.md from the project root.

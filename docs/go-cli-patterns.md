@@ -16,7 +16,7 @@ read_when:
 |---|---------|---------------------|--------|
 | 1 | Content-hash cache | `context/cache.go` | Skip re-assembly if artifacts unchanged |
 | 2 | Versioned cache structs | `cache.go:cacheVersion` | Auto-invalidate on format change |
-| 3 | Inline metrics stderr | `cache.go:writeMetrics` | Per-phase token tracking |
+| 3 | Inline metrics stderr | `context/cache.go:writeMetrics` | Per-phase token tracking |
 | 4 | Pre-flight size guard | `context.go:maxContextBytes` | Reject >100KB contexts |
 | 5 | Atomic writes (temp+rename) | `verify.go`, `archive.go` | Prevent partial writes |
 | 6 | Error classification | `errs/errs.go` | Typed errors: usage, transport, internal |
@@ -26,7 +26,7 @@ read_when:
 | 10 | Skill-hash in cache | `cache.go:inputHash` | SKILL.md edits invalidate cache |
 | 11 | Zombie detection | `types.go:IsStale` | Warn on 24h+ inactive changes |
 | 12 | Partial-failure accumulator | `context.go:AssembleConcurrent` | Write successes, collect errors |
-| 13 | Smart-skip verify | `commands.go:shouldSkipVerify` | Skip if no source files changed |
+| 13 | Smart-skip verify | `cli/commands.go:shouldSkipVerify` | Skip if no source files changed |
 | 14 | Concurrent assembly | `context.go:AssembleConcurrent` | spec+design in parallel |
 
 ## Investigated but not adopted

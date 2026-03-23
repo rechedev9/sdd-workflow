@@ -2,48 +2,37 @@ package context
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+// appendArtifactSection reads filename from changeDir, applies extract, and appends
+// "label: <result>" to sections when the file exists and extraction is non-empty.
+func appendArtifactSection(sections []string, changeDir, filename, label string, extract func(string) string) []string {
+	if data, err := os.ReadFile(filepath.Join(changeDir, filename)); err == nil {
+		if s := extract(string(data)); s != "" {
+			return append(sections, label+": "+s)
+		}
+	}
+	return sections
+}
+
 // buildSummary scans existing artifacts in changeDir and produces a compact
 // cumulative context (~500-800 bytes) that carries key decisions forward
 // through the pipeline. Non-fatal: returns empty string if no artifacts exist.
 func buildSummary(changeDir string, p *Params) string {
-	var sections []string
+	sections := make([]string, 0, 6)
 
-	sections = append(sections, fmt.Sprintf("Change: %s — %s", p.ChangeName, p.Description))
-	sections = append(sections, fmt.Sprintf("Stack: %s (%s)", p.Config.Stack.Language, p.Config.Stack.BuildTool))
+	sections = append(sections, "Change: "+p.ChangeName+" — "+p.Description)
+	sections = append(sections, "Stack: "+p.Config.Stack.Language+" ("+p.Config.Stack.BuildTool+")")
 
 	// Extract key lines from each artifact if it exists.
-	if data, err := os.ReadFile(filepath.Join(changeDir, "exploration.md")); err == nil {
-		if finding := extractFirst(string(data), "##", 3); finding != "" {
-			sections = append(sections, "Exploration: "+finding)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "proposal.md")); err == nil {
-		if intent := extractDecisions(string(data)); intent != "" {
-			sections = append(sections, "Proposal: "+intent)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "design.md")); err == nil {
-		if decision := extractDecisions(string(data)); decision != "" {
-			sections = append(sections, "Design: "+decision)
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(changeDir, "review-report.md")); err == nil {
-		if verdict := extractFirst(string(data), "Verdict", 1); verdict != "" {
-			sections = append(sections, "Review: "+verdict)
-		}
-	}
-
-	if len(sections) == 0 {
-		return ""
-	}
+	sections = appendArtifactSection(sections, changeDir, "exploration.md", "Exploration", func(s string) string { return extractFirst(s, "##", 3) })
+	sections = appendArtifactSection(sections, changeDir, "proposal.md", "Proposal", extractDecisions)
+	sections = appendArtifactSection(sections, changeDir, "design.md", "Design", extractDecisions)
+	sections = appendArtifactSection(sections, changeDir, "review-report.md", "Review", func(s string) string { return extractFirst(s, "Verdict", 1) })
 
 	return strings.Join(sections, "\n")
 }
@@ -52,16 +41,12 @@ func buildSummary(changeDir string, p *Params) string {
 // then returns up to n non-empty content lines following it.
 // Used to pull key decisions from artifacts without loading the entire file.
 func extractFirst(content, keyword string, maxLines int) string {
-	lines := strings.Split(content, "\n")
-	var result []string
+	result := make([]string, 0, maxLines)
 
 	collecting := false
-	for _, line := range lines {
+	for line := range strings.Lines(content) {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
-			if collecting && len(result) > 0 {
-				continue // skip blanks inside collected range
-			}
 			continue
 		}
 
@@ -103,13 +88,12 @@ func isDecisionKey(s string) bool {
 }
 
 func extractDecisions(content string) string {
-	lines := strings.Split(content, "\n")
-	var kvPairs []string
-	var headerLines []string
+	kvPairs := make([]string, 0, 5)
+	headerLines := make([]string, 0, 3)
 	inFence := false
 	inDecisionSection := false
 
-	for _, line := range lines {
+	for line := range strings.Lines(content) {
 		trimmed := strings.TrimSpace(line)
 
 		if strings.HasPrefix(trimmed, "```") {
@@ -121,8 +105,8 @@ func extractDecisions(content string) string {
 		}
 
 		if strings.HasPrefix(trimmed, "## ") {
-			header := strings.ToLower(strings.TrimPrefix(trimmed, "## "))
-			inDecisionSection = header == "decisions" || header == "architecture"
+			header := strings.TrimPrefix(trimmed, "## ")
+			inDecisionSection = strings.EqualFold(header, "decisions") || strings.EqualFold(header, "architecture")
 			continue
 		}
 
@@ -134,14 +118,15 @@ func extractDecisions(content string) string {
 			continue
 		}
 
-		if !inDecisionSection && strings.Contains(trimmed, ": ") {
-			parts := strings.SplitN(trimmed, ": ", 2)
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			if isDecisionKey(key) && value != "" {
-				kvPairs = append(kvPairs, key+": "+value)
-				if len(kvPairs) >= 5 {
-					break
+		if !inDecisionSection {
+			if key, value, found := strings.Cut(trimmed, ": "); found {
+				key = strings.TrimSpace(key)
+				value = strings.TrimSpace(value)
+				if isDecisionKey(key) && value != "" {
+					kvPairs = append(kvPairs, key+": "+value)
+					if len(kvPairs) >= 5 {
+						break
+					}
 				}
 			}
 		}
@@ -167,19 +152,31 @@ func projectContext(p *Params) string {
 	)
 }
 
+// manifestReadLimit is the max bytes read per manifest file.
+// Reading one extra byte lets us detect truncation without reading the whole file.
+const manifestReadLimit = 2048
+
 // loadManifestContents reads the actual content of detected manifest files.
 // Returns a compact summary with versions and dependencies.
+// Reads at most manifestReadLimit bytes per file to avoid loading large lock files.
 func loadManifestContents(projectDir string, manifests []string) string {
-	var parts []string
+	parts := make([]string, 0, len(manifests))
+	buf := make([]byte, manifestReadLimit+1) // +1 to detect truncation
 	for _, m := range manifests {
-		data, err := os.ReadFile(filepath.Join(projectDir, m))
+		f, err := os.Open(filepath.Join(projectDir, m))
 		if err != nil {
 			continue
 		}
-		// Cap at 2KB per manifest to keep context lean.
-		content := string(data)
-		if len(content) > 2048 {
-			content = content[:2048] + "\n... (truncated)"
+		n, _ := io.ReadFull(f, buf)
+		f.Close()
+		if n == 0 {
+			continue
+		}
+		var content string
+		if n > manifestReadLimit {
+			content = string(buf[:manifestReadLimit]) + "\n... (truncated)"
+		} else {
+			content = string(buf[:n])
 		}
 		parts = append(parts, fmt.Sprintf("### %s\n\n```\n%s\n```", m, content))
 	}
@@ -191,20 +188,19 @@ func loadManifestContents(projectDir string, manifests []string) string {
 
 // extractCompletedTasks returns a summary of completed task sections.
 func extractCompletedTasks(tasks string) string {
-	lines := strings.Split(tasks, "\n")
-	var completed []string
+	completed := make([]string, 0, 16)
 	var currentSection string
 
-	for _, line := range lines {
+	for line := range strings.Lines(tasks) {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "##") {
 			currentSection = trimmed
 			continue
 		}
 		if strings.HasPrefix(trimmed, "- [x]") {
-			task := strings.TrimPrefix(trimmed, "- [x] ")
+			task := strings.TrimLeft(strings.TrimPrefix(trimmed, "- [x]"), " ")
 			if currentSection != "" {
-				completed = append(completed, fmt.Sprintf("%s: %s", currentSection, task))
+				completed = append(completed, currentSection+": "+task)
 			} else {
 				completed = append(completed, task)
 			}

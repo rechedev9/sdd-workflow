@@ -1,6 +1,7 @@
 package errlog
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -135,5 +136,43 @@ func TestRecurringFingerprints(t *testing.T) {
 	got2 := log.RecurringFingerprints(2)
 	if len(got2) != 2 {
 		t.Errorf("recurring(2) = %d, want 2", len(got2))
+	}
+}
+
+func TestLoad_WrongVersion(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := LogPath(dir)
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	// Write valid JSON with wrong version → Load returns empty log.
+	data, _ := json.Marshal(ErrorLog{Version: 999, Entries: []ErrorEntry{{Change: "x"}}})
+	os.WriteFile(path, data, 0o644)
+	log := Load(dir)
+	if len(log.Entries) != 0 {
+		t.Errorf("entries = %d, want 0 for wrong version", len(log.Entries))
+	}
+	if log.Version != logVersion {
+		t.Errorf("version = %d, want %d", log.Version, logVersion)
+	}
+}
+
+func TestRecord_MaxEntries(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Record maxEntries+1 entries — oldest should be evicted.
+	for i := 0; i <= maxEntries; i++ {
+		Record(dir, ErrorEntry{
+			CommandName: "build",
+			Command:     "go build",
+			ExitCode:    1,
+			ErrorLines:  []string{"error: something"},
+			Fingerprint: Fingerprint("go build", []string{"error: something"}),
+		})
+	}
+
+	loaded := Load(dir)
+	if len(loaded.Entries) != maxEntries {
+		t.Errorf("entries = %d, want %d (oldest evicted)", len(loaded.Entries), maxEntries)
 	}
 }

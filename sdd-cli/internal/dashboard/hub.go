@@ -1,21 +1,20 @@
 package dashboard
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
 )
 
 const defaultLookback = 24 * time.Hour
@@ -44,26 +43,37 @@ type Hub struct {
 	metrics    MetricsReader
 	changesDir string
 
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	clients map[*websocket.Conn]struct{}
 
-	// Last-known state for diffing.
-	lastKPI       KPIData
-	lastPipelines []PipelineData
-	lastErrors    []ErrorData
-	lastHeatmap   []PhaseStatusRow
-	lastTokenTS   string // max timestamp seen in phase_events
-	lastVerifyTS  string // max timestamp seen in verify_results
-	lastDurations []store.PhaseDurationRow
-	lastCacheTS   string // tracks cache history watermark independently
+	// Last-known state for diffing via content hashes.
+	lastKPI           KPIData
+	lastPipelinesHash [sha256.Size]byte
+	lastErrorsHash    [sha256.Size]byte
+	lastHeatmapHash   [sha256.Size]byte
+	lastDurationsHash [sha256.Size]byte
+	lastTokenTS       string // max timestamp seen in phase_events
+	lastVerifyTS      string // max timestamp seen in verify_results
+	lastCacheTS       string // tracks cache history watermark independently
+
+	// Cached verify-report status per change directory.
+	verifyCache   map[string]verifyCacheEntry
+	verifyCacheMu sync.RWMutex
+}
+
+// verifyCacheEntry caches the status derived from a verify-report.md file.
+type verifyCacheEntry struct {
+	modTime time.Time
+	status  string // "error" or "ok"
 }
 
 // NewHub creates a hub. Call Run() to start the poll loop.
 func NewHub(m MetricsReader, changesDir string) *Hub {
 	return &Hub{
-		metrics:    m,
-		changesDir: changesDir,
-		clients:    make(map[*websocket.Conn]struct{}),
+		metrics:     m,
+		changesDir:  changesDir,
+		clients:     make(map[*websocket.Conn]struct{}),
+		verifyCache: make(map[string]verifyCacheEntry),
 	}
 }
 
@@ -113,17 +123,42 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	_ = conn.Close(websocket.StatusNormalClosure, "") // best-effort close
 }
 
-// poll queries DB + filesystem, diffs against last state, broadcasts deltas.
-func (h *Hub) poll(ctx context.Context) {
-	h.mu.Lock()
-	if len(h.clients) == 0 {
-		h.mu.Unlock()
+// broadcastIfChanged broadcasts data only when its JSON hash differs from lastHash.
+// Marshals the wrapped wsMessage once: the same bytes serve both the hash check
+// and the write, avoiding the double-marshal that occurred when jsonHash and
+// broadcast each called json.Marshal independently.
+func (h *Hub) broadcastIfChanged(ctx context.Context, msgType string, data any, lastHash *[sha256.Size]byte) {
+	msg := wsMessage{Type: msgType, Data: data}
+	encoded, err := json.Marshal(msg)
+	if err != nil {
 		return
 	}
-	h.mu.Unlock()
+	hash := sha256.Sum256(encoded)
+	if hash == *lastHash {
+		return
+	}
+	*lastHash = hash
+	h.broadcastRaw(ctx, encoded)
+}
+
+// poll queries DB + filesystem, diffs against last state, broadcasts deltas.
+func (h *Hub) poll(ctx context.Context) {
+	h.mu.RLock()
+	empty := len(h.clients) == 0
+	h.mu.RUnlock()
+	if empty {
+		return
+	}
 
 	// Single filesystem walk — shared by KPI, pipelines, and heatmap.
 	changes := h.loadChanges()
+
+	// Prune verify cache to prevent unbounded growth.
+	activeDirs := make(map[string]struct{}, len(changes))
+	for _, ch := range changes {
+		activeDirs[ch.dir] = struct{}{}
+	}
+	h.pruneVerifyCache(activeDirs)
 
 	// KPIs.
 	kpi := h.buildKPIFromChanges(ctx, changes)
@@ -132,26 +167,14 @@ func (h *Hub) poll(ctx context.Context) {
 		h.lastKPI = kpi
 	}
 
-	// Pipelines.
-	pipelines := h.buildPipelinesFromChanges(ctx, changes)
-	if !reflect.DeepEqual(pipelines, h.lastPipelines) {
-		h.broadcast(ctx, wsMessage{Type: "pipelines", Data: pipelines})
-		h.lastPipelines = pipelines
-	}
+	// Pipelines — hash-based diffing instead of reflect.DeepEqual.
+	h.broadcastIfChanged(ctx, "pipelines", h.buildPipelinesFromChanges(ctx, changes), &h.lastPipelinesHash)
 
-	// Errors.
-	errors := h.buildErrors(ctx)
-	if !reflect.DeepEqual(errors, h.lastErrors) {
-		h.broadcast(ctx, wsMessage{Type: "errors", Data: errors})
-		h.lastErrors = errors
-	}
+	// Errors — hash-based diffing.
+	h.broadcastIfChanged(ctx, "errors", h.buildErrors(ctx), &h.lastErrorsHash)
 
-	// Heatmap.
-	heatmap := buildHeatmapFromChanges(changes)
-	if !reflect.DeepEqual(heatmap, h.lastHeatmap) {
-		h.broadcast(ctx, wsMessage{Type: "chart:heatmap", Data: heatmap})
-		h.lastHeatmap = heatmap
-	}
+	// Heatmap — hash-based diffing.
+	h.broadcastIfChanged(ctx, "chart:heatmap", buildHeatmapFromChanges(changes), &h.lastHeatmapHash)
 
 	// Chart data — incremental by timestamp.
 	tokenSince := h.parseSinceTS(h.lastTokenTS)
@@ -162,10 +185,7 @@ func (h *Hub) poll(ctx context.Context) {
 	}
 
 	if rows, err := h.metrics.PhaseDurations(ctx); err == nil && len(rows) > 0 {
-		if !reflect.DeepEqual(rows, h.lastDurations) {
-			h.broadcast(ctx, wsMessage{Type: "chart:durations", Data: rows})
-			h.lastDurations = rows
-		}
+		h.broadcastIfChanged(ctx, "chart:durations", rows, &h.lastDurationsHash)
 	}
 
 	cacheSince := h.parseSinceTS(h.lastCacheTS)
@@ -235,7 +255,11 @@ func (h *Hub) broadcast(ctx context.Context, msg wsMessage) {
 	if err != nil {
 		return
 	}
+	h.broadcastRaw(ctx, data)
+}
 
+// broadcastRaw sends pre-encoded bytes to all connected clients, removing dead ones.
+func (h *Hub) broadcastRaw(ctx context.Context, data []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -254,7 +278,7 @@ func (h *Hub) loadChanges() []changeSnapshot {
 		return nil
 	}
 
-	var changes []changeSnapshot
+	changes := make([]changeSnapshot, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() || e.Name() == "archive" {
 			continue
@@ -285,7 +309,7 @@ func (h *Hub) buildKPIFromChanges(ctx context.Context, changes []changeSnapshot)
 
 // buildPipelinesFromChanges computes pipeline data using pre-loaded changes.
 func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSnapshot) []PipelineData {
-	tokenMap := make(map[string]int)
+	tokenMap := make(map[string]int, len(changes))
 	if ct, err := h.metrics.PhaseTokensByChange(ctx); err == nil {
 		for _, c := range ct {
 			tokenMap[c.Change] = c.Tokens
@@ -294,7 +318,7 @@ func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSna
 
 	allPhases := state.AllPhases()
 	total := len(allPhases)
-	var pipelines []PipelineData
+	pipelines := make([]PipelineData, 0, len(changes))
 
 	for _, ch := range changes {
 		completed := 0
@@ -309,13 +333,7 @@ func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSna
 			pct = completed * 100 / total
 		}
 
-		status := "ok"
-		reportPath := filepath.Join(ch.dir, "verify-report.md")
-		if data, err := os.ReadFile(reportPath); err == nil {
-			if strings.Contains(string(data), "**Status:** FAILED") {
-				status = "error"
-			}
-		}
+		status := h.cachedVerifyStatus(ch.dir)
 		if status == "ok" && ch.state.IsStale(defaultLookback) {
 			status = "warn"
 		}
@@ -334,29 +352,88 @@ func (h *Hub) buildPipelinesFromChanges(ctx context.Context, changes []changeSna
 	return pipelines
 }
 
+// verifyReportReadLimit caps how much of verify-report.md we read.
+// The "**Status:** FAILED" marker appears in the first few hundred bytes.
+const verifyReportReadLimit = 4096
+
+// verifyBufPool reuses 4 KiB read buffers across cachedVerifyStatus calls.
+var verifyBufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, verifyReportReadLimit)
+		return &buf
+	},
+}
+
+// cachedVerifyStatus returns "error" if verify-report.md contains FAILED,
+// "ok" otherwise. Results are cached by file modification time to avoid
+// re-reading the file on every poll tick. Uses open+fstat to avoid TOCTOU
+// races between stat and read.
+func (h *Hub) cachedVerifyStatus(changeDir string) string {
+	reportPath := filepath.Join(changeDir, "verify-report.md")
+
+	// Open the file once — get handle for both stat and read atomically.
+	f, err := os.Open(reportPath)
+	if err != nil {
+		return "ok"
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return "ok"
+	}
+
+	h.verifyCacheMu.RLock()
+	entry, found := h.verifyCache[changeDir]
+	h.verifyCacheMu.RUnlock()
+
+	if found && entry.modTime.Equal(info.ModTime()) {
+		return entry.status
+	}
+
+	// File changed or not cached — read capped prefix from open handle.
+	status := "ok"
+	bufp := verifyBufPool.Get().(*[]byte)
+	n, _ := f.Read(*bufp)
+	if n > 0 && bytes.Contains((*bufp)[:n], []byte("**Status:** FAILED")) {
+		status = "error"
+	}
+	verifyBufPool.Put(bufp)
+
+	h.verifyCacheMu.Lock()
+	h.verifyCache[changeDir] = verifyCacheEntry{modTime: info.ModTime(), status: status}
+	h.verifyCacheMu.Unlock()
+
+	return status
+}
+
+// pruneVerifyCache removes entries for change directories no longer active.
+// Called once per poll to bound cache size to active changes only.
+func (h *Hub) pruneVerifyCache(activeChangeDirs map[string]struct{}) {
+	h.verifyCacheMu.Lock()
+	defer h.verifyCacheMu.Unlock()
+	for dir := range h.verifyCache {
+		if _, active := activeChangeDirs[dir]; !active {
+			delete(h.verifyCache, dir)
+		}
+	}
+}
+
 // buildErrors fetches recent errors from the store.
 func (h *Hub) buildErrors(ctx context.Context) []ErrorData {
 	rows, err := h.metrics.RecentErrors(ctx, 20)
 	if err != nil {
-		return nil
+		return []ErrorData{}
 	}
 
-	var data []ErrorData
+	data := make([]ErrorData, 0, len(rows))
 	for _, r := range rows {
-		fp := r.Fingerprint
-		if len(fp) > 8 {
-			fp = fp[:8]
-		}
-		ts := r.Timestamp
-		if len(ts) > 19 {
-			ts = ts[:19]
-		}
 		data = append(data, ErrorData{
-			Timestamp:   ts,
+			Timestamp:   r.Timestamp[:min(len(r.Timestamp), 19)],
 			CommandName: r.CommandName,
 			ExitCode:    r.ExitCode,
 			Change:      r.Change,
-			Fingerprint: fp,
+			Fingerprint: r.Fingerprint[:min(len(r.Fingerprint), 8)],
 			FirstLine:   r.FirstLine,
 		})
 	}
@@ -367,7 +444,7 @@ func (h *Hub) buildErrors(ctx context.Context) []ErrorData {
 // buildHeatmapFromChanges builds the phase status grid from pre-loaded changes.
 func buildHeatmapFromChanges(changes []changeSnapshot) []PhaseStatusRow {
 	allPhases := state.AllPhases()
-	var grid []PhaseStatusRow
+	grid := make([]PhaseStatusRow, 0, len(changes)*len(allPhases))
 
 	for _, ch := range changes {
 		for _, p := range allPhases {

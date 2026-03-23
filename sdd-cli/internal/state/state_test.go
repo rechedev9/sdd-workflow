@@ -404,3 +404,82 @@ func completeUpTo(s *State, target Phase) {
 		}
 	}
 }
+
+func TestCanTransition_UnknownPhase(t *testing.T) {
+	t.Parallel()
+	s := NewState("test", "desc")
+	err := s.CanTransition(Phase("nonexistent"))
+	if err == nil {
+		t.Fatal("expected error for unknown phase")
+	}
+	if !errors.Is(err, ErrAlreadyCompleted) && !errors.Is(err, ErrPrerequisitesNotMet) {
+		// Should contain "unknown phase"
+		if err.Error() == "" || len(err.Error()) == 0 {
+			t.Errorf("expected meaningful error message, got empty")
+		}
+	}
+}
+
+func TestSave_MkdirAllError(t *testing.T) {
+	t.Parallel()
+	// Create a file where the parent directory should be.
+	root := t.TempDir()
+	barrier := filepath.Join(root, "notadir")
+	os.WriteFile(barrier, []byte("block"), 0o644)
+	path := filepath.Join(barrier, "subdir", "state.json")
+
+	s := NewState("test", "desc")
+	err := Save(s, path)
+	if err == nil {
+		t.Fatal("expected error when MkdirAll fails")
+	}
+}
+
+func TestReadyPhases_Empty(t *testing.T) {
+	t.Parallel()
+	// Complete all phases — nothing should be ready.
+	s := NewState("test", "desc")
+	for _, p := range AllPhases() {
+		s.Phases[p] = StatusCompleted
+	}
+	ready := s.ReadyPhases()
+	if len(ready) != 0 {
+		t.Errorf("expected 0 ready phases when all complete, got %d: %v", len(ready), ready)
+	}
+}
+
+func TestValidate_MissingPhase(t *testing.T) {
+	t.Parallel()
+	// Build a state JSON missing one phase to hit the validate loop.
+	s := NewState("test", "desc")
+	delete(s.Phases, PhaseApply) // remove a phase
+
+	err := validate(s)
+	if err == nil {
+		t.Fatal("expected error for missing phase in validate")
+	}
+}
+
+func TestValidate_NilPhases(t *testing.T) {
+	t.Parallel()
+	s := &State{Name: "test", Phases: nil}
+	err := validate(s)
+	if err == nil {
+		t.Fatal("expected error for nil phases map")
+	}
+}
+
+func TestLoad_NilPhasesMap(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	// JSON with name but no phases key — Phases will unmarshal as nil.
+	os.WriteFile(path, []byte(`{"name":"x"}`), 0o644)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected ErrCorruptState for nil phases map")
+	}
+	if !errors.Is(err, ErrCorruptState) {
+		t.Errorf("error = %v, want ErrCorruptState", err)
+	}
+}

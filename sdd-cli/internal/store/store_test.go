@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -287,6 +290,245 @@ func TestInsertVerifyEvent_EmptyErrorLines(t *testing.T) {
 	}
 }
 
+func TestTokenHistory(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", Tokens: 100, Cached: true, DurationMs: 10},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", Phase: "propose", Tokens: 200, Cached: false, DurationMs: 20},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-b", Phase: "design", Tokens: 50, Cached: false, DurationMs: 5},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	// since before all events — expect all 3
+	rows, err := s.TokenHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("TokenHistory: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("len = %d, want 3", len(rows))
+	}
+	if rows[0].Tokens != 100 {
+		t.Errorf("rows[0].Tokens = %d, want 100", rows[0].Tokens)
+	}
+	if !rows[0].Cached {
+		t.Error("rows[0].Cached should be true")
+	}
+	if rows[1].Cached {
+		t.Error("rows[1].Cached should be false")
+	}
+
+	// since after first event — expect only 2
+	rows2, err := s.TokenHistory(ctx, base.Add(30*time.Second))
+	if err != nil {
+		t.Fatalf("TokenHistory (filtered): %v", err)
+	}
+	if len(rows2) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows2))
+	}
+}
+
+func TestTokenHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.TokenHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("TokenHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
+func TestCacheHistory(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", Tokens: 10, Cached: true, DurationMs: 10},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", Phase: "propose", Tokens: 20, Cached: false, DurationMs: 20},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	rows, err := s.CacheHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("CacheHistory: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+	if !rows[0].Cached {
+		t.Error("rows[0].Cached should be true")
+	}
+	if rows[1].Cached {
+		t.Error("rows[1].Cached should be false")
+	}
+	if rows[0].Phase != "explore" {
+		t.Errorf("rows[0].Phase = %q, want explore", rows[0].Phase)
+	}
+}
+
+func TestCacheHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.CacheHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("CacheHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
+func TestPhaseDurations(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	events := []PhaseEvent{
+		{Timestamp: base, Change: "feat-a", Phase: "explore", DurationMs: 100},
+		{Timestamp: base.Add(time.Minute), Change: "feat-b", Phase: "explore", DurationMs: 200},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-a", Phase: "propose", DurationMs: 300},
+	}
+	for _, e := range events {
+		if err := s.InsertPhaseEvent(ctx, e); err != nil {
+			t.Fatalf("InsertPhaseEvent: %v", err)
+		}
+	}
+
+	rows, err := s.PhaseDurations(ctx)
+	if err != nil {
+		t.Fatalf("PhaseDurations: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+
+	m := make(map[string]int64)
+	for _, r := range rows {
+		m[r.Phase] = r.AvgDurationMs
+	}
+	if m["explore"] != 150 {
+		t.Errorf("explore avg = %d, want 150", m["explore"])
+	}
+	if m["propose"] != 300 {
+		t.Errorf("propose avg = %d, want 300", m["propose"])
+	}
+}
+
+func TestPhaseDurations_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.PhaseDurations(ctx)
+	if err != nil {
+		t.Fatalf("PhaseDurations: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
+func TestInsertVerifyResult_Roundtrip(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	results := []VerifyResult{
+		{Timestamp: base, Change: "feat-a", CommandName: "build", ExitCode: 0, Passed: true},
+		{Timestamp: base.Add(time.Minute), Change: "feat-a", CommandName: "test", ExitCode: 1, Passed: false},
+		{Timestamp: base.Add(2 * time.Minute), Change: "feat-b", CommandName: "build", ExitCode: 0, Passed: true},
+	}
+	for _, r := range results {
+		if err := s.InsertVerifyResult(ctx, r); err != nil {
+			t.Fatalf("InsertVerifyResult: %v", err)
+		}
+	}
+
+	rows, err := s.VerifyHistory(ctx, base.Add(-time.Second))
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("len = %d, want 3", len(rows))
+	}
+	if !rows[0].Passed {
+		t.Error("rows[0].Passed should be true")
+	}
+	if rows[1].Passed {
+		t.Error("rows[1].Passed should be false")
+	}
+	if rows[0].Change != "feat-a" {
+		t.Errorf("rows[0].Change = %q, want feat-a", rows[0].Change)
+	}
+	if rows[1].ExitCode != 1 {
+		t.Errorf("rows[1].ExitCode = %d, want 1", rows[1].ExitCode)
+	}
+}
+
+func TestVerifyHistory_TimeFilter(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+	for i, offset := range []time.Duration{0, time.Minute, 2 * time.Minute} {
+		r := VerifyResult{
+			Timestamp:   base.Add(offset),
+			Change:      "feat-a",
+			CommandName: "build",
+			ExitCode:    i,
+			Passed:      i == 0,
+		}
+		if err := s.InsertVerifyResult(ctx, r); err != nil {
+			t.Fatalf("InsertVerifyResult: %v", err)
+		}
+	}
+
+	// since after first record — expect 2
+	rows, err := s.VerifyHistory(ctx, base.Add(30*time.Second))
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len = %d, want 2", len(rows))
+	}
+}
+
+func TestVerifyHistory_Empty(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	rows, err := s.VerifyHistory(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("VerifyHistory: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("len = %d, want 0", len(rows))
+	}
+}
+
 // Verify JSON round-trip fidelity of error_lines.
 func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	t.Parallel()
@@ -319,5 +561,262 @@ func TestInsertVerifyEvent_JSONFidelity(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != lines[0] || got[1] != lines[1] {
 		t.Errorf("error_lines = %v, want %v", got, lines)
+	}
+}
+
+func TestOpen_MkdirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create a file at the would-be parent directory so MkdirAll fails.
+	blocker := dir + "/not-a-dir"
+	if err := os.WriteFile(blocker, []byte("block"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Path inside a file "directory" — MkdirAll will fail.
+	_, err := Open(blocker + "/sub/test.db")
+	if err == nil {
+		t.Fatal("expected error when parent path is a file, got nil")
+	}
+}
+
+func TestOpen_PragmaFails(t *testing.T) {
+	t.Parallel()
+	// /dev/null is readable/writable but not a valid SQLite database,
+	// so the pragma execution will fail.
+	_, err := Open("/dev/null")
+	if err == nil {
+		t.Fatal("expected error when opening /dev/null as SQLite DB")
+	}
+}
+
+func TestRegisterSubscribers_NilBroker(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	// Should not panic.
+	RegisterSubscribers(nil, s)
+}
+
+func TestRegisterSubscribers_NilStore(t *testing.T) {
+	t.Parallel()
+	b := events.NewBroker()
+	// Should not panic.
+	RegisterSubscribers(b, nil)
+}
+
+func TestRegisterSubscribers_PhaseAssembled(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	b.Emit(events.Event{
+		Type: events.PhaseAssembled,
+		Payload: events.PhaseAssembledPayload{
+			Phase:      "explore",
+			Bytes:      1024,
+			Tokens:     256,
+			Cached:     false,
+			DurationMs: 100,
+			ChangeDir:  "/tmp/feat-a",
+		},
+	})
+
+	ctx := context.Background()
+	rows, err := s.PhaseTokensByChange(ctx)
+	if err != nil {
+		t.Fatalf("PhaseTokensByChange: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Error("expected at least one row after PhaseAssembled event")
+	}
+}
+
+func TestRegisterSubscribers_VerifyFailed(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	b.Emit(events.Event{
+		Type: events.VerifyFailed,
+		Payload: events.VerifyFailedPayload{
+			Change: "feat-b",
+			Results: []events.VerifyFailedCommand{
+				{Name: "build", Command: "go build", ExitCode: 1, ErrorLines: []string{"error: x"}},
+			},
+		},
+	})
+
+	ctx := context.Background()
+	errors, err := s.RecentErrors(ctx, 10)
+	if err != nil {
+		t.Fatalf("RecentErrors: %v", err)
+	}
+	if len(errors) == 0 {
+		t.Error("expected at least one row after VerifyFailed event")
+	}
+}
+
+func TestRegisterSubscribers_WrongPayloadPhaseAssembled(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	// Emit PhaseAssembled with wrong payload type — subscriber must not panic.
+	b.Emit(events.Event{Type: events.PhaseAssembled, Payload: "wrong"})
+
+	// No rows should be inserted.
+	ctx := context.Background()
+	rows, err := s.PhaseTokensByChange(ctx)
+	if err != nil {
+		t.Fatalf("PhaseTokensByChange: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("expected 0 rows for wrong payload, got %d", len(rows))
+	}
+}
+
+func TestRegisterSubscribers_WrongPayloadVerifyFailed(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	b := events.NewBroker()
+	RegisterSubscribers(b, s)
+
+	// Emit VerifyFailed with wrong payload type — subscriber must not panic.
+	b.Emit(events.Event{Type: events.VerifyFailed, Payload: 42})
+
+	// No rows should be inserted.
+	ctx := context.Background()
+	errs, err := s.RecentErrors(ctx, 10)
+	if err != nil {
+		t.Fatalf("RecentErrors: %v", err)
+	}
+	if len(errs) != 0 {
+		t.Errorf("expected 0 errors for wrong payload, got %d", len(errs))
+	}
+}
+
+// closedStore creates a Store and immediately closes its DB to trigger SQL errors.
+func closedStore(t *testing.T) *Store {
+	t.Helper()
+	s := newTestStore(t)
+	s.db.Close()
+	return s
+}
+
+func TestPhaseTokensByChange_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.PhaseTokensByChange(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestPhaseDurations_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.PhaseDurations(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestTokenHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.TokenHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestCacheHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.CacheHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestVerifyHistory_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.VerifyHistory(context.Background(), time.Time{})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestRecentErrors_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.RecentErrors(context.Background(), 10)
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestTokenSummary_QueryError(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	_, err := s.TokenSummary(context.Background())
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestInsertPhaseEvent_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertPhaseEvent(context.Background(), PhaseEvent{
+		Timestamp: time.Now(), Change: "c", Phase: "explore",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestInsertVerifyEvent_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertVerifyEvent(context.Background(), VerifyEvent{
+		Timestamp: time.Now(), Change: "c", CommandName: "build", Command: "go build",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestInsertVerifyResult_ClosedDB(t *testing.T) {
+	t.Parallel()
+	s := closedStore(t)
+	err := s.InsertVerifyResult(context.Background(), VerifyResult{
+		Timestamp: time.Now(), Change: "c", CommandName: "build",
+	})
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
+func TestRecentErrors_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	// Inject a row with invalid JSON in error_lines directly to hit the
+	// json.Unmarshal error path in RecentErrors.
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO verify_events (timestamp, change, command_name, command, exit_code, error_lines, fingerprint)
+		 VALUES ('2026-01-01T00:00:00Z', 'c', 'build', 'go build', 1, 'not-valid-json', 'fp1')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	_, err = s.RecentErrors(ctx, 10)
+	if err == nil {
+		t.Fatal("expected error when error_lines contains invalid JSON")
 	}
 }

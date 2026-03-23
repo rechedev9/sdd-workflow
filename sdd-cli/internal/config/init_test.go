@@ -98,3 +98,35 @@ func TestInitNoManifest(t *testing.T) {
 		t.Fatal("expected error for no manifest")
 	}
 }
+
+func TestInit_MkdirFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644)
+	// Place a file at the openspec path so MkdirAll can't create a directory there.
+	os.WriteFile(filepath.Join(dir, "openspec"), []byte("block"), 0o644)
+	_, err := Init(dir, false)
+	if err == nil {
+		t.Fatal("expected error when openspec path is a file")
+	}
+}
+
+func TestInit_SaveFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644)
+	// Create the openspec directory structure, then make openspec/ read-only
+	// so config.yaml cannot be written.
+	openspecDir := filepath.Join(dir, "openspec")
+	os.MkdirAll(filepath.Join(openspecDir, "changes", "archive"), 0o755)
+	// Make the openspec dir read-only so AtomicWrite (CreateTemp) fails.
+	if err := os.Chmod(openspecDir, 0o555); err != nil {
+		t.Skip("cannot chmod:", err)
+	}
+	t.Cleanup(func() { os.Chmod(openspecDir, 0o755) })
+
+	_, err := Init(dir, true) // force=true skips the already-exists check
+	if err == nil {
+		t.Fatal("expected error when config.yaml cannot be written")
+	}
+}

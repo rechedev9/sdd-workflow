@@ -6,132 +6,17 @@
 <title>SHENRON SDD — Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5}
-a{color:#0ff;text-decoration:none}
-.header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:#0f0f23;border-bottom:1px solid #16213e}
-.header h1{font-size:18px;font-weight:700;letter-spacing:2px;color:#0ff}
-.live{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#e0e0e0;text-transform:uppercase;letter-spacing:1px}
-.live .dot{width:8px;height:8px;border-radius:50%;background:#00e676;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.container{max-width:1400px;margin:0 auto;padding:20px 24px}
-.section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:10px}
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-.card{background:#16213e;border-radius:6px;padding:16px 18px;border-left:3px solid transparent}
-.card .label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}
-.card .value{font-size:28px;font-weight:700;line-height:1.1}
-.card.cyan{border-left-color:#0ff}.card.cyan .value{color:#0ff}
-.card.green{border-left-color:#00e676}.card.green .value{color:#00e676}
-.card.purple{border-left-color:#bb86fc}.card.purple .value{color:#bb86fc}
-.card.red{border-left-color:#ff5252}.card.red .value{color:#ff5252}
-table{width:100%;border-collapse:collapse;background:#16213e;border-radius:6px;overflow:hidden}
-thead th{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;padding:10px 14px;text-align:left;border-bottom:1px solid #1a1a2e;font-weight:600}
-tbody td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
-tbody tr:hover{background:rgba(255,255,255,.03)}
-.progress-bar{background:#0f0f23;border-radius:3px;height:6px;overflow:hidden;min-width:80px}
-.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#0ff,#00e676);transition:width .3s}
-.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.status-dot.ok{background:#00e676}
-.status-dot.warn{background:#ffc107}
-.status-dot.error{background:#ff5252}
-.empty-state{text-align:center;padding:32px;color:#555;font-size:13px}
-.error-table tbody td{color:#ff8a80;font-size:12px}
-.error-table .fp{font-family:'Fira Code',monospace;font-size:11px;color:#888}
-.section{margin-bottom:24px}
-.tab-bar{display:flex;gap:0;border-bottom:1px solid #333;margin-bottom:16px}
-.tab-btn{padding:8px 16px;background:none;border:none;color:#555;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;cursor:pointer;border-bottom:2px solid transparent;transition:color .2s, border-color .2s}
-.tab-btn:hover{color:#888}
-.tab-btn.active{color:#0ff;border-bottom-color:#0ff}
-.chart-panel{display:none;height:350px;background:#16213e;border-radius:6px;margin-bottom:24px}
-.chart-panel.active{display:block}
-@media(max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr)}.tab-bar{flex-wrap:wrap}}
-@media(max-width:500px){.kpi-row{grid-template-columns:1fr}.tab-bar{flex-wrap:wrap}}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a}
+canvas{
+  display:block;
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+}
 </style>
 </head>
 <body>
-<div class="header">
-  <h1>SHENRON SDD</h1>
-  <div class="live"><span class="dot" id="ws-dot"></span> <span id="ws-status">LIVE</span></div>
-</div>
-<div class="container">
-  <!-- KPI Cards -->
-  <div class="section">
-    <div class="section-label">Key Metrics</div>
-    <div class="kpi-row">
-      <div class="card cyan" id="kpi-active">
-        <div class="label">Active Changes</div>
-        <div class="value">0</div>
-      </div>
-      <div class="card green" id="kpi-tokens">
-        <div class="label">Total Tokens</div>
-        <div class="value">0</div>
-      </div>
-      <div class="card purple" id="kpi-cache">
-        <div class="label">Cache Hit Rate</div>
-        <div class="value">—</div>
-      </div>
-      <div class="card red" id="kpi-errors">
-        <div class="label">Errors</div>
-        <div class="value">0</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Chart Tabs -->
-  <div class="section">
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="tokens">Tokens</button>
-      <button class="tab-btn" data-tab="durations">Durations</button>
-      <button class="tab-btn" data-tab="cache">Cache</button>
-      <button class="tab-btn" data-tab="verify">Verify</button>
-      <button class="tab-btn" data-tab="heatmap">Heatmap</button>
-    </div>
-    <div class="chart-panel active" id="chart-tokens"></div>
-    <div class="chart-panel" id="chart-durations"></div>
-    <div class="chart-panel" id="chart-cache"></div>
-    <div class="chart-panel" id="chart-verify"></div>
-    <div class="chart-panel" id="chart-heatmap"></div>
-  </div>
-
-  <!-- Active Pipelines -->
-  <div class="section">
-    <div class="section-label">Active Pipelines</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Change</th>
-          <th>Phase</th>
-          <th>Progress</th>
-          <th>Tokens</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="pipeline-body">
-        <tr><td colspan="5" class="empty-state">No active pipelines</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Recent Errors -->
-  <div class="section">
-    <div class="section-label">Recent Errors</div>
-    <table class="error-table">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Command</th>
-          <th>Exit</th>
-          <th>Change</th>
-          <th>Fingerprint</th>
-          <th>Error</th>
-        </tr>
-      </thead>
-      <tbody id="error-body">
-        <tr><td colspan="6" class="empty-state">No errors</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-<script src="/static/echarts.min.js"></script>
+<canvas id="scene"></canvas>
 <script src="/static/dashboard.js"></script>
 </body>
 </html>

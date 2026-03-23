@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
 
@@ -21,7 +19,7 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(arg, "-"):
 			projectDir = arg
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 
@@ -50,7 +48,6 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) error {
 		Dirs:       result.Dirs,
 		Config:     result.Config,
 	}
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

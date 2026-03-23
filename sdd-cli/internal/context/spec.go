@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -11,18 +10,19 @@ import (
 // Includes: proposal.md, cumulative summary, project stack, sdd-spec SKILL.md.
 func AssembleSpec(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-spec") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		skillLoader(p.SkillsPath, "sdd-spec"),
+		artifactLoader(p.ChangeDir, "proposal.md"),
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("spec requires proposal artifact: %w", e)
+			return errRequiredArtifact("spec", "proposal artifact", e)
 		}
 	}
 
@@ -32,10 +32,7 @@ func AssembleSpec(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	writeSectionStr(w, "PROJECT", projectContext(p))
 

@@ -10,25 +10,25 @@ import (
 // Safe on POSIX: rename is atomic within the same filesystem.
 // Uses os.CreateTemp for unique temp files — safe under concurrent calls.
 func AtomicWrite(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
+	dir, base := filepath.Dir(path), filepath.Base(path)
+	f, err := os.CreateTemp(dir, base+".tmp.*")
 	if err != nil {
-		return fmt.Errorf("create temp for %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("create temp for %s: %w", base, err)
 	}
 	tmp := f.Name()
 
 	if _, err := f.Write(data); err != nil {
 		f.Close()
 		os.Remove(tmp) // best-effort cleanup
-		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("write %s: %w", base, err)
 	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmp)
-		return fmt.Errorf("close temp for %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("close temp for %s: %w", base, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		os.Remove(tmp) // best-effort cleanup
-		return fmt.Errorf("rename %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("rename %s: %w", base, err)
 	}
 	return nil
 }

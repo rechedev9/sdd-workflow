@@ -33,6 +33,16 @@ var (
 	ErrCorruptState        = errors.New("corrupt state file")
 )
 
+// prereqsMet reports whether every prerequisite phase in desc is completed.
+func (s *State) prereqsMet(desc phase.Phase) bool {
+	for _, req := range desc.Prerequisites {
+		if s.Phases[Phase(req)] != StatusCompleted {
+			return false
+		}
+	}
+	return true
+}
+
 // CanTransition reports whether moving from the current state to the target phase is valid.
 func (s *State) CanTransition(target Phase) error {
 	if s.Phases[target] == StatusCompleted {
@@ -69,24 +79,8 @@ func (s *State) Advance(completed Phase) error {
 // nextReady returns the first phase in pipeline order whose prerequisites are all completed
 // and which is still pending. Returns "" if nothing is ready (pipeline done).
 func (s *State) nextReady() Phase {
-	for _, p := range AllPhases() {
-		if s.Phases[p] != StatusPending {
-			continue
-		}
-		desc, ok := phase.DefaultRegistry.Get(string(p))
-		if !ok {
-			continue
-		}
-		ready := true
-		for _, req := range desc.Prerequisites {
-			if s.Phases[Phase(req)] != StatusCompleted {
-				ready = false
-				break
-			}
-		}
-		if ready {
-			return p
-		}
+	if ready := s.ReadyPhases(); len(ready) > 0 {
+		return ready[0]
 	}
 	return "" // pipeline complete
 }
@@ -95,23 +89,14 @@ func (s *State) nextReady() Phase {
 // Unlike nextReady (which returns the first), this returns all — enabling
 // parallel assembly of spec+design when both are ready after propose.
 func (s *State) ReadyPhases() []Phase {
-	var ready []Phase
-	for _, p := range AllPhases() {
+	all := phase.DefaultRegistry.All()
+	ready := make([]Phase, 0, len(all))
+	for _, desc := range all {
+		p := Phase(desc.Name)
 		if s.Phases[p] != StatusPending {
 			continue
 		}
-		desc, ok := phase.DefaultRegistry.Get(string(p))
-		if !ok {
-			continue
-		}
-		allMet := true
-		for _, req := range desc.Prerequisites {
-			if s.Phases[Phase(req)] != StatusCompleted {
-				allMet = false
-				break
-			}
-		}
-		if allMet {
+		if s.prereqsMet(desc) {
 			ready = append(ready, p)
 		}
 	}
@@ -159,11 +144,11 @@ func Load(path string) (*State, error) {
 
 	var s State
 	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptState, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptState, err)
 	}
 
 	if err := validate(&s); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptState, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptState, err)
 	}
 
 	return &s, nil

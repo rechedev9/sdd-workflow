@@ -2,15 +2,11 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
@@ -26,7 +22,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(arg, "-"):
 			positional = append(positional, arg)
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 
@@ -36,35 +32,27 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := positional[0]
 
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "context", name)
 	if err != nil {
-		return errs.WriteError(stderr, "context", err)
+		return err
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "context")
 	if err != nil {
-		return errs.WriteError(stderr, "context", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(stderr, "context", cwd)
 	if err != nil {
-		return errs.WriteError(stderr, "context", fmt.Errorf("load config: %w", err))
-	}
-
-	// Load state.
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "context", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	db := tryOpenStore(cwd)
 	if db != nil {
 		defer db.Close()
 	}
-	broker := newBroker(stderr, int(verbosity), db)
+	broker := newBroker(int(verbosity), db)
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  st.Name,
@@ -72,8 +60,6 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		ProjectDir:  cwd,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
-		Stderr:      stderr,
-		Verbosity:   int(verbosity),
 		Broker:      broker,
 	}
 
@@ -95,7 +81,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		if err != nil {
 			return errs.WriteError(stderr, "context", err)
 		}
-		phase = positional[1]
+		phase = string(ph)
 		if err := sddctx.Assemble(target, ph, p); err != nil {
 			return errs.WriteError(stderr, "context", err)
 		}
@@ -107,9 +93,9 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		if len(ready) > 1 {
 			// Concurrent assembly for parallel phases (spec+design).
-			var names []string
-			for _, r := range ready {
-				names = append(names, string(r))
+			names := make([]string, len(ready))
+			for i, r := range ready {
+				names[i] = string(r)
 			}
 			phase = strings.Join(names, "+")
 			if err := sddctx.AssembleConcurrent(target, ready, p); err != nil {
@@ -142,8 +128,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 			Bytes:   len(content),
 			Tokens:  len(content) / 4,
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 	}
 
 	return nil

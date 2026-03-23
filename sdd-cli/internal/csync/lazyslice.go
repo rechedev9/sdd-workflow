@@ -66,22 +66,22 @@ func (ls *LazySlice[T]) LoadAll() error {
 	for i, loader := range ls.loaders {
 		wg.Add(1)
 		sem <- struct{}{} // acquire slot (blocks if pool is full)
-		go func(idx int, fn func() (T, error)) {
+		go func() {
 			defer wg.Done()
 			defer func() { <-sem }() // release slot
 
 			// Panic recovery: convert panic to error.
 			defer func() {
 				if r := recover(); r != nil {
-					ls.results[idx] = result[T]{
-						err: fmt.Errorf("loader %d panicked: %v", idx, r),
+					ls.results[i] = result[T]{
+						err: fmt.Errorf("loader %d panicked: %v", i, r),
 					}
 				}
 			}()
 
-			val, err := fn()
-			ls.results[idx] = result[T]{value: val, err: err}
-		}(i, loader)
+			val, err := loader()
+			ls.results[i] = result[T]{value: val, err: err}
+		}()
 	}
 
 	wg.Wait()

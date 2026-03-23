@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -13,29 +12,27 @@ import (
 // sdd-apply SKILL.md.
 func AssembleApply(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-apply") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
-		func() ([]byte, error) {
-			s, err := loadSpecs(p.ChangeDir)
-			return []byte(s), err
-		},
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		skillLoader(p.SkillsPath, "sdd-apply"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
+		artifactLoader(p.ChangeDir, "design.md"),
+		loadSpecsLoader(p.ChangeDir),
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("apply requires tasks artifact: %w", e)
+			return errRequiredArtifact("apply", "tasks artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("apply requires design artifact: %w", e)
+			return errRequiredArtifact("apply", "design artifact", e)
 		}
 		if _, e := ls.Get(3); e != nil {
-			return fmt.Errorf("apply requires spec artifacts: %w", e)
+			return errRequiredArtifact("apply", "spec artifacts", e)
 		}
 	}
 
@@ -45,15 +42,13 @@ func AssembleApply(w io.Writer, p *Params) error {
 	specs, _ := ls.Get(3)
 	summary, _ := ls.Get(4)
 
-	currentTask := extractCurrentTask(string(tasksRaw))
-	completedSummary := extractCompletedTasks(string(tasksRaw))
+	tasksStr := string(tasksRaw)
+	currentTask := extractCurrentTask(tasksStr)
+	completedSummary := extractCompletedTasks(tasksStr)
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	if len(summary) > 0 {
 		writeSection(w, "PIPELINE CONTEXT", summary)
@@ -86,19 +81,25 @@ func extractCurrentTask(tasks string) string {
 		return tasks
 	}
 
-	// Walk back to find the section header.
+	// Walk back to find the section header (## or # level only).
+	// Stops at ## or # to avoid splitting a section at a sub-header (###).
 	start := firstIncomplete
 	for j := firstIncomplete - 1; j >= 0; j-- {
-		if strings.HasPrefix(lines[j], "#") {
+		h := strings.TrimSpace(lines[j])
+		if strings.HasPrefix(h, "## ") || h == "##" ||
+			strings.HasPrefix(h, "# ") || h == "#" {
 			start = j
 			break
 		}
 	}
 
-	// Walk forward to find the next section header (##).
+	// Walk forward to find the next section header (## level only).
+	// Stops at ## or # to avoid splitting a section at a sub-header (###).
 	end := len(lines)
 	for i := firstIncomplete + 1; i < len(lines); i++ {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), "##") {
+		h := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(h, "## ") || h == "##" ||
+			strings.HasPrefix(h, "# ") || h == "#" {
 			end = i
 			break
 		}

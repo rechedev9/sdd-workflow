@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -12,30 +11,31 @@ import (
 // sdd-clean SKILL.md.
 func AssembleClean(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-clean") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "verify-report.md") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
+		skillLoader(p.SkillsPath, "sdd-clean"),
+		artifactLoader(p.ChangeDir, "verify-report.md"),
+		artifactLoader(p.ChangeDir, "tasks.md"),
+		buildSummaryLoader(p),
+		artifactLoader(p.ChangeDir, "design.md"),
 		func() ([]byte, error) {
 			s, err := loadSpecs(p.ChangeDir)
 			if err != nil {
-				return nil, nil // non-fatal
+				return nil, nil //nolint:nilerr // specs are optional in clean phase
 			}
 			return []byte(s), nil
 		},
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("clean requires verify-report artifact: %w", e)
+			return errRequiredArtifact("clean", "verify-report artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("clean requires tasks artifact: %w", e)
+			return errRequiredArtifact("clean", "tasks artifact", e)
 		}
 	}
 
@@ -48,17 +48,15 @@ func AssembleClean(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	if len(summary) > 0 {
 		writeSection(w, "PIPELINE CONTEXT", summary)
 	}
 
+	tasksStr := string(tasks)
 	writeSection(w, "VERIFY REPORT", verifyReport)
-	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(string(tasks)))
+	writeSectionStr(w, "COMPLETED TASKS", extractCompletedTasks(tasksStr))
 	writeSection(w, "TASKS", tasks)
 
 	if len(design) > 0 {

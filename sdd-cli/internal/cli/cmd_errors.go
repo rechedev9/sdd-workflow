@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"encoding/json"
+	"cmp"
 	"fmt"
 	"io"
-	"os"
-	"sort"
+	"slices"
 
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
 )
 
@@ -18,13 +16,13 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		case "--json":
 			jsonOut = true
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "errors")
 	if err != nil {
-		return errs.WriteError(stderr, "errors", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	log := errlog.Load(cwd)
@@ -37,21 +35,25 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 			LastSeen    string   `json:"last_seen"`
 			ErrorLines  []string `json:"error_lines"`
 		}
-		groups := make(map[string]*errorGroup)
+		groups := make(map[string]*errorGroup, len(log.Entries))
 		for _, e := range log.Entries {
+			lines := e.ErrorLines
+			if lines == nil {
+				lines = []string{}
+			}
 			g, ok := groups[e.Fingerprint]
 			if !ok {
 				g = &errorGroup{
 					Fingerprint: e.Fingerprint,
 					Command:     e.Command,
-					ErrorLines:  e.ErrorLines,
+					ErrorLines:  lines,
 				}
 				groups[e.Fingerprint] = g
 			}
 			g.Count++
 			if e.Timestamp > g.LastSeen {
 				g.LastSeen = e.Timestamp
-				g.ErrorLines = e.ErrorLines
+				g.ErrorLines = lines
 			}
 		}
 
@@ -59,8 +61,8 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		for _, g := range groups {
 			sorted = append(sorted, g)
 		}
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Count > sorted[j].Count
+		slices.SortFunc(sorted, func(a, b *errorGroup) int {
+			return cmp.Compare(b.Count, a.Count)
 		})
 
 		out := struct {
@@ -74,8 +76,7 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 			Total:   len(log.Entries),
 			Groups:  sorted,
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 
@@ -86,17 +87,9 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	counts := log.RecurringFingerprints(1)
 	fmt.Fprintf(stdout, "sdd errors: %d entries, %d unique patterns\n\n", len(log.Entries), len(counts))
-	start := 0
-	if len(log.Entries) > 10 {
-		start = len(log.Entries) - 10
-	}
-	for _, e := range log.Entries[start:] {
-		fp := e.Fingerprint
-		if len(fp) > 8 {
-			fp = fp[:8]
-		}
-		fmt.Fprintf(stdout, "  %s  %-8s  exit=%d  %s  [%s]\n",
-			e.Timestamp[:19], e.CommandName, e.ExitCode, e.Change, fp)
+	for _, e := range log.Entries[max(0, len(log.Entries)-10):] {
+		fmt.Fprintf(stdout, "  %.19s  %-8s  exit=%d  %s  [%.8s]\n",
+			e.Timestamp, e.CommandName, e.ExitCode, e.Change, e.Fingerprint)
 	}
 	return nil
 }

@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -11,8 +10,8 @@ import (
 // Includes: exploration.md, project context, file tree, sdd-propose SKILL.md.
 func AssemblePropose(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
-		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-propose") },
-		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "exploration.md") },
+		skillLoader(p.SkillsPath, "sdd-propose"),
+		artifactLoader(p.ChangeDir, "exploration.md"),
 		func() ([]byte, error) {
 			ft, err := gitFileTree(p.ProjectDir)
 			return []byte(ft), err
@@ -20,12 +19,13 @@ func AssemblePropose(w io.Writer, p *Params) error {
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("propose requires exploration artifact: %w", e)
+			return errRequiredArtifact("propose", "exploration artifact", e)
 		}
 	}
 
@@ -35,10 +35,7 @@ func AssemblePropose(w io.Writer, p *Params) error {
 
 	writeSection(w, "SKILL", skill)
 
-	writeSectionStr(w, "CHANGE", fmt.Sprintf(
-		"Name: %s\nDescription: %s",
-		p.ChangeName, p.Description,
-	))
+	writeChangeSection(w, p)
 
 	writeSectionStr(w, "PROJECT", projectContext(p))
 

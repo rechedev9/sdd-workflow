@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -70,9 +71,12 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 	start := time.Now()
 
 	// Try cache first.
-	if cached, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath); ok {
+	cached, computedHash, ok := tryCachedContext(p.ChangeDir, phaseStr, p.SkillsPath)
+	if ok {
 		size := len(cached)
-		w.Write(cached)
+		if _, err := w.Write(cached); err != nil {
+			return fmt.Errorf("write cached context: %w", err)
+		}
 
 		p.Broker.Emit(events.Event{
 			Type: events.CacheHit,
@@ -92,6 +96,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 				DurationMs: time.Since(start).Milliseconds(),
 				ChangeDir:  p.ChangeDir,
 				SkillsPath: p.SkillsPath,
+				InputHash:  computedHash,
 			},
 		})
 
@@ -120,7 +125,9 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 
 	// Write to output.
 	content := buf.Bytes()
-	w.Write(content)
+	if _, err := w.Write(content); err != nil {
+		return fmt.Errorf("write assembled context: %w", err)
+	}
 
 	p.Broker.Emit(events.Event{
 		Type: events.PhaseAssembled,
@@ -133,6 +140,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 			ChangeDir:  p.ChangeDir,
 			SkillsPath: p.SkillsPath,
 			Content:    content,
+			InputHash:  computedHash,
 		},
 	})
 
@@ -161,25 +169,27 @@ func AssembleConcurrent(w io.Writer, phases []state.Phase, p *Params) error {
 
 	for i, phase := range phases {
 		wg.Add(1)
-		go func(idx int, ph state.Phase) {
+		go func() {
 			defer wg.Done()
 			var buf bytes.Buffer
-			err := Assemble(&buf, ph, p)
-			results[idx] = result{data: buf.Bytes(), err: err}
-		}(i, phase)
+			err := Assemble(&buf, phase, p)
+			results[i] = result{data: buf.Bytes(), err: err}
+		}()
 	}
 
 	wg.Wait()
 
 	// Write successes in order, collect errors.
 	// Partial output is intentional — better than nothing for the sub-agent.
-	var errs []string
+	errs := make([]string, 0, len(results))
 	for i, r := range results {
 		if r.err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", phases[i], r.err))
 			continue
 		}
-		w.Write(r.data)
+		if _, wErr := w.Write(r.data); wErr != nil {
+			return fmt.Errorf("write phase %s: %w", phases[i], wErr)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -202,6 +212,20 @@ func loadSkill(skillsPath, phaseName string) ([]byte, error) {
 	return nil, fmt.Errorf("load skill %s: not found on disk or in embedded prompts", phaseName)
 }
 
+// checkSkillError returns the skill loader error (index 0) if loadErr is non-nil.
+// All assemblers register the skill loader at position 0; a missing skill is
+// always fatal and must not be wrapped as a missing-artifact error.
+// Returns nil if loadErr is nil or the skill loaded successfully.
+func checkSkillError(ls *csync.LazySlice[[]byte], loadErr error) error {
+	if loadErr == nil {
+		return nil
+	}
+	if _, e := ls.Get(0); e != nil {
+		return e
+	}
+	return nil
+}
+
 // loadArtifact reads an artifact file from the change directory.
 func loadArtifact(changeDir, filename string) ([]byte, error) {
 	path := filepath.Join(changeDir, filename)
@@ -212,14 +236,32 @@ func loadArtifact(changeDir, filename string) ([]byte, error) {
 	return data, nil
 }
 
-// writeSection writes a labeled section to the output.
-func writeSection(w io.Writer, label string, content []byte) {
-	fmt.Fprintf(w, "\n--- %s ---\n\n", label)
-	w.Write(content)
-	fmt.Fprintln(w)
-}
-
 // writeSectionStr writes a labeled section with string content.
 func writeSectionStr(w io.Writer, label, content string) {
-	writeSection(w, label, []byte(content))
+	io.WriteString(w, "\n--- ")   //nolint:errcheck
+	io.WriteString(w, label)      //nolint:errcheck
+	io.WriteString(w, " ---\n\n") //nolint:errcheck
+	io.WriteString(w, content)    //nolint:errcheck // bytes.Buffer.Write never errors; stdout errors are not actionable
+	io.WriteString(w, "\n")       //nolint:errcheck
+}
+
+// writeSection writes a labeled section to the output.
+func writeSection(w io.Writer, label string, content []byte) {
+	writeSectionStr(w, label, string(content))
+}
+
+// writeChangeSection writes the CHANGE section (Name + Description).
+// Used by every assembler to avoid repeating the same fmt.Sprintf.
+func writeChangeSection(w io.Writer, p *Params) {
+	io.WriteString(w, "\n--- CHANGE ---\n\n") //nolint:errcheck
+	io.WriteString(w, "Name: ")               //nolint:errcheck
+	io.WriteString(w, p.ChangeName)           //nolint:errcheck
+	io.WriteString(w, "\nDescription: ")      //nolint:errcheck
+	io.WriteString(w, p.Description)          //nolint:errcheck
+	io.WriteString(w, "\n")                   //nolint:errcheck
+}
+
+// errRequiredArtifact returns a standard missing-artifact error used by all assemblers.
+func errRequiredArtifact(phase, artifact string, err error) error {
+	return fmt.Errorf("%s requires %s: %w", phase, artifact, err)
 }

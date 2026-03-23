@@ -48,8 +48,7 @@ func (e *errorMetrics) VerifyHistory(_ context.Context, _ time.Time) ([]store.Ve
 // Returns the ws URL and a cancel func that stops hub + server.
 func startTestHub(t *testing.T, m MetricsReader) (string, context.CancelFunc) {
 	t.Helper()
-	srv, changesDir := newTestServer(t, m)
-	_ = changesDir
+	srv := newTestServer(t, m)
 
 	ts := httptest.NewServer(srv.routes())
 	t.Cleanup(ts.Close)
@@ -81,8 +80,11 @@ func TestChaosHubConcurrentClients(t *testing.T) {
 			ctx, c := context.WithTimeout(context.Background(), 3*time.Second)
 			defer c()
 
-			conn, _, err := websocket.Dial(ctx, wsURL, nil)
+			conn, resp, err := websocket.Dial(ctx, wsURL, nil)
 			if err != nil {
+				if resp != nil {
+					resp.Body.Close()
+				}
 				return // server may reject under load — not a test failure
 			}
 
@@ -116,8 +118,11 @@ func TestChaosHubBroadcastUnderContention(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			conn, _, err := websocket.Dial(ctx, wsURL, nil)
+			conn, resp, err := websocket.Dial(ctx, wsURL, nil)
 			if err != nil {
+				if resp != nil {
+					resp.Body.Close()
+				}
 				return
 			}
 			defer conn.Close(websocket.StatusNormalClosure, "")
@@ -141,8 +146,11 @@ func TestChaosHubBroadcastUnderContention(t *testing.T) {
 					return
 				default:
 				}
-				c, _, err := websocket.Dial(ctx, wsURL, nil)
+				c, resp, err := websocket.Dial(ctx, wsURL, nil)
 				if err != nil {
+					if resp != nil {
+						resp.Body.Close()
+					}
 					return
 				}
 				time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
@@ -171,8 +179,11 @@ func TestChaosHubMetricsErrors(t *testing.T) {
 			ctx, c := context.WithTimeout(context.Background(), 2*time.Second)
 			defer c()
 
-			conn, _, err := websocket.Dial(ctx, wsURL, nil)
+			conn, resp, err := websocket.Dial(ctx, wsURL, nil)
 			if err != nil {
+				if resp != nil {
+					resp.Body.Close()
+				}
 				return
 			}
 			defer conn.Close(websocket.StatusNormalClosure, "")

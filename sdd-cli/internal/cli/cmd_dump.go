@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -21,29 +21,24 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
-
-	changeDir, err := resolveChangeDir(name)
-	if err != nil {
-		return errs.WriteError(stderr, "dump", err)
+	if len(args) > 1 {
+		return errUnknownFlag(args[1])
 	}
 
-	cwd, err := os.Getwd()
+	changeDir, st, err := loadChangeState(stderr, "dump", name)
 	if err != nil {
-		return errs.WriteError(stderr, "dump", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
-	// Load state.
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
+	cwd, err := getCWD(stderr, "dump")
 	if err != nil {
-		return errs.WriteError(stderr, "dump", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	// Load config.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(stderr, "dump", cwd)
 	if err != nil {
-		return errs.WriteError(stderr, "dump", fmt.Errorf("load config: %w", err))
+		return err
 	}
 
 	// List artifacts.
@@ -56,27 +51,35 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return errs.WriteError(stderr, "dump", fmt.Errorf("list pending: %w", err))
 	}
+	if pending == nil {
+		pending = []artifacts.ArtifactInfo{}
+	}
 
 	// Load pipeline metrics.
 	pm := sddctx.LoadPipelineMetrics(changeDir)
 
 	// Read cache hash files.
-	cacheKeys := make(map[string]string)
 	cacheDir := filepath.Join(changeDir, ".cache")
-	hashFiles, err := filepath.Glob(filepath.Join(cacheDir, "*.hash"))
-	if err == nil {
-		for _, hf := range hashFiles {
-			base := strings.TrimSuffix(filepath.Base(hf), ".hash")
-			raw, err := os.ReadFile(hf)
-			if err != nil {
-				continue
-			}
-			cacheKeys[base] = strings.TrimSpace(string(raw))
+	hashFiles, _ := filepath.Glob(filepath.Join(cacheDir, "*.hash"))
+	cacheKeys := make(map[string]string, len(hashFiles))
+	for _, hf := range hashFiles {
+		base := strings.TrimSuffix(filepath.Base(hf), ".hash")
+		raw, err := os.ReadFile(hf)
+		if err != nil {
+			continue
+		}
+		trimmed := bytes.TrimSpace(raw)
+		// Hash files use "{hash}|{unix_seconds}" format; expose only the hash portion.
+		if hashPart, _, found := bytes.Cut(trimmed, []byte("|")); found {
+			cacheKeys[base] = string(hashPart)
+		} else {
+			cacheKeys[base] = string(trimmed)
 		}
 	}
 
 	out := struct {
 		Command   string                   `json:"command"`
+		Status    string                   `json:"status"`
 		Change    string                   `json:"change"`
 		State     *state.State             `json:"state"`
 		Config    *config.Config           `json:"config"`
@@ -86,6 +89,7 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheKeys map[string]string        `json:"cache_keys"`
 	}{
 		Command:   "dump",
+		Status:    "success",
 		Change:    name,
 		State:     st,
 		Config:    cfg,
@@ -95,7 +99,6 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheKeys: cacheKeys,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

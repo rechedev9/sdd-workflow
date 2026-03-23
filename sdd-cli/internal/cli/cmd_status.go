@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
-	"path/filepath"
+	"time"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -16,16 +14,13 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	name := args[0]
-
-	changeDir, err := resolveChangeDir(name)
-	if err != nil {
-		return errs.WriteError(stderr, "status", err)
+	if len(args) > 1 {
+		return errUnknownFlag(args[1])
 	}
 
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
+	_, st, err := loadChangeState(stderr, "status", name)
 	if err != nil {
-		return errs.WriteError(stderr, "status", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	// Build phase list with statuses.
@@ -33,15 +28,20 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Phase  string `json:"phase"`
 		Status string `json:"status"`
 	}
-	phases := make([]phaseInfo, 0, len(state.AllPhases()))
-	var completed []string
-	for _, p := range state.AllPhases() {
+	allPhases := state.AllPhases()
+	phases := make([]phaseInfo, 0, len(allPhases))
+	completed := make([]string, 0, len(allPhases))
+	for _, p := range allPhases {
 		ps := st.Phases[p]
 		phases = append(phases, phaseInfo{Phase: string(p), Status: string(ps)})
 		if ps == state.StatusCompleted {
 			completed = append(completed, string(p))
 		}
 	}
+
+	// Compute staleness once — both IsStale and StaleHours call time.Since.
+	staleHours := st.StaleHours()
+	isStale := !st.IsComplete() && staleHours >= int(staleThreshold.Hours())
 
 	out := struct {
 		Command      string      `json:"command"`
@@ -53,8 +53,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Phases       []phaseInfo `json:"phases"`
 		IsComplete   bool        `json:"is_complete"`
 		UpdatedAt    string      `json:"updated_at"`
-		Stale        bool        `json:"stale,omitempty"`
-		StaleHours   int         `json:"stale_hours,omitempty"`
+		Stale        bool        `json:"stale"`
+		StaleHours   int         `json:"stale_hours"`
 	}{
 		Command:      "status",
 		Status:       "success",
@@ -64,12 +64,11 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Completed:    completed,
 		Phases:       phases,
 		IsComplete:   st.IsComplete(),
-		UpdatedAt:    st.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-		Stale:        st.IsStale(staleThreshold),
-		StaleHours:   st.StaleHours(),
+		UpdatedAt:    st.UpdatedAt.UTC().Format(time.RFC3339),
+		Stale:        isStale,
+		StaleHours:   staleHours,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

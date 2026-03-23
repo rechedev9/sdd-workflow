@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -252,8 +254,9 @@ func TestCheckOrphanedPendingMatched(t *testing.T) {
 	pendingDir := filepath.Join(changeDir, ".pending")
 	os.MkdirAll(pendingDir, 0o755)
 	// Both pending and promoted exist — this is an orphan.
+	// Pending file: .pending/explore.md; promoted artifact: exploration.md.
 	os.WriteFile(filepath.Join(pendingDir, "explore.md"), []byte("pending"), 0o644)
-	os.WriteFile(filepath.Join(changeDir, "explore.md"), []byte("promoted"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "exploration.md"), []byte("promoted"), 0o644)
 	r := checkOrphanedPending(dir)
 	if r.Status != "warn" {
 		t.Errorf("expected warn for orphaned pending, got %q", r.Status)
@@ -269,9 +272,13 @@ func TestCheckOrphanedPendingMultiple(t *testing.T) {
 	changeDir := filepath.Join(dir, "my-change")
 	pendingDir := filepath.Join(changeDir, ".pending")
 	os.MkdirAll(pendingDir, 0o755)
-	for _, phase := range []string{"explore", "propose"} {
-		os.WriteFile(filepath.Join(pendingDir, phase+".md"), []byte("pending"), 0o644)
-		os.WriteFile(filepath.Join(changeDir, phase+".md"), []byte("promoted"), 0o644)
+	// Pending: .pending/{phase}.md; promoted artifacts use canonical names.
+	for _, tc := range []struct{ pending, artifact string }{
+		{"explore.md", "exploration.md"},
+		{"propose.md", "proposal.md"},
+	} {
+		os.WriteFile(filepath.Join(pendingDir, tc.pending), []byte("pending"), 0o644)
+		os.WriteFile(filepath.Join(changeDir, tc.artifact), []byte("promoted"), 0o644)
 	}
 	r := checkOrphanedPending(dir)
 	if r.Status != "warn" {
@@ -320,6 +327,23 @@ func TestCheckOrphanedPendingSkipsSubdirs(t *testing.T) {
 	r := checkOrphanedPending(dir)
 	if r.Status != "pass" {
 		t.Errorf("expected pass (subdirs skipped), got %q", r.Status)
+	}
+}
+
+func TestCheckOrphanedPendingSkipsRecoverSkipPhase(t *testing.T) {
+	// apply.ArtifactFile == "tasks.md" (same as tasks phase).
+	// Having .pending/apply.md with tasks.md present should NOT be flagged as
+	// orphaned — tasks.md predates the apply phase.
+	t.Parallel()
+	dir := t.TempDir()
+	changeDir := filepath.Join(dir, "my-change")
+	pendingDir := filepath.Join(changeDir, ".pending")
+	os.MkdirAll(pendingDir, 0o755)
+	os.WriteFile(filepath.Join(pendingDir, "apply.md"), []byte("apply content"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("tasks content"), 0o644)
+	r := checkOrphanedPending(dir)
+	if r.Status != "pass" {
+		t.Errorf("expected pass (apply skipped due to RecoverSkip), got %q: %s", r.Status, r.Message)
 	}
 }
 
@@ -531,5 +555,177 @@ func TestCheckPprofSet(t *testing.T) {
 	}
 	if !strings.Contains(r.Message, "SDD_PPROF=cpu") {
 		t.Errorf("expected 'SDD_PPROF=cpu' in message, got %q", r.Message)
+	}
+}
+
+// --- aggregateStatus ---
+
+func TestAggregateStatusAllPass(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "pass"},
+		{Name: "b", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "pass" {
+		t.Errorf("aggregateStatus = %q, want pass", got)
+	}
+}
+
+func TestAggregateStatusWithWarn(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "pass"},
+		{Name: "b", Status: "warn"},
+		{Name: "c", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "warn" {
+		t.Errorf("aggregateStatus = %q, want warn", got)
+	}
+}
+
+func TestAggregateStatusWithFail(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "a", Status: "warn"},
+		{Name: "b", Status: "fail"},
+		{Name: "c", Status: "pass"},
+	}
+	if got := aggregateStatus(checks); got != "fail" {
+		t.Errorf("aggregateStatus = %q, want fail", got)
+	}
+}
+
+func TestAggregateStatusEmpty(t *testing.T) {
+	t.Parallel()
+	if got := aggregateStatus(nil); got != "pass" {
+		t.Errorf("aggregateStatus(nil) = %q, want pass", got)
+	}
+}
+
+// --- printDoctorTable ---
+
+func TestPrintDoctorTable(t *testing.T) {
+	t.Parallel()
+	checks := []CheckResult{
+		{Name: "config", Status: "pass", Message: ""},
+		{Name: "tools", Status: "warn", Message: "missing: foo"},
+		{Name: "cache", Status: "fail", Message: "2 stale entries"},
+	}
+	var buf strings.Builder
+	printDoctorTable(&buf, checks)
+	out := buf.String()
+
+	if !strings.Contains(out, "sdd doctor") {
+		t.Error("output should contain 'sdd doctor' header")
+	}
+	if !strings.Contains(out, "config") {
+		t.Error("output should contain check name 'config'")
+	}
+	if !strings.Contains(out, "missing: foo") {
+		t.Error("output should contain message 'missing: foo'")
+	}
+	if !strings.Contains(out, "2 stale entries") {
+		t.Error("output should contain '2 stale entries'")
+	}
+}
+
+func TestPrintDoctorTableEmpty(t *testing.T) {
+	t.Parallel()
+	var buf strings.Builder
+	printDoctorTable(&buf, nil)
+	if !strings.Contains(buf.String(), "sdd doctor") {
+		t.Error("output should still contain header even with no checks")
+	}
+}
+
+func TestCheckSkillsPathPartial(t *testing.T) {
+	t.Parallel()
+	skillsDir := t.TempDir()
+	// Create one SKILL.md — partial coverage → warn.
+	phaseDir := filepath.Join(skillsDir, "sdd-explore")
+	os.MkdirAll(phaseDir, 0o755)
+	os.WriteFile(filepath.Join(phaseDir, "SKILL.md"), []byte("# skill"), 0o644)
+	cfg := &config.Config{SkillsPath: skillsDir}
+	r := checkSkillsPath(cfg)
+	if r.Status != "warn" {
+		t.Errorf("expected warn for partial skills, got %q", r.Status)
+	}
+	if !strings.Contains(r.Message, "1/") {
+		t.Errorf("expected '1/' in message, got %q", r.Message)
+	}
+}
+
+// --- runDoctor ---
+
+func TestRunDoctor_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDoctor([]string{"--unknown"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunDoctor_JSONFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	// runDoctor uses os.Getwd() so it may find a real config or not; either way
+	// --json should produce valid JSON output without panicking.
+	_ = runDoctor([]string{"--json"}, &stdout, &stderr)
+	out := stdout.String()
+	if len(out) > 0 {
+		var v map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &v); err != nil {
+			t.Errorf("--json output is not valid JSON: %v\n%s", err, out)
+		}
+		if v["command"] != "doctor" {
+			t.Errorf("expected command=doctor, got %v", v["command"])
+		}
+	}
+}
+
+func TestRunDoctor_FailPath(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	// Use a config with a nonexistent build binary → checkBuildTools → fail → runDoctor returns error.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(dir)
+
+	// Write config with a missing binary so checkBuildTools returns fail.
+	writeConfig(t, dir, "version: 1\nproject_name: test\ncommands:\n  build: __no_such_binary_xyz ./...\n")
+
+	var stdout, stderr bytes.Buffer
+	err := runDoctor(nil, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when a check fails")
+	}
+	if !strings.Contains(err.Error(), "check(s) failed") {
+		t.Errorf("error = %q, want 'check(s) failed'", err.Error())
+	}
+}
+
+func TestCheckSkillsPathAllPresent(t *testing.T) {
+	t.Parallel()
+	skillsDir := t.TempDir()
+	// Create SKILL.md for all 10 phases → pass.
+	for _, name := range []string{
+		"explore", "propose", "spec", "design", "tasks",
+		"apply", "review", "verify", "clean", "archive",
+	} {
+		phaseDir := filepath.Join(skillsDir, "sdd-"+name)
+		os.MkdirAll(phaseDir, 0o755)
+		os.WriteFile(filepath.Join(phaseDir, "SKILL.md"), []byte("# skill"), 0o644)
+	}
+	cfg := &config.Config{SkillsPath: skillsDir}
+	r := checkSkillsPath(cfg)
+	if r.Status != "pass" {
+		t.Errorf("expected pass for all skills present, got %q", r.Status)
+	}
+	if !strings.Contains(r.Message, "10/10") {
+		t.Errorf("expected '10/10' in message, got %q", r.Message)
 	}
 }

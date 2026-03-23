@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,7 +25,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		case !strings.HasPrefix(arg, "-"):
 			positional = append(positional, arg)
 		default:
-			return errs.Usage(fmt.Sprintf("unknown flag: %s", arg))
+			return errUnknownFlag(arg)
 		}
 	}
 
@@ -37,20 +36,24 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	name := positional[0]
 	description := positional[1]
 
-	cwd, err := os.Getwd()
+	if err := validateChangeName(name); err != nil {
+		return errs.Usage(err.Error())
+	}
+
+	cwd, err := getCWD(stderr, "new")
 	if err != nil {
-		return errs.WriteError(stderr, "new", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config.
-	configPath := filepath.Join(cwd, "openspec", "config.yaml")
+	configPath := openspecConfig(cwd)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("load config (run 'sdd init' first): %w", err))
 	}
 
 	// Create change directory.
-	changeDir := filepath.Join(cwd, "openspec", "changes", name)
+	changeDir := filepath.Join(openspecChanges(cwd), name)
 	if err := os.MkdirAll(changeDir, 0o755); err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("create change dir: %w", err))
 	}
@@ -84,8 +87,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 			ChangeDir:    changeDir,
 			CurrentPhase: string(state.PhaseExplore),
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 
@@ -94,7 +96,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	if db != nil {
 		defer db.Close()
 	}
-	broker := newBroker(stderr, int(verbosity), db)
+	broker := newBroker(int(verbosity), db)
 	p := &sddctx.Params{
 		ChangeDir:   changeDir,
 		ChangeName:  name,
@@ -102,8 +104,6 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		ProjectDir:  cwd,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
-		Stderr:      stderr,
-		Verbosity:   int(verbosity),
 		Broker:      broker,
 	}
 

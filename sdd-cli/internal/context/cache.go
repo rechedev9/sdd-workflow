@@ -1,6 +1,7 @@
 package context
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,11 +10,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 )
@@ -70,41 +71,49 @@ func readSkillBytes(skillsPath, phaseName string) []byte {
 // Includes SKILL.md so skill edits invalidate the cache (essentially an ETag pattern).
 func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) string {
 	h := sha256.New()
+	var intBuf [32]byte // scratch buffer for strconv.AppendInt — avoids fmt allocations
 
-	// Version prefix.
-	fmt.Fprintf(h, "v%d:", cacheVersion)
+	// Version prefix: "v{cacheVersion}:" — built without fmt allocation.
+	io.WriteString(h, "v")                                          //nolint:errcheck // hash.Hash.Write never errors
+	h.Write(strconv.AppendInt(intBuf[:0], int64(cacheVersion), 10)) //nolint:errcheck
+	io.WriteString(h, ":")                                          //nolint:errcheck
 
 	// Hash the SKILL.md for this phase — fixes correctness bug where
 	// editing a skill wouldn't invalidate cached context.
 	if phaseName != "" {
 		if data := readSkillBytes(skillsPath, phaseName); data != nil {
-			fmt.Fprintf(h, "skill:%d:", len(data))
-			h.Write(data)
+			io.WriteString(h, "skill:")                                  //nolint:errcheck
+			h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10)) //nolint:errcheck
+			io.WriteString(h, ":")                                       //nolint:errcheck
+			h.Write(data)                                                //nolint:errcheck
 		}
 	}
 
-	sorted := make([]string, len(inputs))
-	copy(sorted, inputs)
-	sort.Strings(sorted)
-
-	for _, name := range sorted {
+	// CacheInputs are pre-sorted at phase registration time; iterate directly.
+	for _, name := range inputs {
 		if name == "specs/" {
-			hashSpecsDir(h, changeDir)
+			hashSpecsDir(h, changeDir, &intBuf)
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(changeDir, name))
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(h, "%s:%d:", name, len(data))
-		h.Write(data)
+		io.WriteString(h, name)                                      //nolint:errcheck
+		io.WriteString(h, ":")                                       //nolint:errcheck
+		h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10)) //nolint:errcheck
+		io.WriteString(h, ":")                                       //nolint:errcheck
+		h.Write(data)                                                //nolint:errcheck
 	}
 
-	return hex.EncodeToString(h.Sum(nil))
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
+	return hex.EncodeToString(sum[:])
 }
 
 // hashSpecsDir hashes all .md files in specs/ into the provided hasher.
-func hashSpecsDir(h io.Writer, changeDir string) {
+// intBuf is a caller-provided scratch buffer reused from inputHash to avoid a redundant stack allocation.
+func hashSpecsDir(h io.Writer, changeDir string, intBuf *[32]byte) {
 	specsDir := filepath.Join(changeDir, "specs")
 	entries, err := os.ReadDir(specsDir)
 	if err != nil {
@@ -118,34 +127,52 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(h, "specs/%s:%d:", e.Name(), len(data))
-		h.Write(data)
+		io.WriteString(h, "specs/")                                     //nolint:errcheck
+		io.WriteString(h, e.Name())                                     //nolint:errcheck
+		io.WriteString(h, ":")                                          //nolint:errcheck
+		h.Write(strconv.AppendInt((*intBuf)[:0], int64(len(data)), 10)) //nolint:errcheck
+		io.WriteString(h, ":")                                          //nolint:errcheck
+		h.Write(data)                                                   //nolint:errcheck
 	}
+}
+
+// parseHashFile parses a hash file's "{hex_hash}|{unix_seconds}" content.
+// Returns (hash, timestamp, true) on success or ("", "", false) for legacy
+// files that lack the "|" separator (treated as stale).
+func parseHashFile(raw []byte) (hash, ts string, ok bool) {
+	hashB, tsB, found := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
+	if !found {
+		return "", "", false
+	}
+	return string(hashB), string(tsB), true
 }
 
 // tryCachedContext checks if a cached context exists, its input hash
 // matches the current artifacts, and the TTL hasn't expired.
 // Hash file format: "{hex_hash}|{unix_seconds}"
 // Legacy files without "|" produce a cache miss (silent upgrade).
-func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, bool) {
+// The computed input hash is always returned so callers can reuse it
+// (e.g. to avoid recomputing the hash in saveContextCache on a miss).
+func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, string, bool) {
 	inputs := phaseCacheInputs(phaseName)
+
+	// Compute once — returned to caller regardless of hit/miss.
+	currentHash := inputHash(changeDir, inputs, skillsPath, phaseName)
 
 	raw, err := os.ReadFile(hashCachePath(changeDir, phaseName))
 	if err != nil {
-		return nil, false
+		return nil, currentHash, false
 	}
 
 	// Parse "hash|timestamp" format.
-	stored := strings.TrimSpace(string(raw))
-	storedHash, tsStr, ok := strings.Cut(stored, "|")
+	storedHash, tsStr, ok := parseHashFile(raw)
 	if !ok {
-		return nil, false // legacy format without timestamp → miss
+		return nil, currentHash, false // legacy format without timestamp → miss
 	}
 
 	// Check content hash (includes SKILL.md).
-	currentHash := inputHash(changeDir, inputs, skillsPath, phaseName)
 	if storedHash != currentHash {
-		return nil, false
+		return nil, currentHash, false
 	}
 
 	// Check TTL.
@@ -153,16 +180,16 @@ func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, bool) {
 		ts := mustParseInt64(tsStr)
 		age := time.Since(time.Unix(ts, 0))
 		if age > ttl {
-			return nil, false // expired
+			return nil, currentHash, false // expired
 		}
 	}
 
 	cached, err := os.ReadFile(contextCachePath(changeDir, phaseName))
 	if err != nil {
-		return nil, false
+		return nil, currentHash, false
 	}
 
-	return cached, true
+	return cached, currentHash, true
 }
 
 func mustParseInt64(s string) int64 {
@@ -175,17 +202,23 @@ func mustParseInt64(s string) int64 {
 
 // saveContextCache stores the assembled context and its input hash with timestamp.
 // Format: "{hash}|{unix_seconds}"
-func saveContextCache(changeDir, phaseName, skillsPath string, content []byte) error {
+// If precomputedHash is non-empty it is used directly, avoiding a redundant
+// inputHash call when the caller already computed the hash (e.g. on a cache miss
+// in tryCachedContext).
+func saveContextCache(changeDir, phaseName, skillsPath, precomputedHash string, content []byte) error {
 	dir := cacheDir(changeDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create cache dir: %w", err)
 	}
 
-	inputs := phaseCacheInputs(phaseName)
-	hash := inputHash(changeDir, inputs, skillsPath, phaseName)
-	hashWithTS := fmt.Sprintf("%s|%d", hash, time.Now().Unix())
+	hash := precomputedHash
+	if hash == "" {
+		inputs := phaseCacheInputs(phaseName)
+		hash = inputHash(changeDir, inputs, skillsPath, phaseName)
+	}
+	hashWithTS := strconv.AppendInt(append([]byte(hash), '|'), time.Now().Unix(), 10)
 
-	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), []byte(hashWithTS)); err != nil {
+	if err := fsutil.AtomicWrite(hashCachePath(changeDir, phaseName), hashWithTS); err != nil {
 		return err
 	}
 	return fsutil.AtomicWrite(contextCachePath(changeDir, phaseName), content)
@@ -210,8 +243,19 @@ type contextMetrics struct {
 	DurationMs int64
 }
 
+// metricsFromPayload converts a PhaseAssembledPayload to contextMetrics.
+func metricsFromPayload(p events.PhaseAssembledPayload) *contextMetrics {
+	return &contextMetrics{
+		Phase:      p.Phase,
+		Bytes:      p.Bytes,
+		Tokens:     p.Tokens,
+		Cached:     p.Cached,
+		DurationMs: p.DurationMs,
+	}
+}
+
 // writeMetrics logs context metrics via slog.
-func writeMetrics(_ io.Writer, m *contextMetrics, verbosity int) {
+func writeMetrics(m *contextMetrics, verbosity int) {
 	if verbosity < 0 {
 		return
 	}
@@ -279,7 +323,7 @@ func recordMetrics(changeDir string, m *contextMetrics) {
 		}
 	}
 
-	data, err := json.MarshalIndent(pm, "", "  ")
+	data, err := json.Marshal(pm)
 	if err != nil {
 		return
 	}
@@ -307,14 +351,17 @@ func LoadPipelineMetrics(changeDir string) *PipelineMetrics {
 		}
 	}
 
+	if pm.Phases == nil {
+		pm.Phases = make(map[string]PhaseMetrics)
+	}
 	return &pm
 }
 
 func formatBytes(b int) string {
 	if b < 1024 {
-		return fmt.Sprintf("%dB", b)
+		return strconv.Itoa(b) + "B"
 	}
-	return fmt.Sprintf("%dKB", b/1024)
+	return strconv.Itoa(b/1024) + "KB"
 }
 
 // CheckCacheIntegrity counts stale cache entries in a change directory.
@@ -324,7 +371,7 @@ func CheckCacheIntegrity(changeDir, skillsPath string) (int, error) {
 	stale := 0
 	hashFiles, err := filepath.Glob(filepath.Join(cacheDir(changeDir), "*.hash"))
 	if err != nil || len(hashFiles) == 0 {
-		return 0, nil
+		return 0, nil //nolint:nilerr // Glob error means no hash files; treat as empty (non-fatal)
 	}
 	for _, hf := range hashFiles {
 		phase := strings.TrimSuffix(filepath.Base(hf), ".hash")
@@ -332,8 +379,7 @@ func CheckCacheIntegrity(changeDir, skillsPath string) (int, error) {
 		if err != nil {
 			continue
 		}
-		stored := strings.TrimSpace(string(raw))
-		storedHash, _, ok := strings.Cut(stored, "|")
+		storedHash, _, ok := parseHashFile(raw)
 		if !ok {
 			stale++
 			continue

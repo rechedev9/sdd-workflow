@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/artifacts"
@@ -25,6 +23,8 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		switch arg {
 		case "--force", "-f":
 			force = true
+		default:
+			return errUnknownFlag(arg)
 		}
 	}
 	phase, err := state.ResolvePhase(phaseStr)
@@ -32,25 +32,21 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "write", err)
 	}
 
-	// Resolve change directory.
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "write", name)
 	if err != nil {
-		return errs.WriteError(stderr, "write", err)
+		return err
 	}
-
-	// Load state.
 	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "write", fmt.Errorf("load state: %w", err))
-	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := getCWD(stderr, "write")
+	if err != nil {
+		return err
+	}
 	db := tryOpenStore(cwd)
 	if db != nil {
 		defer db.Close()
 	}
-	broker := newBroker(stderr, 0, db)
+	broker := newBroker(0, db)
 	prevPhase := string(st.CurrentPhase)
 
 	// Promote pending artifact.
@@ -98,11 +94,10 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		Command:      "write",
 		Status:       "success",
 		Change:       name,
-		Phase:        phaseStr,
+		Phase:        string(phase),
 		PromotedTo:   promoted,
 		CurrentPhase: string(st.CurrentPhase),
 	}
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

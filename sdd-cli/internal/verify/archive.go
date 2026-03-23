@@ -53,21 +53,12 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 	}
 
 	var b strings.Builder
+	b.Grow(200 + len(entries)*20) // pre-size: header + ~20 bytes per entry
 	b.WriteString("# Archive Manifest\n\n")
 	fmt.Fprintf(&b, "**Change:** %s\n", changeName)
 	fmt.Fprintf(&b, "**Archived:** %s\n\n", time.Now().UTC().Format(time.RFC3339))
 
 	b.WriteString("## Artifacts\n\n")
-
-	phaseArtifacts := map[string]bool{
-		"exploration.md":   true,
-		"proposal.md":      true,
-		"design.md":        true,
-		"tasks.md":         true,
-		"review-report.md": true,
-		"verify-report.md": true,
-		"clean-report.md":  true,
-	}
 
 	specCount := 0
 	completed := 0
@@ -83,7 +74,9 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 			continue
 		}
 		fmt.Fprintf(&b, "- `%s`\n", name)
-		if phaseArtifacts[name] {
+		switch name {
+		case "exploration.md", "proposal.md", "design.md", "tasks.md",
+			"review-report.md", "verify-report.md", "clean-report.md":
 			completed++
 		}
 	}

@@ -4,8 +4,9 @@ package errlog
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -36,12 +37,15 @@ type ErrorLog struct {
 
 // Fingerprint computes a stable 16-hex-char hash from command + first error line.
 func Fingerprint(command string, errorLines []string) string {
-	first := ""
+	h := sha256.New()
+	io.WriteString(h, command) //nolint:errcheck // hash.Hash.Write never errors
+	io.WriteString(h, "\x00")  //nolint:errcheck // NUL separator; string constant avoids heap alloc
 	if len(errorLines) > 0 {
-		first = errorLines[0]
+		io.WriteString(h, errorLines[0]) //nolint:errcheck
 	}
-	h := sha256.Sum256([]byte(command + "\x00" + first))
-	return fmt.Sprintf("%x", h[:8])
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
+	return hex.EncodeToString(sum[:8])
 }
 
 // LogPath returns the path to the global error log.
@@ -76,21 +80,25 @@ func Record(cwd string, entry ErrorEntry) {
 		return
 	}
 
-	dir := filepath.Dir(LogPath(cwd))
-	_ = os.MkdirAll(dir, 0o755)                // best-effort dir creation
-	_ = fsutil.AtomicWrite(LogPath(cwd), data) // best-effort error log persistence
+	path := LogPath(cwd)
+	_ = os.MkdirAll(filepath.Dir(path), 0o755) // best-effort dir creation
+	_ = fsutil.AtomicWrite(path, data)         // best-effort error log persistence
 }
 
 // RecurringFingerprints returns fingerprints seen >= threshold times with their counts.
 func (l *ErrorLog) RecurringFingerprints(threshold int) map[string]int {
-	counts := make(map[string]int)
+	counts := make(map[string]int, len(l.Entries))
 	for _, e := range l.Entries {
 		counts[e.Fingerprint]++
 	}
+	result := make(map[string]int)
 	for fp, n := range counts {
-		if n < threshold {
-			delete(counts, fp)
+		if n >= threshold {
+			result[fp] = n
 		}
 	}
-	return counts
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
