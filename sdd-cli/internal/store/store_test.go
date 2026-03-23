@@ -800,3 +800,23 @@ func TestInsertVerifyResult_ClosedDB(t *testing.T) {
 		t.Fatal("expected error on closed DB")
 	}
 }
+
+func TestRecentErrors_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	// Inject a row with invalid JSON in error_lines directly to hit the
+	// json.Unmarshal error path in RecentErrors.
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO verify_events (timestamp, change, command_name, command, exit_code, error_lines, fingerprint)
+		 VALUES ('2026-01-01T00:00:00Z', 'c', 'build', 'go build', 1, 'not-valid-json', 'fp1')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	_, err = s.RecentErrors(ctx, 10)
+	if err == nil {
+		t.Fatal("expected error when error_lines contains invalid JSON")
+	}
+}
