@@ -134,6 +134,17 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 	}
 }
 
+// parseHashFile parses a hash file's "{hex_hash}|{unix_seconds}" content.
+// Returns (hash, timestamp, true) on success or ("", "", false) for legacy
+// files that lack the "|" separator (treated as stale).
+func parseHashFile(raw []byte) (hash, ts string, ok bool) {
+	hashB, tsB, found := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
+	if !found {
+		return "", "", false
+	}
+	return string(hashB), string(tsB), true
+}
+
 // tryCachedContext checks if a cached context exists, its input hash
 // matches the current artifacts, and the TTL hasn't expired.
 // Hash file format: "{hex_hash}|{unix_seconds}"
@@ -152,12 +163,10 @@ func tryCachedContext(changeDir, phaseName, skillsPath string) ([]byte, string, 
 	}
 
 	// Parse "hash|timestamp" format.
-	hashB, tsB, ok := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
+	storedHash, tsStr, ok := parseHashFile(raw)
 	if !ok {
 		return nil, currentHash, false // legacy format without timestamp → miss
 	}
-	storedHash := string(hashB)
-	tsStr := string(tsB)
 
 	// Check content hash (includes SKILL.md).
 	if storedHash != currentHash {
@@ -368,8 +377,7 @@ func CheckCacheIntegrity(changeDir, skillsPath string) (int, error) {
 		if err != nil {
 			continue
 		}
-		storedHashB, _, ok := bytes.Cut(bytes.TrimSpace(raw), []byte("|"))
-		storedHash := string(storedHashB)
+		storedHash, _, ok := parseHashFile(raw)
 		if !ok {
 			stale++
 			continue
