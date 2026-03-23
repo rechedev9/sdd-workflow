@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -65,7 +64,6 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		Changes: changes,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

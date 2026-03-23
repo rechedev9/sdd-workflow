@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -95,7 +94,6 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheKeys: cacheKeys,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

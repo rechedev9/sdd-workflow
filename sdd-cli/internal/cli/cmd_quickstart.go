@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -143,7 +142,6 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 		Skipped:      []string{"explore", "propose", "spec", "design", "tasks"},
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

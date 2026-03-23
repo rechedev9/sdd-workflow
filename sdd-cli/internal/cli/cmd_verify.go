@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -82,8 +81,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 			Skipped:    true,
 			ReportPath: filepath.Join(changeDir, "verify-report.md"),
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 
@@ -155,8 +153,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		out.Status = "failed"
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 
 	// Emit VerifyFailed event for error collection.
 	if !report.Passed {

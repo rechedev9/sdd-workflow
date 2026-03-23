@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -59,7 +58,6 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 		Count:   len(files),
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

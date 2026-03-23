@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -88,8 +87,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 			ChangeDir:    changeDir,
 			CurrentPhase: string(state.PhaseExplore),
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 

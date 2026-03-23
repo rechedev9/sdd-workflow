@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -67,7 +66,6 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 		ManifestPath: result.ManifestPath,
 	}
 
-	data, _ := json.MarshalIndent(out, "", "  ")
-	fmt.Fprintln(stdout, string(data))
+	writeJSON(stdout, out)
 	return nil
 }

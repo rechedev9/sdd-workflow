@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -212,8 +211,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 			Status:  aggregateStatus(checks),
 			Checks:  checks,
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 	} else {
 		printDoctorTable(stdout, checks)
 	}

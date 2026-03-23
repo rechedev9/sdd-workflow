@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -158,4 +159,11 @@ func shouldSkipVerify(cwd, changeDir string) (bool, error) {
 	}
 
 	return true, nil // no source changes + last verify passed → skip
+}
+
+// writeJSON marshals v as indented JSON and writes it to w followed by a newline.
+// Mirrors the repeated: data, _ := json.MarshalIndent(v, "", "  "); fmt.Fprintln(w, string(data))
+func writeJSON(w io.Writer, v any) {
+	data, _ := json.MarshalIndent(v, "", "  ")
+	fmt.Fprintln(w, string(data))
 }

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -75,8 +74,7 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 			Total:   len(log.Entries),
 			Groups:  sorted,
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 		return nil
 	}
 

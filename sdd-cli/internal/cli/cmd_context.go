@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -140,8 +139,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 			Bytes:   len(content),
 			Tokens:  len(content) / 4,
 		}
-		data, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Fprintln(stdout, string(data))
+		writeJSON(stdout, out)
 	}
 
 	return nil
