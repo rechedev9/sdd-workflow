@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -51,5 +53,52 @@ func TestRunDashboard_InvalidPort(t *testing.T) {
 	}
 	if ExitCode(err) != 2 {
 		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunDashboard_PortAboveMax(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDashboard([]string{"--port", "65536"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for port > 65535")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunDashboard_InvalidPortNaN(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDashboard([]string{"--port", "notanumber"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for non-numeric port")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunDashboard_StoreOpenError(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	if err := os.Chdir(dir); err != nil {
+		t.Skip("cannot chdir:", err)
+	}
+	// Block store.Open by placing a file at openspec/.cache so MkdirAll fails.
+	cacheParent := filepath.Join(dir, "openspec")
+	if err := os.MkdirAll(cacheParent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cacheParent, ".cache"), []byte("block"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	err := runDashboard([]string{"--port", "8811"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when store cannot be opened")
 	}
 }
