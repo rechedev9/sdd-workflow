@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -70,7 +71,7 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 			if err != nil {
 				continue
 			}
-			cacheKeys[base] = strings.TrimSpace(string(raw))
+			cacheKeys[base] = string(bytes.TrimSpace(raw))
 		}
 	}
 

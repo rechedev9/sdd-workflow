@@ -119,11 +119,11 @@ func gitDiffFiles(dir, ref string) ([]string, error) {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return nil, fmt.Errorf("%w\n%s", err, strings.TrimSpace(string(exitErr.Stderr)))
+			return nil, fmt.Errorf("%w\n%s", err, string(bytes.TrimSpace(exitErr.Stderr)))
 		}
 		return nil, fmt.Errorf("exec git: %w", err)
 	}
-	raw := strings.TrimRight(string(out), "\n")
+	raw := string(bytes.TrimRight(out, "\n"))
 	if raw == "" {
 		return nil, nil
 	}
