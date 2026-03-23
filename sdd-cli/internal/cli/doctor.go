@@ -123,7 +123,7 @@ func checkBuildTools(cfg *config.Config) CheckResult {
 		return CheckResult{Name: "build_tools", Status: "warn", Message: "skipped: config unavailable"}
 	}
 	cmds := []string{cfg.Commands.Build, cfg.Commands.Test, cfg.Commands.Lint, cfg.Commands.Format}
-	var missing []string
+	missing := make([]string, 0, len(cmds))
 	seen := map[string]bool{}
 	for _, cmd := range cmds {
 		cmd = strings.TrimSpace(cmd)

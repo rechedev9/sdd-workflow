@@ -37,7 +37,7 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 	pm := sddctx.LoadPipelineMetrics(changeDir)
 
 	// Build warnings.
-	var warnings []string
+	warnings := make([]string, 0, 2)
 	if st.IsStale(staleThreshold) {
 		warnings = append(warnings, fmt.Sprintf("change inactive for %d hours", st.StaleHours()))
 	}

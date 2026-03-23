@@ -190,7 +190,7 @@ func checkRecurringFailures(cwd, changeName string) map[string]int {
 	}
 
 	// Collect fingerprints from this change's recent failures.
-	var changeFingerprints []string
+	changeFingerprints := make([]string, 0, 10)
 	for i := len(log.Entries) - 1; i >= 0; i-- {
 		e := log.Entries[i]
 		if e.Change == changeName {
