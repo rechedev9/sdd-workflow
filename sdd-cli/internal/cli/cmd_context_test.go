@@ -48,6 +48,23 @@ func TestRunContext_ChangeNotFound(t *testing.T) {
 	}
 }
 
+func TestRunContext_AssemblyError(t *testing.T) {
+	// Uses Chdir and setupChange — must not be parallel.
+	// Pass a valid phase (propose) but the change has no exploration.md,
+	// so assembly fails → covers the errs.WriteError path at line 86.
+	root := setupChange(t, "ctx-asmerr", "assembly error test")
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err := runContext([]string{"ctx-asmerr", "propose"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when required artifact is missing")
+	}
+}
+
 func TestRunContext_InvalidPhase(t *testing.T) {
 	// Uses Chdir and setupChange — must not be parallel.
 	root := setupChange(t, "ctx-badphase", "invalid phase test")
