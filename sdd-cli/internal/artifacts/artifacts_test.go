@@ -334,6 +334,56 @@ func TestPromoteForceBypass(t *testing.T) {
 	}
 }
 
+func TestPromote_NoArtifactMapping(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Manually create a pending file for an unknown phase.
+	pendingDir := filepath.Join(dir, ".pending")
+	os.MkdirAll(pendingDir, 0o755)
+	os.WriteFile(filepath.Join(pendingDir, "unknown-phase.md"), []byte("content"), 0o644)
+
+	_, err := Promote(dir, state.Phase("unknown-phase"), true)
+	if err == nil {
+		t.Fatal("expected error for unknown phase with no artifact mapping")
+	}
+}
+
+func TestPromote_RemoveFails_ReturnsDestWithoutError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	content := []byte("# Exploration\n\n## Current State\nWorks.\n\n## Relevant Files\n- main.go\n")
+	WritePending(dir, state.PhaseExplore, content)
+
+	// Make .pending/ read-only so os.Remove fails.
+	pendingDir := filepath.Join(dir, ".pending")
+	os.Chmod(pendingDir, 0o555)
+	t.Cleanup(func() { os.Chmod(pendingDir, 0o755) })
+
+	dst, err := Promote(dir, state.PhaseExplore, true)
+	if err != nil {
+		t.Fatalf("expected success even when Remove fails, got: %v", err)
+	}
+	if dst == "" {
+		t.Error("expected non-empty dst path")
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Errorf("promoted file missing: %v", err)
+	}
+}
+
+func TestListPending_ReadDirError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pendingDir := filepath.Join(dir, ".pending")
+	// Create .pending as a file (not a dir) so ReadDir returns an error that isn't NotExist.
+	os.WriteFile(pendingDir, []byte("not a dir"), 0o644)
+
+	_, err := ListPending(dir)
+	if err == nil {
+		t.Fatal("expected error when .pending is a file, not a directory")
+	}
+}
+
 func TestPromoteAllPhases(t *testing.T) {
 	t.Parallel()
 	// Verify every phase with an artifact mapping can be promoted.
