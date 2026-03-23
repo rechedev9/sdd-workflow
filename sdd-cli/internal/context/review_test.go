@@ -1,11 +1,15 @@
 package context
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
 
 // findGitRoot walks up from cwd until it finds a .git directory.
@@ -182,6 +186,52 @@ func initBareGitRepo(t *testing.T, dir string) error {
 		return err
 	}
 	return runRealGit(dir, "commit", "-q", "-m", "init")
+}
+
+func TestCheckSkillError_SkillFails(t *testing.T) {
+	t.Parallel()
+	// Build a LazySlice where loader 0 (skill) returns an error.
+	sentinelErr := errors.New("skill missing")
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return nil, sentinelErr },
+	}
+	ls := csync.NewLazySlice(loaders)
+	loadErr := ls.LoadAll()
+	err := checkSkillError(ls, loadErr)
+	if err == nil {
+		t.Fatal("expected checkSkillError to return skill error")
+	}
+	if !errors.Is(err, sentinelErr) {
+		t.Errorf("error = %v, want sentinel error", err)
+	}
+}
+
+func TestCheckSkillError_NoLoadError(t *testing.T) {
+	t.Parallel()
+	// LoadAll succeeds — checkSkillError should always return nil.
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return []byte("skill"), nil },
+	}
+	ls := csync.NewLazySlice(loaders)
+	loadErr := ls.LoadAll()
+	if err := checkSkillError(ls, loadErr); err != nil {
+		t.Errorf("expected nil when LoadAll succeeds, got %v", err)
+	}
+}
+
+func TestCheckSkillError_OtherLoaderFails(t *testing.T) {
+	t.Parallel()
+	// Skill (index 0) succeeds but another loader fails.
+	// checkSkillError should return nil (let caller handle the artifact error).
+	loaders := []func() ([]byte, error){
+		func() ([]byte, error) { return []byte("skill"), nil },
+		func() ([]byte, error) { return nil, fmt.Errorf("artifact missing") },
+	}
+	ls := csync.NewLazySlice(loaders)
+	loadErr := ls.LoadAll()
+	if err := checkSkillError(ls, loadErr); err != nil {
+		t.Errorf("expected nil when skill succeeds, got %v", err)
+	}
 }
 
 func TestAssembleReview_MissingSpecs(t *testing.T) {
