@@ -31,18 +31,11 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "write", err)
 	}
 
-	// Resolve change directory.
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "write", name)
 	if err != nil {
-		return errs.WriteError(stderr, "write", err)
+		return err
 	}
-
-	// Load state.
 	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "write", fmt.Errorf("load state: %w", err))
-	}
 
 	cwd, err := os.Getwd()
 	if err != nil {

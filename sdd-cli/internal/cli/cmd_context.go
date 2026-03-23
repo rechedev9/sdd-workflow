@@ -35,9 +35,9 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := positional[0]
 
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "context", name)
 	if err != nil {
-		return errs.WriteError(stderr, "context", err)
+		return err
 	}
 
 	cwd, err := os.Getwd()
@@ -50,13 +50,6 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "context", fmt.Errorf("load config: %w", err))
-	}
-
-	// Load state.
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "context", fmt.Errorf("load state: %w", err))
 	}
 
 	db := tryOpenStore(cwd)

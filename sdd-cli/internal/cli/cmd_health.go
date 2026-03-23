@@ -19,15 +19,9 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := args[0]
 
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "health", name)
 	if err != nil {
-		return errs.WriteError(stderr, "health", err)
-	}
-
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "health", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	// Count completed phases.

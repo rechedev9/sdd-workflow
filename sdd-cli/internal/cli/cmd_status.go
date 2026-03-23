@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -16,15 +14,9 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := args[0]
 
-	changeDir, err := resolveChangeDir(name)
+	_, st, err := loadChangeState(stderr, "status", name)
 	if err != nil {
-		return errs.WriteError(stderr, "status", err)
-	}
-
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "status", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	// Build phase list with statuses.

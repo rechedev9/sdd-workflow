@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
 func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -17,15 +15,9 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := args[0]
 
-	changeDir, err := resolveChangeDir(name)
+	_, st, err := loadChangeState(stderr, "diff", name)
 	if err != nil {
-		return errs.WriteError(stderr, "diff", err)
-	}
-
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "diff", fmt.Errorf("load state: %w", err))
+		return err
 	}
 
 	if st.BaseRef == "" {

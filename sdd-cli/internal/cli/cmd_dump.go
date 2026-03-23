@@ -22,21 +22,14 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	name := args[0]
 
-	changeDir, err := resolveChangeDir(name)
+	changeDir, st, err := loadChangeState(stderr, "dump", name)
 	if err != nil {
-		return errs.WriteError(stderr, "dump", err)
+		return err
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errs.WriteError(stderr, "dump", fmt.Errorf("get working directory: %w", err))
-	}
-
-	// Load state.
-	statePath := filepath.Join(changeDir, "state.json")
-	st, err := state.Load(statePath)
-	if err != nil {
-		return errs.WriteError(stderr, "dump", fmt.Errorf("load state: %w", err))
 	}
 
 	// Load config.

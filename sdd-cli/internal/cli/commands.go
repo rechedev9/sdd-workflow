@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/store"
 )
 
@@ -91,6 +93,21 @@ func resolveChangeDir(name string) (string, error) {
 		return "", fmt.Errorf("not a directory: %s", changeDir)
 	}
 	return changeDir, nil
+}
+
+// loadChangeState resolves the change directory for name and loads state.json.
+// On error it writes to stderr and returns a wrapped error ready for return.
+// Used by the 7+ commands that start with resolveChangeDir + state.Load.
+func loadChangeState(stderr io.Writer, cmd, name string) (string, *state.State, error) {
+	changeDir, err := resolveChangeDir(name)
+	if err != nil {
+		return "", nil, errs.WriteError(stderr, cmd, err)
+	}
+	st, err := state.Load(filepath.Join(changeDir, "state.json"))
+	if err != nil {
+		return "", nil, errs.WriteError(stderr, cmd, fmt.Errorf("load state: %w", err))
+	}
+	return changeDir, st, nil
 }
 
 // gitCmdTimeout is the maximum time allowed for a git subprocess.
