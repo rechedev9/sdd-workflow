@@ -53,5 +53,4 @@ func RegisterSubscribers(broker *events.Broker, verbosity int) {
 			})
 		}
 	})
-
 }
