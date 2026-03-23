@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/artifacts"
@@ -37,9 +36,9 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	statePath := filepath.Join(changeDir, "state.json")
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "write")
 	if err != nil {
-		return errs.WriteError(stderr, "write", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 	db := tryOpenStore(cwd)
 	if db != nil {

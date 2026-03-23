@@ -95,6 +95,16 @@ func resolveChangeDir(name string) (string, error) {
 	return changeDir, nil
 }
 
+// getCWD returns the working directory, writing to stderr and returning an error on failure.
+// Used by every CLI command that needs the project root.
+func getCWD(stderr io.Writer, cmd string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", errs.WriteError(stderr, cmd, fmt.Errorf("get working directory: %w", err))
+	}
+	return cwd, nil
+}
+
 // openspecConfig returns the path to openspec/config.yaml in the project root.
 // Used by commands that load config — centralises the magic string.
 func openspecConfig(cwd string) string {

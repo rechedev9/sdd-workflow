@@ -182,9 +182,9 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "doctor")
 	if err != nil {
-		return errs.WriteError(stderr, "doctor", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	configPath := openspecConfig(cwd)

@@ -46,9 +46,9 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "quickstart", fmt.Errorf("read spec file: %w", err))
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "quickstart")
 	if err != nil {
-		return errs.WriteError(stderr, "quickstart", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Ensure config exists.

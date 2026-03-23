@@ -11,9 +11,9 @@ import (
 )
 
 func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "list")
 	if err != nil {
-		return errs.WriteError(stderr, "list", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	type changeInfo struct {

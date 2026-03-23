@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -36,9 +35,9 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "verify", err)
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "verify")
 	if err != nil {
-		return errs.WriteError(stderr, "verify", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config for commands.

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
@@ -39,9 +38,9 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "context")
 	if err != nil {
-		return errs.WriteError(stderr, "context", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config.

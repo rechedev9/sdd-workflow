@@ -40,9 +40,9 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.Usage(err.Error())
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "new")
 	if err != nil {
-		return errs.WriteError(stderr, "new", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	// Load config.

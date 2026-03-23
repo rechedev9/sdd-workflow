@@ -30,9 +30,9 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.Usage(fmt.Sprintf("invalid port: %s (must be 1024-65535)", port))
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "dashboard")
 	if err != nil {
-		return errs.WriteError(stderr, "dashboard", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 	dbPath := filepath.Join(cwd, "openspec", ".cache", "sdd.db")
 	changesDir := openspecChanges(cwd)

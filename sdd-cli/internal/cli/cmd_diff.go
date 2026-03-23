@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/cli/errs"
 )
@@ -24,9 +23,9 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "diff", fmt.Errorf("base_ref not recorded; change was created before diff support"))
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCWD(stderr, "diff")
 	if err != nil {
-		return errs.WriteError(stderr, "diff", fmt.Errorf("get working directory: %w", err))
+		return err
 	}
 
 	files, err := gitDiffFiles(cwd, st.BaseRef)
