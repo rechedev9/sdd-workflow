@@ -59,16 +59,6 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 
 	b.WriteString("## Artifacts\n\n")
 
-	phaseArtifacts := map[string]bool{
-		"exploration.md":   true,
-		"proposal.md":      true,
-		"design.md":        true,
-		"tasks.md":         true,
-		"review-report.md": true,
-		"verify-report.md": true,
-		"clean-report.md":  true,
-	}
-
 	specCount := 0
 	completed := 0
 	for _, e := range entries {
@@ -83,7 +73,9 @@ func writeManifest(archivePath, changeName, manifestPath string) error {
 			continue
 		}
 		fmt.Fprintf(&b, "- `%s`\n", name)
-		if phaseArtifacts[name] {
+		switch name {
+		case "exploration.md", "proposal.md", "design.md", "tasks.md",
+			"review-report.md", "verify-report.md", "clean-report.md":
 			completed++
 		}
 	}
