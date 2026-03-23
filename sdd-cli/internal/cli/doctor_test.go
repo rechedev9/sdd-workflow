@@ -254,8 +254,9 @@ func TestCheckOrphanedPendingMatched(t *testing.T) {
 	pendingDir := filepath.Join(changeDir, ".pending")
 	os.MkdirAll(pendingDir, 0o755)
 	// Both pending and promoted exist — this is an orphan.
+	// Pending file: .pending/explore.md; promoted artifact: exploration.md.
 	os.WriteFile(filepath.Join(pendingDir, "explore.md"), []byte("pending"), 0o644)
-	os.WriteFile(filepath.Join(changeDir, "explore.md"), []byte("promoted"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "exploration.md"), []byte("promoted"), 0o644)
 	r := checkOrphanedPending(dir)
 	if r.Status != "warn" {
 		t.Errorf("expected warn for orphaned pending, got %q", r.Status)
@@ -271,9 +272,13 @@ func TestCheckOrphanedPendingMultiple(t *testing.T) {
 	changeDir := filepath.Join(dir, "my-change")
 	pendingDir := filepath.Join(changeDir, ".pending")
 	os.MkdirAll(pendingDir, 0o755)
-	for _, phase := range []string{"explore", "propose"} {
-		os.WriteFile(filepath.Join(pendingDir, phase+".md"), []byte("pending"), 0o644)
-		os.WriteFile(filepath.Join(changeDir, phase+".md"), []byte("promoted"), 0o644)
+	// Pending: .pending/{phase}.md; promoted artifacts use canonical names.
+	for _, tc := range []struct{ pending, artifact string }{
+		{"explore.md", "exploration.md"},
+		{"propose.md", "proposal.md"},
+	} {
+		os.WriteFile(filepath.Join(pendingDir, tc.pending), []byte("pending"), 0o644)
+		os.WriteFile(filepath.Join(changeDir, tc.artifact), []byte("promoted"), 0o644)
 	}
 	r := checkOrphanedPending(dir)
 	if r.Status != "warn" {

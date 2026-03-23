@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/artifacts"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/config"
 	sddctx "github.com/rechedev9/shenronSDD/sdd-cli/internal/context"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
@@ -79,8 +80,18 @@ func checkOrphanedPending(changesDir string) CheckResult {
 			if pf.IsDir() || !strings.HasSuffix(pf.Name(), ".md") {
 				continue
 			}
-			phase := strings.TrimSuffix(pf.Name(), ".md")
-			promoted := filepath.Join(changeDir, phase+".md")
+			ph := state.Phase(strings.TrimSuffix(pf.Name(), ".md"))
+			artifactFile, ok := artifacts.ArtifactFileName(ph)
+			if !ok {
+				continue
+			}
+			// spec promotes into specs/{pendingFileName}; others promote directly.
+			var promoted string
+			if artifactFile == "specs" {
+				promoted = filepath.Join(changeDir, "specs", pf.Name())
+			} else {
+				promoted = filepath.Join(changeDir, artifactFile)
+			}
 			if _, err := os.Stat(promoted); err == nil {
 				count++
 			}
