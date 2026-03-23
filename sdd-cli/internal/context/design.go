@@ -17,7 +17,7 @@ func AssembleDesign(w io.Writer, p *Params) error {
 		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-design") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
 		loadSpecsLoader(p.ChangeDir),
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)
@@ -61,6 +61,12 @@ func loadSpecsLoader(changeDir string) func() ([]byte, error) {
 		s, err := loadSpecs(changeDir)
 		return []byte(s), err
 	}
+}
+
+// buildSummaryLoader returns a loader closure that builds the pipeline summary.
+// Used by assemblers that include a cumulative context section.
+func buildSummaryLoader(p *Params) func() ([]byte, error) {
+	return func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil }
 }
 
 // loadSpecs reads all .md files from the specs/ directory, concatenated.

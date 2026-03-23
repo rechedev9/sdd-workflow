@@ -13,7 +13,7 @@ func AssembleSpec(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
 		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-spec") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "proposal.md") },
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)

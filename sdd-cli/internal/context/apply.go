@@ -17,7 +17,7 @@ func AssembleApply(w io.Writer, p *Params) error {
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
 		loadSpecsLoader(p.ChangeDir),
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		buildSummaryLoader(p),
 	}
 
 	ls := csync.NewLazySlice(loaders)

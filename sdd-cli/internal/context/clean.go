@@ -15,7 +15,7 @@ func AssembleClean(w io.Writer, p *Params) error {
 		func() ([]byte, error) { return loadSkill(p.SkillsPath, "sdd-clean") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "verify-report.md") },
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "tasks.md") },
-		func() ([]byte, error) { return []byte(buildSummary(p.ChangeDir, p)), nil },
+		buildSummaryLoader(p),
 		func() ([]byte, error) { return loadArtifact(p.ChangeDir, "design.md") },
 		func() ([]byte, error) {
 			s, err := loadSpecs(p.ChangeDir)
