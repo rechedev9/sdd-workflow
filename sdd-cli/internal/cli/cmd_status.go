@@ -25,7 +25,7 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Status string `json:"status"`
 	}
 	phases := make([]phaseInfo, 0, len(state.AllPhases()))
-	var completed []string
+	completed := make([]string, 0, len(state.AllPhases()))
 	for _, p := range state.AllPhases() {
 		ps := st.Phases[p]
 		phases = append(phases, phaseInfo{Phase: string(p), Status: string(ps)})

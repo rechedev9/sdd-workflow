@@ -65,7 +65,7 @@ func loadSpecs(changeDir string) (string, error) {
 		return "", fmt.Errorf("read specs directory: %w", err)
 	}
 
-	var parts []string
+	parts := make([]string, 0, len(entries))
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
