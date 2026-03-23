@@ -243,6 +243,37 @@ func TestAssembleTasksNoDesign(t *testing.T) {
 	}
 }
 
+func TestAssembleTasksNoSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
+	// specs/ directory absent → AssembleTasks must error
+
+	var buf bytes.Buffer
+	err := AssembleTasks(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when specs/ is missing")
+	}
+}
+
+func TestAssembleApplyNoDesign(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Do something\n"), 0o644)
+	specsDir := filepath.Join(changeDir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n"), 0o644)
+	// design.md absent → AssembleApply must error
+
+	var buf bytes.Buffer
+	err := AssembleApply(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when design.md is missing")
+	}
+}
+
 func TestAssembleDispatcher(t *testing.T) {
 	t.Parallel()
 	changeDir, _, p := setupFixture(t)
