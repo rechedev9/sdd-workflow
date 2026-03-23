@@ -150,3 +150,22 @@ func TestRunDashboard_StoreOpenError(t *testing.T) {
 		t.Fatal("expected error when store cannot be opened")
 	}
 }
+
+func TestTryOpenStore_ReturnNilOnError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Block store.Open by placing a file at openspec/.cache so MkdirAll fails.
+	cacheParent := filepath.Join(dir, "openspec")
+	if err := os.MkdirAll(cacheParent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cacheParent, ".cache"), []byte("block"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// tryOpenStore must return nil on error — not panic.
+	db := tryOpenStore(dir)
+	if db != nil {
+		db.Close()
+		t.Fatal("expected nil when store cannot be opened")
+	}
+}
