@@ -489,3 +489,41 @@ func TestPromoteAllPhases(t *testing.T) {
 		})
 	}
 }
+
+func TestWritePending_WriteError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pendingDir := filepath.Join(dir, ".pending")
+	if err := os.MkdirAll(pendingDir, 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Make .pending/ read-only so WriteFile fails.
+	if err := os.Chmod(pendingDir, 0o555); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(pendingDir, 0o755) })
+
+	err := WritePending(dir, state.PhaseExplore, []byte("content"))
+	if err == nil {
+		t.Fatal("expected error writing to read-only .pending dir")
+	}
+}
+
+func TestPromote_ReadError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Create pending file then make it unreadable.
+	if err := WritePending(dir, state.PhaseExplore, []byte("content")); err != nil {
+		t.Fatalf("setup WritePending: %v", err)
+	}
+	pendingFile := PendingPath(dir, state.PhaseExplore)
+	if err := os.Chmod(pendingFile, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(pendingFile, 0o644) })
+
+	_, err := Promote(dir, state.PhaseExplore, true)
+	if err == nil {
+		t.Fatal("expected error reading unreadable pending file")
+	}
+}
