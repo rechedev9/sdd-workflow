@@ -118,14 +118,15 @@ func extractDecisions(content string) string {
 			continue
 		}
 
-		if !inDecisionSection && strings.Contains(trimmed, ": ") {
-			parts := strings.SplitN(trimmed, ": ", 2)
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			if isDecisionKey(key) && value != "" {
-				kvPairs = append(kvPairs, key+": "+value)
-				if len(kvPairs) >= 5 {
-					break
+		if !inDecisionSection {
+			if key, value, found := strings.Cut(trimmed, ": "); found {
+				key = strings.TrimSpace(key)
+				value = strings.TrimSpace(value)
+				if isDecisionKey(key) && value != "" {
+					kvPairs = append(kvPairs, key+": "+value)
+					if len(kvPairs) >= 5 {
+						break
+					}
 				}
 			}
 		}
