@@ -302,7 +302,7 @@ func recordMetrics(changeDir string, m *contextMetrics) {
 		}
 	}
 
-	data, err := json.MarshalIndent(pm, "", "  ")
+	data, err := json.Marshal(pm)
 	if err != nil {
 		return
 	}
