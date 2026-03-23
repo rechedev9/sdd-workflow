@@ -122,13 +122,17 @@ func (b *Broker) Emit(e Event) {
 	b.mu.Unlock()
 
 	for _, h := range handlers {
-		func(handler Handler) {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("event subscriber panic", "event", string(e.Type), "panic", fmt.Sprint(r))
-				}
-			}()
-			handler(e)
-		}(h)
+		callHandler(h, e)
 	}
+}
+
+// callHandler invokes h(e) with panic recovery so a panicking subscriber
+// cannot crash the process or prevent other subscribers from running.
+func callHandler(h Handler, e Event) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("event subscriber panic", "event", string(e.Type), "panic", fmt.Sprint(r))
+		}
+	}()
+	h(e)
 }
