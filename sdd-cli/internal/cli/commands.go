@@ -90,7 +90,7 @@ func resolveChangeDir(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get working directory: %w", err)
 	}
-	changeDir := filepath.Join(cwd, "openspec", "changes", name)
+	changeDir := filepath.Join(openspecChanges(cwd), name)
 	info, err := os.Stat(changeDir)
 	if err != nil {
 		return "", fmt.Errorf("change directory not found: %s", changeDir)
