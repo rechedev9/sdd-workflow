@@ -749,6 +749,78 @@ func TestAssemble_CacheHit(t *testing.T) {
 	}
 }
 
+func TestAssemble_SizeGuard(t *testing.T) {
+	t.Parallel()
+	_, skillsDir, p := setupFixture(t)
+	p.Broker = nil // nil Broker is safe
+
+	// Write a >100KB SKILL.md for sdd-explore so assembled output exceeds limit.
+	hugeSkill := bytes.Repeat([]byte("x"), maxContextBytes+1024)
+	skillFile := filepath.Join(skillsDir, "sdd-explore", "SKILL.md")
+	if err := os.WriteFile(skillFile, hugeSkill, 0o644); err != nil {
+		t.Fatalf("write huge skill: %v", err)
+	}
+
+	var buf bytes.Buffer
+	err := Assemble(&buf, state.PhaseExplore, p)
+	if err == nil {
+		t.Fatal("expected size guard error")
+	}
+	if !strings.Contains(err.Error(), "context too large") {
+		t.Errorf("expected 'context too large' in error, got: %v", err)
+	}
+}
+
+func TestAssembleApply_NoSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Do something\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
+	// specs/ absent → AssembleApply must error on spec artifacts
+
+	var buf bytes.Buffer
+	err := AssembleApply(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when specs/ is missing")
+	}
+	if !strings.Contains(err.Error(), "spec artifacts") {
+		t.Errorf("expected 'spec artifacts' in error, got: %v", err)
+	}
+}
+
+func TestAssembleClean_WithDesignAndSpecs(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	os.WriteFile(filepath.Join(changeDir, "verify-report.md"), []byte("# Verify Report\nVerdict: PASS\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [x] All done\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nuse middleware\n"), 0o644)
+	specsDir := filepath.Join(changeDir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\nMUST work\n"), 0o644)
+
+	var buf bytes.Buffer
+	err := AssembleClean(&buf, p)
+	if err != nil {
+		t.Fatalf("AssembleClean: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "--- DESIGN ---") {
+		t.Error("missing DESIGN section")
+	}
+	if !strings.Contains(out, "use middleware") {
+		t.Error("missing design content")
+	}
+	if !strings.Contains(out, "--- SPECIFICATIONS ---") {
+		t.Error("missing SPECIFICATIONS section")
+	}
+	if !strings.Contains(out, "MUST work") {
+		t.Error("missing spec content")
+	}
+}
+
 func TestInputHashDiskVsEmbedded(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
