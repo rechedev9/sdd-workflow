@@ -198,7 +198,7 @@ func extractCompletedTasks(tasks string) string {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "- [x]") {
-			task := strings.TrimPrefix(trimmed, "- [x] ")
+			task := strings.TrimLeft(strings.TrimPrefix(trimmed, "- [x]"), " ")
 			if currentSection != "" {
 				completed = append(completed, currentSection+": "+task)
 			} else {
