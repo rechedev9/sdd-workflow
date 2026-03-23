@@ -459,3 +459,27 @@ func TestValidate_MissingPhase(t *testing.T) {
 		t.Fatal("expected error for missing phase in validate")
 	}
 }
+
+func TestValidate_NilPhases(t *testing.T) {
+	t.Parallel()
+	s := &State{Name: "test", Phases: nil}
+	err := validate(s)
+	if err == nil {
+		t.Fatal("expected error for nil phases map")
+	}
+}
+
+func TestLoad_NilPhasesMap(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	// JSON with name but no phases key — Phases will unmarshal as nil.
+	os.WriteFile(path, []byte(`{"name":"x"}`), 0o644)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected ErrCorruptState for nil phases map")
+	}
+	if !errors.Is(err, ErrCorruptState) {
+		t.Errorf("error = %v, want ErrCorruptState", err)
+	}
+}
