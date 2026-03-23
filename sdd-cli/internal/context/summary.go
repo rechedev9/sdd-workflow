@@ -51,9 +51,6 @@ func extractFirst(content, keyword string, maxLines int) string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
-			if collecting && len(result) > 0 {
-				continue // skip blanks inside collected range
-			}
 			continue
 		}
 
