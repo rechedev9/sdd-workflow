@@ -304,10 +304,10 @@ func TestRun_DispatchCoverage(t *testing.T) {
 	cases := []struct {
 		args []string
 	}{
-		{[]string{"errors", "--unknown-flag-xyz"}},     // runErrors dispatch
-		{[]string{"doctor", "--unknown-flag-xyz"}},     // runDoctor dispatch
-		{[]string{"quickstart"}},                       // runQuickstart dispatch (no args → usage error)
-		{[]string{"completion", "bash"}},               // runCompletion dispatch
+		{[]string{"errors", "--unknown-flag-xyz"}}, // runErrors dispatch
+		{[]string{"doctor", "--unknown-flag-xyz"}}, // runDoctor dispatch
+		{[]string{"quickstart"}},                   // runQuickstart dispatch (no args → usage error)
+		{[]string{"completion", "bash"}},           // runCompletion dispatch
 	}
 	for _, tc := range cases {
 		var stdout, stderr bytes.Buffer
