@@ -52,6 +52,18 @@ func TestRunVerify_ChangeNotFound(t *testing.T) {
 	}
 }
 
+func TestRunVerify_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runVerify([]string{"some-change", "--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestShouldSkipVerify_NoReport(t *testing.T) {
 	t.Parallel()
 	changeDir := t.TempDir()
