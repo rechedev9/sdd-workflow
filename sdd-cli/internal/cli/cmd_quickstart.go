@@ -68,30 +68,16 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Write the spec file as the design artifact (it's the source of truth).
 	specBaseName := filepath.Base(specPath)
-	artifacts := map[string]struct {
+	type artifact struct {
 		path    string
 		content []byte
-	}{
-		"explore": {
-			path:    filepath.Join(changeDir, "exploration.md"),
-			content: []byte(fmt.Sprintf("# Exploration: %s\n\nFast-forwarded via `sdd quickstart`. See design spec for details.\n", name)),
-		},
-		"propose": {
-			path:    filepath.Join(changeDir, "proposal.md"),
-			content: []byte(fmt.Sprintf("# Proposal: %s\n\n%s\n\nFast-forwarded via `sdd quickstart`. See design spec for details.\n", name, description)),
-		},
-		"spec": {
-			path:    filepath.Join(specsDir, specBaseName),
-			content: specData,
-		},
-		"design": {
-			path:    filepath.Join(changeDir, "design.md"),
-			content: specData,
-		},
-		"tasks": {
-			path:    filepath.Join(changeDir, "tasks.md"),
-			content: []byte(fmt.Sprintf("# Tasks: %s\n\nDerived from spec. See design spec for task breakdown.\n\nFast-forwarded via `sdd quickstart`.\n", name)),
-		},
+	}
+	artifacts := []artifact{
+		{filepath.Join(changeDir, "exploration.md"), []byte(fmt.Sprintf("# Exploration: %s\n\nFast-forwarded via `sdd quickstart`. See design spec for details.\n", name))},
+		{filepath.Join(changeDir, "proposal.md"), []byte(fmt.Sprintf("# Proposal: %s\n\n%s\n\nFast-forwarded via `sdd quickstart`. See design spec for details.\n", name, description))},
+		{filepath.Join(specsDir, specBaseName), specData},
+		{filepath.Join(changeDir, "design.md"), specData},
+		{filepath.Join(changeDir, "tasks.md"), []byte(fmt.Sprintf("# Tasks: %s\n\nDerived from spec. See design spec for task breakdown.\n\nFast-forwarded via `sdd quickstart`.\n", name))},
 	}
 
 	for _, a := range artifacts {
