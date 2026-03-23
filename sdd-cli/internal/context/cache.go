@@ -92,7 +92,7 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 	// CacheInputs are pre-sorted at phase registration time; iterate directly.
 	for _, name := range inputs {
 		if name == "specs/" {
-			hashSpecsDir(h, changeDir)
+			hashSpecsDir(h, changeDir, &intBuf)
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(changeDir, name))
@@ -112,13 +112,13 @@ func inputHash(changeDir string, inputs []string, skillsPath, phaseName string) 
 }
 
 // hashSpecsDir hashes all .md files in specs/ into the provided hasher.
-func hashSpecsDir(h io.Writer, changeDir string) {
+// intBuf is a caller-provided scratch buffer reused from inputHash to avoid a redundant stack allocation.
+func hashSpecsDir(h io.Writer, changeDir string, intBuf *[32]byte) {
 	specsDir := filepath.Join(changeDir, "specs")
 	entries, err := os.ReadDir(specsDir)
 	if err != nil {
 		return
 	}
-	var intBuf [32]byte
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -130,9 +130,9 @@ func hashSpecsDir(h io.Writer, changeDir string) {
 		io.WriteString(h, "specs/")                                      //nolint:errcheck
 		io.WriteString(h, e.Name())                                      //nolint:errcheck
 		io.WriteString(h, ":")                                           //nolint:errcheck
-		h.Write(strconv.AppendInt(intBuf[:0], int64(len(data)), 10))    //nolint:errcheck
-		io.WriteString(h, ":")                                           //nolint:errcheck
-		h.Write(data)                                                    //nolint:errcheck
+		h.Write(strconv.AppendInt((*intBuf)[:0], int64(len(data)), 10)) //nolint:errcheck
+		io.WriteString(h, ":")                                          //nolint:errcheck
+		h.Write(data)                                                   //nolint:errcheck
 	}
 }
 
