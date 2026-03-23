@@ -371,7 +371,7 @@ func CheckCacheIntegrity(changeDir, skillsPath string) (int, error) {
 	stale := 0
 	hashFiles, err := filepath.Glob(filepath.Join(cacheDir(changeDir), "*.hash"))
 	if err != nil || len(hashFiles) == 0 {
-		return 0, nil
+		return 0, nil //nolint:nilerr // Glob error means no hash files; treat as empty (non-fatal)
 	}
 	for _, hf := range hashFiles {
 		phase := strings.TrimSuffix(filepath.Base(hf), ".hash")

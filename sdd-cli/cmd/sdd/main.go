@@ -70,16 +70,17 @@ func startProfile(mode string) func() {
 
 func main() {
 	closeLog := sddlog.Init(os.Stderr)
-	defer closeLog()
-
 	stopProfile := startProfile(os.Getenv("SDD_PPROF"))
-	defer stopProfile()
 
-	os.Exit(run())
+	code := run()
+
+	stopProfile()
+	closeLog()
+	os.Exit(code)
 }
 
 // run executes the CLI and returns an exit code. Separated from main so that
-// deferred cleanup (log flush, profiler stop) in main runs before os.Exit.
+// cleanup (log flush, profiler stop) in main runs before os.Exit.
 func run() (code int) {
 	defer func() {
 		if r := recover(); r != nil {

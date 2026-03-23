@@ -30,7 +30,7 @@ func AssembleReview(w io.Writer, p *Params) error {
 		func() ([]byte, error) {
 			rules, err := loadProjectRules(p.ProjectDir)
 			if err != nil {
-				return nil, nil // non-fatal
+				return nil, nil //nolint:nilerr // project rules are optional
 			}
 			return rules, nil
 		},

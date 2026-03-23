@@ -19,7 +19,7 @@ func AssembleClean(w io.Writer, p *Params) error {
 		func() ([]byte, error) {
 			s, err := loadSpecs(p.ChangeDir)
 			if err != nil {
-				return nil, nil // non-fatal
+				return nil, nil //nolint:nilerr // specs are optional in clean phase
 			}
 			return []byte(s), nil
 		},
