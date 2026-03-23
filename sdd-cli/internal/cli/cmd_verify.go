@@ -189,22 +189,18 @@ func checkRecurringFailures(cwd, changeName string) map[string]int {
 		return nil
 	}
 
-	// Collect fingerprints from this change's recent failures.
-	changeFingerprints := make([]string, 0, 10)
-	for i := len(log.Entries) - 1; i >= 0; i-- {
+	// Match recent failures for this change against the recurring set.
+	// Build matches directly — no intermediate slice needed.
+	matches := make(map[string]int, 10)
+	seen := 0
+	for i := len(log.Entries) - 1; i >= 0 && seen < 10; i-- {
 		e := log.Entries[i]
-		if e.Change == changeName {
-			changeFingerprints = append(changeFingerprints, e.Fingerprint)
+		if e.Change != changeName {
+			continue
 		}
-		if len(changeFingerprints) >= 10 {
-			break
-		}
-	}
-
-	matches := make(map[string]int, len(changeFingerprints))
-	for _, fp := range changeFingerprints {
-		if count, ok := recurring[fp]; ok {
-			matches[fp] = count
+		seen++
+		if count, ok := recurring[e.Fingerprint]; ok {
+			matches[e.Fingerprint] = count
 		}
 	}
 	if len(matches) == 0 {
