@@ -143,7 +143,6 @@ func runOne(workDir string, spec CommandSpec, timeout time.Duration) *CommandRes
 
 	if err == nil {
 		result.Passed = true
-		result.ExitCode = 0
 		return result
 	}
 
