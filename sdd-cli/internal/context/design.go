@@ -91,6 +91,16 @@ func loadSpecs(changeDir string) (string, error) {
 	}
 
 	var b strings.Builder
+	// Pre-size: sum entry sizes (from DirEntry.Info, cached from ReadDir) + headers.
+	var totalEst int
+	for _, e := range entries {
+		if info, err := e.Info(); err == nil {
+			totalEst += int(info.Size()) + 20
+		}
+	}
+	if totalEst > 0 {
+		b.Grow(totalEst)
+	}
 	count := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
