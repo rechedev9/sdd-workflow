@@ -41,13 +41,13 @@ func AssembleReview(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("review requires spec artifacts: %w", e)
+			return errRequiredArtifact("review", "spec artifacts", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("review requires design artifact: %w", e)
+			return errRequiredArtifact("review", "design artifact", e)
 		}
 		if _, e := ls.Get(3); e != nil {
-			return fmt.Errorf("review requires tasks artifact: %w", e)
+			return errRequiredArtifact("review", "tasks artifact", e)
 		}
 	}
 

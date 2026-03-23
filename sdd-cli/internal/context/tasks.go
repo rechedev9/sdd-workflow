@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -22,10 +21,10 @@ func AssembleTasks(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("tasks requires design artifact: %w", e)
+			return errRequiredArtifact("tasks", "design artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("tasks requires spec artifacts: %w", e)
+			return errRequiredArtifact("tasks", "spec artifacts", e)
 		}
 	}
 

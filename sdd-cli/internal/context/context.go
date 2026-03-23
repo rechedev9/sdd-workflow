@@ -240,3 +240,8 @@ func writeChangeSection(w io.Writer, p *Params) {
 		p.ChangeName, p.Description,
 	))
 }
+
+// errRequiredArtifact returns a standard missing-artifact error used by all assemblers.
+func errRequiredArtifact(phase, artifact string, err error) error {
+	return fmt.Errorf("%s requires %s: %w", phase, artifact, err)
+}

@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -25,7 +24,7 @@ func AssemblePropose(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("propose requires exploration artifact: %w", e)
+			return errRequiredArtifact("propose", "exploration artifact", e)
 		}
 	}
 

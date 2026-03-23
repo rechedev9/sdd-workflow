@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
@@ -22,7 +21,7 @@ func AssembleSpec(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("spec requires proposal artifact: %w", e)
+			return errRequiredArtifact("spec", "proposal artifact", e)
 		}
 	}
 

@@ -26,10 +26,10 @@ func AssembleDesign(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("design requires proposal artifact: %w", e)
+			return errRequiredArtifact("design", "proposal artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("design requires spec artifacts: %w", e)
+			return errRequiredArtifact("design", "spec artifacts", e)
 		}
 	}
 

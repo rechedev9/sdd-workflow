@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -26,13 +25,13 @@ func AssembleApply(w io.Writer, p *Params) error {
 			return e
 		}
 		if _, e := ls.Get(1); e != nil {
-			return fmt.Errorf("apply requires tasks artifact: %w", e)
+			return errRequiredArtifact("apply", "tasks artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return fmt.Errorf("apply requires design artifact: %w", e)
+			return errRequiredArtifact("apply", "design artifact", e)
 		}
 		if _, e := ls.Get(3); e != nil {
-			return fmt.Errorf("apply requires spec artifacts: %w", e)
+			return errRequiredArtifact("apply", "spec artifacts", e)
 		}
 	}
 
