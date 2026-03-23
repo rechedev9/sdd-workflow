@@ -25,24 +25,16 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	changesDir := openspecChanges(cwd)
-	entries, err := os.ReadDir(changesDir)
-	if err != nil && !os.IsNotExist(err) {
+	if _, err := os.ReadDir(changesDir); err != nil && !os.IsNotExist(err) {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))
 	}
 
-	changes := make([]changeInfo, 0, len(entries))
-
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "archive" {
-			continue
-		}
-
-		statePath := filepath.Join(changesDir, e.Name(), "state.json")
-		st, err := state.Load(statePath)
+	var changes []changeInfo
+	eachChangeDir(changesDir, func(changeDir string) {
+		st, err := state.Load(filepath.Join(changeDir, "state.json"))
 		if err != nil {
-			continue // skip entries without valid state
+			return // skip entries without valid state
 		}
-
 		changes = append(changes, changeInfo{
 			Name:         st.Name,
 			CurrentPhase: string(st.CurrentPhase),
@@ -50,7 +42,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 			IsComplete:   st.IsComplete(),
 			Stale:        st.IsStale(staleThreshold),
 		})
-	}
+	})
 
 	out := struct {
 		Command string       `json:"command"`
