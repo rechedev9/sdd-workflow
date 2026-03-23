@@ -104,6 +104,30 @@ func TestRunDashboard_InvalidPortNaN(t *testing.T) {
 	}
 }
 
+func TestRunDashboard_PortMissingValue(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runDashboard([]string{"--port"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when --port has no value")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
+func TestRunQuickstart_SpecMissingValue(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runQuickstart([]string{"name", "desc", "--spec"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when --spec has no value")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunDashboard_StoreOpenError(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()
