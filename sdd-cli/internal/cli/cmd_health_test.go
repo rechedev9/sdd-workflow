@@ -28,6 +28,18 @@ func TestRunHealth_InvalidName(t *testing.T) {
 	}
 }
 
+func TestRunHealth_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runHealth([]string{"some-change", "--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunHealth_ChangeNotFound(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
