@@ -39,19 +39,23 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		groups := make(map[string]*errorGroup, len(log.Entries))
 		for _, e := range log.Entries {
+			lines := e.ErrorLines
+			if lines == nil {
+				lines = []string{}
+			}
 			g, ok := groups[e.Fingerprint]
 			if !ok {
 				g = &errorGroup{
 					Fingerprint: e.Fingerprint,
 					Command:     e.Command,
-					ErrorLines:  e.ErrorLines,
+					ErrorLines:  lines,
 				}
 				groups[e.Fingerprint] = g
 			}
 			g.Count++
 			if e.Timestamp > g.LastSeen {
 				g.LastSeen = e.Timestamp
-				g.ErrorLines = e.ErrorLines
+				g.ErrorLines = lines
 			}
 		}
 

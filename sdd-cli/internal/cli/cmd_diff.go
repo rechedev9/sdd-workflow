@@ -33,6 +33,9 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return errs.WriteError(stderr, "diff", fmt.Errorf("git diff: %w", err))
 	}
+	if files == nil {
+		files = []string{}
+	}
 
 	out := struct {
 		Command string   `json:"command"`
