@@ -26,10 +26,11 @@ func AssembleClean(w io.Writer, p *Params) error {
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e
-		}
+	loadErr := ls.LoadAll()
+	if e := checkSkillError(ls, loadErr); e != nil {
+		return e
+	}
+	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
 			return errRequiredArtifact("clean", "verify-report artifact", e)
 		}

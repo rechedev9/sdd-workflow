@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/phase"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
@@ -206,6 +207,20 @@ func loadSkill(skillsPath, phaseName string) ([]byte, error) {
 		return data, nil
 	}
 	return nil, fmt.Errorf("load skill %s: not found on disk or in embedded prompts", phaseName)
+}
+
+// checkSkillError returns the skill loader error (index 0) if loadErr is non-nil.
+// All assemblers register the skill loader at position 0; a missing skill is
+// always fatal and must not be wrapped as a missing-artifact error.
+// Returns nil if loadErr is nil or the skill loaded successfully.
+func checkSkillError(ls *csync.LazySlice[[]byte], loadErr error) error {
+	if loadErr == nil {
+		return nil
+	}
+	if _, e := ls.Get(0); e != nil {
+		return e
+	}
+	return nil
 }
 
 // loadArtifact reads an artifact file from the change directory.

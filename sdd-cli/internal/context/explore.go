@@ -27,10 +27,8 @@ func AssembleExplore(w io.Writer, p *Params) error {
 	}
 
 	ls := csync.NewLazySlice(loaders)
-	if err := ls.LoadAll(); err != nil {
-		if _, e := ls.Get(0); e != nil {
-			return e // skill is critical
-		}
+	if e := checkSkillError(ls, ls.LoadAll()); e != nil {
+		return e
 	}
 
 	skill, _ := ls.Get(0)
