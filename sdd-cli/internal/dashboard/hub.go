@@ -123,21 +123,22 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	_ = conn.Close(websocket.StatusNormalClosure, "") // best-effort close
 }
 
-// jsonHash returns the SHA-256 hash of the JSON encoding of v.
 // broadcastIfChanged broadcasts data only when its JSON hash differs from lastHash.
+// Marshals the wrapped wsMessage once: the same bytes serve both the hash check
+// and the write, avoiding the double-marshal that occurred when jsonHash and
+// broadcast each called json.Marshal independently.
 func (h *Hub) broadcastIfChanged(ctx context.Context, msgType string, data any, lastHash *[sha256.Size]byte) {
-	if hash := jsonHash(data); hash != *lastHash {
-		h.broadcast(ctx, wsMessage{Type: msgType, Data: data})
-		*lastHash = hash
-	}
-}
-
-func jsonHash(v any) [sha256.Size]byte {
-	data, err := json.Marshal(v)
+	msg := wsMessage{Type: msgType, Data: data}
+	encoded, err := json.Marshal(msg)
 	if err != nil {
-		return [sha256.Size]byte{}
+		return
 	}
-	return sha256.Sum256(data)
+	hash := sha256.Sum256(encoded)
+	if hash == *lastHash {
+		return
+	}
+	*lastHash = hash
+	h.broadcastRaw(ctx, encoded)
 }
 
 // poll queries DB + filesystem, diffs against last state, broadcasts deltas.
@@ -254,7 +255,11 @@ func (h *Hub) broadcast(ctx context.Context, msg wsMessage) {
 	if err != nil {
 		return
 	}
+	h.broadcastRaw(ctx, data)
+}
 
+// broadcastRaw sends pre-encoded bytes to all connected clients, removing dead ones.
+func (h *Hub) broadcastRaw(ctx context.Context, data []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
