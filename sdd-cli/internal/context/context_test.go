@@ -834,3 +834,28 @@ func TestInputHashDiskVsEmbedded(t *testing.T) {
 		t.Error("disk and embedded hashes should differ when skill content differs")
 	}
 }
+
+func TestGitFileTree_NonGitDir(t *testing.T) {
+	t.Parallel()
+	// Non-git directory → git ls-files fails → error returned.
+	_, err := gitFileTree(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error from gitFileTree on non-git directory")
+	}
+}
+
+func TestGitFileTree_ValidRepo(t *testing.T) {
+	t.Parallel()
+	// Use the current package directory — it's inside the git repo.
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Skip("cannot get cwd:", err)
+	}
+	out, err := gitFileTree(cwd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out == "" {
+		t.Error("expected non-empty file tree")
+	}
+}
