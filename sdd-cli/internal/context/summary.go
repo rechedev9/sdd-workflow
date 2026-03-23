@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,21 +151,31 @@ func projectContext(p *Params) string {
 	)
 }
 
+// manifestReadLimit is the max bytes read per manifest file.
+// Reading one extra byte lets us detect truncation without reading the whole file.
+const manifestReadLimit = 2048
+
 // loadManifestContents reads the actual content of detected manifest files.
 // Returns a compact summary with versions and dependencies.
+// Reads at most manifestReadLimit bytes per file to avoid loading large lock files.
 func loadManifestContents(projectDir string, manifests []string) string {
 	parts := make([]string, 0, len(manifests))
+	buf := make([]byte, manifestReadLimit+1) // +1 to detect truncation
 	for _, m := range manifests {
-		data, err := os.ReadFile(filepath.Join(projectDir, m))
+		f, err := os.Open(filepath.Join(projectDir, m))
 		if err != nil {
 			continue
 		}
-		// Cap at 2KB per manifest to keep context lean.
+		n, _ := io.ReadFull(f, buf)
+		f.Close()
+		if n == 0 {
+			continue
+		}
 		var content string
-		if len(data) > 2048 {
-			content = string(data[:2048]) + "\n... (truncated)"
+		if n > manifestReadLimit {
+			content = string(buf[:manifestReadLimit]) + "\n... (truncated)"
 		} else {
-			content = string(data)
+			content = string(buf[:n])
 		}
 		parts = append(parts, fmt.Sprintf("### %s\n\n```\n%s\n```", m, content))
 	}
