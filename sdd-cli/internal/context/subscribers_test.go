@@ -3,8 +3,8 @@ package context
 import (
 	"testing"
 
-	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/errlog"
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/events"
 )
 
 func TestRegisterSubscribers_NilBroker(t *testing.T) {

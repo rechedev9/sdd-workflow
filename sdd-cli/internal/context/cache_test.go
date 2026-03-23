@@ -37,9 +37,9 @@ func TestMustParseInt64(t *testing.T) {
 		{"0", 0},
 		{"1234567890", 1234567890},
 		{"-1", -1},
-		{"", 0},        // invalid → 0
-		{"abc", 0},     // invalid → 0
-		{"1.5", 0},     // float → 0
+		{"", 0},    // invalid → 0
+		{"abc", 0}, // invalid → 0
+		{"1.5", 0}, // float → 0
 	}
 	for _, tc := range tests {
 		got := mustParseInt64(tc.input)

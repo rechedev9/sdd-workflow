@@ -170,9 +170,17 @@ func checkPprof() CheckResult {
 	return checkPass("pprof", fmt.Sprintf("SDD_PPROF=%s", val))
 }
 
-func checkPass(name, msg string) CheckResult { return CheckResult{Name: name, Status: "pass", Message: msg} }
-func checkWarn(name, msg string) CheckResult { return CheckResult{Name: name, Status: "warn", Message: msg} }
-func checkFail(name, msg string) CheckResult { return CheckResult{Name: name, Status: "fail", Message: msg} }
+func checkPass(name, msg string) CheckResult {
+	return CheckResult{Name: name, Status: "pass", Message: msg}
+}
+
+func checkWarn(name, msg string) CheckResult {
+	return CheckResult{Name: name, Status: "warn", Message: msg}
+}
+
+func checkFail(name, msg string) CheckResult {
+	return CheckResult{Name: name, Status: "fail", Message: msg}
+}
 
 func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 	jsonOut := false

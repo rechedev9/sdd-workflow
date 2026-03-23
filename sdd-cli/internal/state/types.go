@@ -76,8 +76,8 @@ func (s *State) StaleHours() int {
 }
 
 var (
-	allPhasesOnce   sync.Once
-	allPhasesCache  []Phase
+	allPhasesOnce  sync.Once
+	allPhasesCache []Phase
 )
 
 // AllPhases returns the ordered pipeline phases from the registry.

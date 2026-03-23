@@ -50,7 +50,6 @@ func TestRunVerify_ForceFlag(t *testing.T) {
 	}
 }
 
-
 func TestRunVerify_RecurringFailuresBlocked(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	root := setupChange(t, "ver-recurring", "recurring failure test")

@@ -38,8 +38,8 @@ type ErrorLog struct {
 // Fingerprint computes a stable 16-hex-char hash from command + first error line.
 func Fingerprint(command string, errorLines []string) string {
 	h := sha256.New()
-	io.WriteString(h, command)   //nolint:errcheck // hash.Hash.Write never errors
-	io.WriteString(h, "\x00")   //nolint:errcheck // NUL separator; string constant avoids heap alloc
+	io.WriteString(h, command) //nolint:errcheck // hash.Hash.Write never errors
+	io.WriteString(h, "\x00")  //nolint:errcheck // NUL separator; string constant avoids heap alloc
 	if len(errorLines) > 0 {
 		io.WriteString(h, errorLines[0]) //nolint:errcheck
 	}
@@ -82,7 +82,7 @@ func Record(cwd string, entry ErrorEntry) {
 
 	path := LogPath(cwd)
 	_ = os.MkdirAll(filepath.Dir(path), 0o755) // best-effort dir creation
-	_ = fsutil.AtomicWrite(path, data)          // best-effort error log persistence
+	_ = fsutil.AtomicWrite(path, data)         // best-effort error log persistence
 }
 
 // RecurringFingerprints returns fingerprints seen >= threshold times with their counts.
