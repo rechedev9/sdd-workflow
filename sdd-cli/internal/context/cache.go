@@ -309,6 +309,9 @@ func LoadPipelineMetrics(changeDir string) *PipelineMetrics {
 		}
 	}
 
+	if pm.Phases == nil {
+		pm.Phases = make(map[string]PhaseMetrics)
+	}
 	return &pm
 }
 
