@@ -105,8 +105,8 @@ func extractDecisions(content string) string {
 		}
 
 		if strings.HasPrefix(trimmed, "## ") {
-			header := strings.ToLower(strings.TrimPrefix(trimmed, "## "))
-			inDecisionSection = header == "decisions" || header == "architecture"
+			header := strings.TrimPrefix(trimmed, "## ")
+			inDecisionSection = strings.EqualFold(header, "decisions") || strings.EqualFold(header, "architecture")
 			continue
 		}
 
