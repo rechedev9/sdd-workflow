@@ -201,6 +201,8 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		checkPprof(),
 	}
 
+	status := aggregateStatus(checks)
+
 	if jsonOut {
 		out := struct {
 			Command string        `json:"command"`
@@ -208,7 +210,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 			Checks  []CheckResult `json:"checks"`
 		}{
 			Command: "doctor",
-			Status:  aggregateStatus(checks),
+			Status:  status,
 			Checks:  checks,
 		}
 		writeJSON(stdout, out)
@@ -216,7 +218,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		printDoctorTable(stdout, checks)
 	}
 
-	if aggregateStatus(checks) != "fail" {
+	if status != "fail" {
 		return nil
 	}
 	failCount := 0
