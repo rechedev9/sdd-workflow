@@ -65,7 +65,8 @@ func loadSpecs(changeDir string) (string, error) {
 		return "", fmt.Errorf("read specs directory: %w", err)
 	}
 
-	parts := make([]string, 0, len(entries))
+	var b strings.Builder
+	count := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -74,12 +75,19 @@ func loadSpecs(changeDir string) (string, error) {
 		if err != nil {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("### %s\n\n%s", e.Name(), string(data)))
+		if count > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("### ")
+		b.WriteString(e.Name())
+		b.WriteString("\n\n")
+		b.Write(data)
+		count++
 	}
 
-	if len(parts) == 0 {
+	if count == 0 {
 		return "", fmt.Errorf("no spec files found in %s", specsDir)
 	}
 
-	return strings.Join(parts, "\n\n"), nil
+	return b.String(), nil
 }
