@@ -70,7 +70,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 			Status     string `json:"status"`
 			Change     string `json:"change"`
 			Passed     bool   `json:"passed"`
-			Skipped    bool   `json:"skipped,omitempty"`
+			Skipped    bool   `json:"skipped"`
 			ReportPath string `json:"report_path"`
 		}{
 			Command:    "verify",

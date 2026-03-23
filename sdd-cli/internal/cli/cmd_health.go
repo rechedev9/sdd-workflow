@@ -60,8 +60,8 @@ func runHealth(args []string, stdout io.Writer, stderr io.Writer) error {
 		CacheHits    int      `json:"cache_hits"`
 		CacheMisses  int      `json:"cache_misses"`
 		TotalTokens  int      `json:"total_tokens"`
-		Stale        bool     `json:"stale,omitempty"`
-		StaleHours   int      `json:"stale_hours,omitempty"`
+		Stale        bool     `json:"stale"`
+		StaleHours   int      `json:"stale_hours"`
 		Warnings     []string `json:"warnings,omitempty"`
 	}{
 		Command:      "health",

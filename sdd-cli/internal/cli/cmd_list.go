@@ -21,7 +21,7 @@ func runList(_ []string, stdout io.Writer, stderr io.Writer) error {
 		CurrentPhase string `json:"current_phase"`
 		Description  string `json:"description"`
 		IsComplete   bool   `json:"is_complete"`
-		Stale        bool   `json:"stale,omitempty"`
+		Stale        bool   `json:"stale"`
 	}
 
 	changesDir := openspecChanges(cwd)

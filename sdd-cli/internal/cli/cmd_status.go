@@ -46,8 +46,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 		Phases       []phaseInfo `json:"phases"`
 		IsComplete   bool        `json:"is_complete"`
 		UpdatedAt    string      `json:"updated_at"`
-		Stale        bool        `json:"stale,omitempty"`
-		StaleHours   int         `json:"stale_hours,omitempty"`
+		Stale        bool        `json:"stale"`
+		StaleHours   int         `json:"stale_hours"`
 	}{
 		Command:      "status",
 		Status:       "success",
