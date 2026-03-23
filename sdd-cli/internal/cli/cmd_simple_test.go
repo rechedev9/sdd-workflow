@@ -7,6 +7,18 @@ import (
 	"testing"
 )
 
+func TestRunList_UnknownFlag(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := runList([]string{"--bad-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != 2 {
+		t.Errorf("exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestRunDump_NoArgs(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
