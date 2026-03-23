@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/csync"
 )
@@ -79,27 +80,46 @@ func AssembleReview(w io.Writer, p *Params) error {
 }
 
 // gitDiff runs git diff and returns staged + unstaged changes.
+// The two git commands are issued in parallel to halve wall-clock latency
+// on repos where git diff takes tens of milliseconds.
 func gitDiff(projectDir string) (string, error) {
-	// Unstaged changes — own timeout so the two commands don't share budget.
-	ctx1, cancel1 := context.WithTimeout(context.Background(), gitCmdTimeout)
-	defer cancel1()
-	cmd := exec.CommandContext(ctx1, "git", "diff")
-	cmd.Dir = projectDir
-	unstaged, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git diff: %w", err)
+	type result struct {
+		out []byte
+		err error
 	}
 
-	// Staged changes — fresh context with full timeout.
-	ctx2, cancel2 := context.WithTimeout(context.Background(), gitCmdTimeout)
-	defer cancel2()
-	cmd = exec.CommandContext(ctx2, "git", "diff", "--cached")
-	cmd.Dir = projectDir
-	staged, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git diff --cached: %w", err)
+	var unstagedRes, stagedRes result
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", "diff")
+		cmd.Dir = projectDir
+		unstagedRes.out, unstagedRes.err = cmd.Output()
+	}()
+
+	go func() {
+		defer wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", "diff", "--cached")
+		cmd.Dir = projectDir
+		stagedRes.out, stagedRes.err = cmd.Output()
+	}()
+
+	wg.Wait()
+
+	if unstagedRes.err != nil {
+		return "", fmt.Errorf("git diff: %w", unstagedRes.err)
+	}
+	if stagedRes.err != nil {
+		return "", fmt.Errorf("git diff --cached: %w", stagedRes.err)
 	}
 
+	unstaged, staged := unstagedRes.out, stagedRes.out
 	if len(staged) == 0 && len(unstaged) == 0 {
 		return "(no changes)", nil
 	}
