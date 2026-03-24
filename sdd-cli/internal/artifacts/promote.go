@@ -3,6 +3,7 @@ package artifacts
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -53,6 +54,7 @@ func Promote(changeDir string, phase state.Phase, force bool) (string, error) {
 		return "", fmt.Errorf("write promoted: %w", err)
 	}
 	if err := os.Remove(src); err != nil {
+		slog.Warn("promote: failed to remove pending artifact after promotion", "path", src, "err", err)
 		return dst, nil //nolint:nilerr // non-fatal: artifact is promoted; source cleanup failure is not an error
 	}
 

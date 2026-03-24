@@ -63,6 +63,10 @@ func TestAssembleConcurrent_Parallel(t *testing.T) {
 	if !strings.Contains(out, "sdd-design") {
 		t.Error("missing sdd-design skill content")
 	}
+	// Output must be in input order: spec before design.
+	if strings.Index(out, "sdd-spec") > strings.Index(out, "sdd-design") {
+		t.Error("sdd-spec must appear before sdd-design in output (deterministic order)")
+	}
 }
 
 func TestAssembleConcurrent_PartialFailure(t *testing.T) {
