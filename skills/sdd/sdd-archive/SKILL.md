@@ -130,45 +130,105 @@ If the delta introduces specs for a domain that has no main spec file:
 2. Add a header with domain name, creation date, and source change.
 3. Copy all delta specs for that domain as the initial content.
 
-### Step 4 — Archive the Change
+### Step 4 — Extract Decision Records
 
-1. Create the archive directory if it does not exist:
-   ```
-   openspec/changes/archive/
-   ```
-2. Move the entire change folder:
-   ```
-   openspec/changes/{changeName}/ -> openspec/changes/archive/{YYYY-MM-DD}-{changeName}/
-   ```
-   Where `{YYYY-MM-DD}` is today's date in ISO 8601 format.
-3. Create an archive manifest inside the archived folder:
-   ```markdown
-   # Archive Manifest: {changeName}
+> **Execute this step before calling `sdd archive <name>`**, while `openspec/changes/{changeName}/design.md` is still at its original path. Once the Go CLI archives the folder (Step 5), that path no longer exists.
 
-   **Archived**: {YYYY-MM-DD}
-   **Verdict**: {PASS | PASS_WITH_WARNINGS}
-   **Tasks Completed**: {X}/{Y}
-   **Specs Merged**: {list of domains updated}
-   **Warnings**: {count, if any}
+Persist architectural decisions from this change into `docs/decisions/` for long-term navigation.
 
-   ## Change Summary
-   {Brief description of what was done and why — reference proposal.md's Intent for the "what" and "why"}
+#### 4a. Scan design.md for decisions
 
-   ## Key Decisions
-   {Important architectural or design decisions made during this change}
+1. Read `openspec/changes/{changeName}/design.md`.
+2. Find all sections matching the pattern `## D{N}: {Title}` (e.g., `## D1: Offscreen Background Canvas`).
+3. For each D-section, decide if it is **architectural** — a structural choice that affects how the system is built, not a pure implementation detail (e.g., "which API method to call" is not architectural; "dirty-flag vs full redraw" is architectural).
+4. Skip sections that are implementation minutiae. Heuristic: if the decision has alternatives that could have been chosen and affects correctness or performance, it is architectural.
 
-   ## Files Created
-   {list}
+#### 4b. Check existing index
 
-   ## Files Modified
-   {list}
-   ```
+1. Read `docs/decisions/README.md`.
+2. For each extracted decision:
+   - Scan the index for a semantically similar existing ADR (same system, same trade-off).
+   - If **not found**: assign the next sequential ID (4-digit, zero-padded).
+   - If **found and this change supersedes it**: note the old ADR's ID for the `superseded-by` field update.
 
-### Step 5 — Capture Learnings
+#### 4c. Write ADR files
+
+For each new decision, write `docs/decisions/{ID}-{slug}.md` where `{slug}` is a lowercase-hyphenated version of the decision title:
+
+```markdown
+---
+id: {NNNN}
+title: {Decision title}
+status: implemented
+change: {changeName}
+date: {YYYY-MM-DD}
+supersedes: {old-id or ~}
+superseded-by: ~
+---
+
+## Decision
+
+One paragraph: what was decided and why.
+
+## Context
+
+Why this decision was needed. What problem it solves.
+
+## Alternatives Considered
+
+- **{Alt A}**: ... — rejected because ...
+- **{Alt B}**: ... — rejected because ...
+
+## Consequences
+
+Positive and negative tradeoffs.
+
+## References
+
+- Change: `openspec/changes/archive/{timestamp}-{changeName}/`
+- File: {primary file affected}
+```
+
+Fill content from `design.md` (decision rationale), `proposal.md` (context/intent), and `exploration.md` (alternatives and risks) from the current change.
+
+#### 4d. Update superseded ADRs
+
+If this change supersedes an existing ADR, update the old file's front matter:
+- Set `superseded-by: {new-id}` in the old ADR.
+- Set `status: superseded`.
+
+#### 4e. Update index
+
+Append new entries to `docs/decisions/README.md`:
+
+```markdown
+| [NNNN](NNNN-{slug}.md) | {title} | implemented | {changeName} | {YYYY-MM-DD} |
+```
+
+If this step produces no architectural decisions (the change was purely additive implementation without structural choices), skip silently — do not create empty ADRs.
+
+### Step 5 — Archive the Change
+
+Run the Go CLI to move the change folder and generate the manifest atomically:
+
+```
+sdd archive <changeName>
+```
+
+**Do not move files manually.** The `sdd archive` command handles:
+- Moving `openspec/changes/{changeName}/` → `openspec/changes/archive/{timestamp}-{changeName}/`
+- Writing `archive-manifest.md` inside the archived folder
+- Enforcing state prerequisites via the state machine
+
+The command outputs JSON: `{ "command": "archive", "status": "success", "change": "...", "archive_path": "...", "manifest_path": "..." }`.
+
+If the command fails (non-zero exit), abort and surface the error. Do not proceed to Step 6.
+
+### Step 6 — Capture Learnings
 
 Review the entire change lifecycle for patterns worth remembering:
 
-#### 5a. Pattern Detection
+#### 6a. Pattern Detection
 
 Look for:
 - **Recurring challenges**: Did the same type of error come up multiple times? (e.g., "always need to handle null for this API")
@@ -177,7 +237,7 @@ Look for:
 - **Domain knowledge**: Facts about the codebase that would help future agents.
 - **Gotchas**: Surprising behaviors, edge cases, or non-obvious constraints.
 
-#### 5b. Save Learnings to Skills
+#### 6b. Save Learnings to Skills
 
 If a significant, reusable pattern is found:
 
@@ -210,7 +270,7 @@ If a significant, reusable pattern is found:
    - **Non-obvious**: Not something covered by CLAUDE.md or standard conventions.
    - **Actionable**: Provides a clear recommendation, not just an observation.
 
-#### 5c. Memory Integration (Conditional on `memory_enabled`)
+#### 6c. Memory Integration (Conditional on `memory_enabled`)
 
 After capturing learnings, persist them to the memory RAG server for cross-session recall:
 
@@ -226,7 +286,7 @@ After capturing learnings, persist them to the memory RAG server for cross-sessi
 
 If `config.yaml → capabilities.memory_enabled` is `false`, skip this entire step. If `true` but tools fail at runtime, note the failure in the archive summary and proceed.
 
-#### 5d. Memory Pruning (Conditional on `memory_enabled`)
+#### 6d. Memory Pruning (Conditional on `memory_enabled`)
 
 After saving new learnings, prune memories rendered obsolete by this change:
 
@@ -244,7 +304,7 @@ After saving new learnings, prune memories rendered obsolete by this change:
 
 If `memory_enabled` is `false`, skip entirely.
 
-### Step 6 — Present Summary
+### Step 7 — Present Summary
 
 Append one final JSONL line to `openspec/changes/{changeName}/quality-timeline.jsonl` (if quality tracking enabled):
 ```json
@@ -268,6 +328,7 @@ Present a markdown summary to the user, then STOP:
 **Key decisions**: {keyDecisions list}
 **Files created**: {N}  |  **Files modified**: {N}
 
+{If ADRs written: ### Decision Records Added ({N})\n{ADR IDs and titles}\n}
 {If learnings: ### Learnings Saved to Memory ({N})\n{learning names and summaries}\n}
 {If memoryPruning.deleted: ### Memory Pruned ({N} stale entries removed)\n}
 {If warnings: ### ⚠ Warnings\n{warnings list}\n}
@@ -290,7 +351,7 @@ If aborted (`ERROR`): output a short message explaining why (FAIL verdict, unres
 4. **Archive is permanent.** Never delete archived changes. They serve as an audit trail.
 5. **Date format is ISO 8601.** Always use `YYYY-MM-DD`.
 6. **Main specs are the source of truth after merge.** The delta specs in the archive are historical artifacts.
-7. **Learnings are selective.** Do not force patterns. Only save genuinely useful, reusable, non-obvious insights — but always persist them to memory when found (Step 5c).
+7. **Learnings are selective.** Do not force patterns. Only save genuinely useful, reusable, non-obvious insights — but always persist them to memory when found (Step 6c).
 8. **Preserve previous versions.** When modifying a main spec requirement, keep the old version as a comment.
 9. **One domain per spec file.** Do not merge requirements from different domains into the same main spec file.
 10. **No code changes.** This agent does NOT modify source code. Only spec files, archive folders, and learnings.
