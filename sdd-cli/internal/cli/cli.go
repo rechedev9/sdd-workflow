@@ -57,6 +57,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runErrors(rest, stdout, stderr)
 	case "dashboard":
 		return runDashboard(rest, stdout, stderr)
+	case "watch":
+		return runWatch(rest, stdout, stderr)
 	case "quickstart":
 		return runQuickstart(rest, stdout, stderr)
 	case "completion":
@@ -96,6 +98,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  verify <name>     Run build/lint/test quality gate (zero tokens)")
 	fmt.Fprintln(w, "  ship <name>       Create branch, push, open PR (trunk-based)")
 	fmt.Fprintln(w, "  archive <name>    Archive completed change (zero tokens)")
+	fmt.Fprintln(w, "  watch <name>      Re-run context assembly on artifact changes (debounced)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Inspection commands:")
 	fmt.Fprintln(w, "  status <name>     Show phase progress for a change")
@@ -172,7 +175,7 @@ Exit:   0 success, 1 error, 2 usage`,
 
 Usage: sdd write <name> <phase> [--force]
 
-Moves .pending/<phase>.md to its final location and advances the state
+Moves the pending artifact for the phase to its final location and advances the state
 machine. Claude writes to .pending/, Go promotes and tracks state.
 
 Before promotion, content is validated against phase-specific rules
@@ -370,6 +373,25 @@ Flags:
 
 Output: JSON with branch name, PR URL, and files count.
 Exit:   0 success, 1 error, 2 usage`,
+
+	"watch": `sdd watch — Re-run context assembly on artifact changes
+
+Usage: sdd watch <name> [--debounce <ms>]
+
+Monitors openspec/changes/<name>/ for file changes. On each debounced
+trigger, re-reads state.json, resolves ready phases, and re-runs context
+assembly to stdout. Useful for keeping an LLM context window up to date
+during active editing.
+
+Arguments:
+  name          Change name
+
+Flags:
+  --debounce    Debounce interval in milliseconds (default: 300)
+
+Output: JSON startup message, then assembled context on each trigger.
+        Separator lines on stderr between reassemblies.
+Exit:   0 success (after clean shutdown), 1 error, 2 usage`,
 
 	"archive": `sdd archive — Archive completed change
 

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rechedev9/shenronSDD/sdd-cli/internal/state"
 )
 
 func TestRunWrite_HappyPath(t *testing.T) {
@@ -93,5 +95,60 @@ func TestRunWrite_ForceFlag(t *testing.T) {
 	}
 	if out["status"] != "success" {
 		t.Errorf("status = %v, want success", out["status"])
+	}
+}
+
+func TestRunWrite_SpecDirectoryPending(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := setupChange(t, "write-spec", "write spec test")
+	writeConfig(t, root, "version: 0\nproject_name: test\n")
+
+	changeDir := filepath.Join(root, "openspec", "changes", "write-spec")
+	st, err := state.Load(filepath.Join(changeDir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.Phases[state.PhaseExplore] = state.StatusCompleted
+	st.Phases[state.PhasePropose] = state.StatusCompleted
+	st.CurrentPhase = state.PhaseSpec
+	if err := state.Save(st, filepath.Join(changeDir, "state.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	pendingSpecDir := filepath.Join(changeDir, ".pending", "specs", "watch-cli")
+	if err := os.MkdirAll(pendingSpecDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	specContent := "# Watch CLI\n\n## Requirements\n- Expose watch command\n"
+	if err := os.WriteFile(filepath.Join(pendingSpecDir, "spec.md"), []byte(specContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	err = runWrite([]string{"write-spec", "spec"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runWrite spec: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\nstdout: %s", err, stdout.String())
+	}
+	if out["status"] != "success" {
+		t.Fatalf("status = %v, want success", out["status"])
+	}
+	if out["promoted_to"] != filepath.Join(changeDir, "specs") {
+		t.Fatalf("promoted_to = %v, want %s", out["promoted_to"], filepath.Join(changeDir, "specs"))
+	}
+	got, err := os.ReadFile(filepath.Join(changeDir, "specs", "watch-cli", "spec.md"))
+	if err != nil {
+		t.Fatalf("read promoted spec: %v", err)
+	}
+	if string(got) != specContent {
+		t.Fatalf("spec content = %q, want %q", got, specContent)
 	}
 }

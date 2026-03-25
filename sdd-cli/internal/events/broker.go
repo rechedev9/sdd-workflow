@@ -17,6 +17,7 @@ const (
 	ArtifactPromoted EventType = "ArtifactPromoted"
 	StateAdvanced    EventType = "StateAdvanced"
 	VerifyFailed     EventType = "VerifyFailed"
+	WatchReassembled EventType = "WatchReassembled"
 )
 
 // Event carries a typed payload through the broker.
@@ -77,6 +78,14 @@ type VerifyFailedCommand struct {
 	Command    string
 	ExitCode   int
 	ErrorLines []string // first 5 lines
+}
+
+// WatchReassembledPayload is emitted after the watch loop completes
+// a successful context reassembly.
+type WatchReassembledPayload struct {
+	Change     string `json:"change"`
+	Phase      string `json:"phase"` // phase(s) assembled, e.g. "propose" or "spec+design"
+	DurationMs int64  `json:"duration_ms"`
 }
 
 // Handler processes an event.
