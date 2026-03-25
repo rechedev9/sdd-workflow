@@ -161,3 +161,31 @@ func TestRunNew_WithGitRepo_SetsBaseRef(t *testing.T) {
 		t.Errorf("status = %v, want success", out["status"])
 	}
 }
+
+func TestRunNew_ResolvesNestedProjectRoot(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	root := t.TempDir()
+	projectRoot := filepath.Join(root, "sdd-cli")
+	openspecDir := filepath.Join(projectRoot, "openspec")
+	if err := os.MkdirAll(filepath.Join(openspecDir, "changes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configYAML := "version: 1\nproject_name: test\nstack:\n  language: go\ncommands:\n  build: go build ./...\n  test: go test ./...\n"
+	if err := os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte(configYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := runNew([]string{"feat-nested", "nested project", "--json"}, &stdout, &stderr); err != nil {
+		t.Fatalf("runNew nested root: %v\nstderr: %s", err, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "openspec", "changes", "feat-nested", "state.json")); err != nil {
+		t.Fatalf("state.json not created in nested project root: %v", err)
+	}
+}
