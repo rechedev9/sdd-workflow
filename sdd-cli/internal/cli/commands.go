@@ -44,8 +44,10 @@ func tryOpenStore(cwd string) *store.Store {
 
 // staleThreshold is the duration after which a change is considered abandoned.
 // Changes inactive longer than this are flagged as stale.
-const staleThreshold = 24 * time.Hour
-const projectRootSearchDepth = 3
+const (
+	staleThreshold         = 24 * time.Hour
+	projectRootSearchDepth = 3
+)
 
 func resolveDir(dir string) (string, error) {
 	abs, err := filepath.Abs(dir)
