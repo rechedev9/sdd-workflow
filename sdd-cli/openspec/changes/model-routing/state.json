@@ -1,0 +1,21 @@
+{
+  "name": "model-routing",
+  "description": "Permitir configurar qué modelo LLM usa cada fase SDD via openspec/config.yaml",
+  "current_phase": "ship",
+  "phases": {
+    "apply": "completed",
+    "archive": "pending",
+    "clean": "completed",
+    "design": "completed",
+    "explore": "completed",
+    "propose": "completed",
+    "review": "completed",
+    "ship": "pending",
+    "spec": "completed",
+    "tasks": "completed",
+    "verify": "completed"
+  },
+  "created_at": "2026-03-25T17:49:17.480669772Z",
+  "updated_at": "2026-03-25T18:01:23.662267379Z",
+  "base_ref": "ed5687d72e2970bf9a0238ac6ec71d6ac871b5f8"
+}
