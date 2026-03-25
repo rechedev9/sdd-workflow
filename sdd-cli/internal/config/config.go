@@ -16,6 +16,42 @@ const ConfigVersion = 1
 
 var ErrNoManifest = errors.New("no recognized project manifest found")
 
+var validModels = map[string]bool{
+	"opus":   true,
+	"sonnet": true,
+	"haiku":  true,
+}
+
+var phaseNames = map[string]bool{
+	"explore": true, "propose": true, "spec": true, "design": true,
+	"tasks": true, "apply": true, "review": true, "verify": true,
+	"clean": true, "ship": true, "archive": true,
+}
+
+// ModelFor returns the model configured for the given phase.
+// Returns phase-specific override if set, else default, else "".
+func (c *Config) ModelFor(phase string) string {
+	if m, ok := c.Models.Phases[phase]; ok {
+		return m
+	}
+	return c.Models.Default
+}
+
+func validateModels(m Models) error {
+	if m.Default != "" && !validModels[m.Default] {
+		return fmt.Errorf("unknown default model: %q (valid: opus, sonnet, haiku)", m.Default)
+	}
+	for phase, model := range m.Phases {
+		if !validModels[model] {
+			return fmt.Errorf("unknown model %q for phase %q (valid: opus, sonnet, haiku)", model, phase)
+		}
+		if !phaseNames[phase] {
+			return fmt.Errorf("unknown phase %q in models.phases", phase)
+		}
+	}
+	return nil
+}
+
 // manifestInfo maps manifest filenames to language/stack detection info.
 type manifestInfo struct {
 	Language  string
@@ -117,6 +153,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Version != 0 && cfg.Version != ConfigVersion {
 		slog.Warn("config version mismatch", "have", cfg.Version, "want", ConfigVersion)
+	}
+	if err := validateModels(cfg.Models); err != nil {
+		return nil, fmt.Errorf("invalid models config: %w", err)
 	}
 	return &cfg, nil
 }
