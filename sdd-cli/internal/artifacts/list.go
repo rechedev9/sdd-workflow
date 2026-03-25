@@ -35,21 +35,22 @@ func List(changeDir string) ([]ArtifactInfo, error) {
 		}
 
 		if info.IsDir() {
-			// For spec directory, list contents.
-			entries, err := os.ReadDir(path)
-			if err != nil || len(entries) == 0 {
+			// For directory-backed phases, recurse to find all regular files.
+			files, err := collectRegularFiles(path)
+			if err != nil || len(files) == 0 {
 				continue
 			}
-			for _, e := range entries {
-				eInfo, err := e.Info()
+			for _, f := range files {
+				fInfo, err := os.Stat(f)
 				if err != nil {
 					continue
 				}
+				rel, _ := filepath.Rel(changeDir, f)
 				result = append(result, ArtifactInfo{
 					Phase:    phase,
-					Filename: e.Name(),
-					Path:     filepath.Join(path, e.Name()),
-					Size:     eInfo.Size(),
+					Filename: rel,
+					Path:     f,
+					Size:     fInfo.Size(),
 				})
 			}
 		} else {

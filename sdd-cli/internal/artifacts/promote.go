@@ -60,12 +60,16 @@ func Promote(changeDir string, phase state.Phase, force bool) (string, error) {
 }
 
 func promoteDir(src, dst string) error {
-	if err := os.RemoveAll(dst); err != nil {
-		return fmt.Errorf("reset promoted directory: %w", err)
+	// Atomic directory promotion: copy to a temp sibling, then rename.
+	// This avoids a window where dst is deleted but copy hasn't finished.
+	tmpDir := dst + ".tmp"
+	if err := os.RemoveAll(tmpDir); err != nil {
+		return fmt.Errorf("clean temp directory: %w", err)
 	}
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return fmt.Errorf("create promoted directory: %w", err)
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return fmt.Errorf("create temp directory: %w", err)
 	}
+
 	if err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -77,14 +81,25 @@ func promoteDir(src, dst string) error {
 		if rel == "." {
 			return nil
 		}
-		target := filepath.Join(dst, rel)
+		target := filepath.Join(tmpDir, rel)
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
 		return copyFile(path, target)
 	}); err != nil {
+		os.RemoveAll(tmpDir) //nolint:errcheck // best-effort cleanup on copy failure
 		return fmt.Errorf("copy promoted directory: %w", err)
 	}
+
+	// Swap: remove old dst, rename tmp → dst.
+	if err := os.RemoveAll(dst); err != nil {
+		os.RemoveAll(tmpDir) //nolint:errcheck // best-effort cleanup
+		return fmt.Errorf("remove old promoted directory: %w", err)
+	}
+	if err := os.Rename(tmpDir, dst); err != nil {
+		return fmt.Errorf("rename temp to promoted: %w", err)
+	}
+
 	if err := os.RemoveAll(src); err != nil {
 		slog.Warn("promote: failed to remove pending artifact after promotion", "path", src, "err", err)
 	}
