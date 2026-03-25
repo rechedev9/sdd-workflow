@@ -29,6 +29,26 @@ func TestWritePending(t *testing.T) {
 	}
 }
 
+func TestWritePendingSpec(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	content := []byte("# Spec\n\n## Requirements\n- OAuth login\n")
+
+	err := WritePending(dir, state.PhaseSpec, content)
+	if err != nil {
+		t.Fatalf("WritePending spec: %v", err)
+	}
+
+	path := filepath.Join(PendingPath(dir, state.PhaseSpec), PendingFileName(state.PhaseSpec))
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pending spec: %v", err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("content = %q, want %q", got, content)
+	}
+}
+
 func TestPendingExists(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -41,6 +61,24 @@ func TestPendingExists(t *testing.T) {
 
 	if !PendingExists(dir, state.PhaseExplore) {
 		t.Error("should exist after write")
+	}
+}
+
+func TestPendingExistsSpecTree(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(PendingPath(dir, state.PhaseSpec), "watch-cli"), 0o755); err != nil {
+		t.Fatalf("mkdir pending spec tree: %v", err)
+	}
+	if PendingExists(dir, state.PhaseSpec) {
+		t.Fatal("empty spec pending tree should not count as pending artifact")
+	}
+	if err := os.WriteFile(filepath.Join(PendingPath(dir, state.PhaseSpec), "watch-cli", "spec.md"), []byte("# Spec\n\n## Requirements\n- Watch\n"), 0o644); err != nil {
+		t.Fatalf("write pending spec file: %v", err)
+	}
+	if !PendingExists(dir, state.PhaseSpec) {
+		t.Fatal("spec pending tree should exist after adding a file")
 	}
 }
 
@@ -79,26 +117,74 @@ func TestPromote(t *testing.T) {
 func TestPromoteSpec(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	content := []byte("# Auth Spec\n\n## Requirements\n- OAuth login\n")
-
-	WritePending(dir, state.PhaseSpec, content)
+	contentA := []byte("# Watch CLI\n\n## Requirements\n- OAuth login\n")
+	contentB := []byte("# Watch Loop\n\n## Requirements\n- Reassemble\n")
+	src := PendingPath(dir, state.PhaseSpec)
+	if err := os.MkdirAll(filepath.Join(src, "watch-cli"), 0o755); err != nil {
+		t.Fatalf("mkdir watch-cli: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(src, "watch-loop"), 0o755); err != nil {
+		t.Fatalf("mkdir watch-loop: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "watch-cli", "spec.md"), contentA, 0o644); err != nil {
+		t.Fatalf("write watch-cli spec: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "watch-loop", "spec.md"), contentB, 0o644); err != nil {
+		t.Fatalf("write watch-loop spec: %v", err)
+	}
 
 	promoted, err := Promote(dir, state.PhaseSpec, false)
 	if err != nil {
 		t.Fatalf("Promote spec: %v", err)
 	}
 
-	// Spec should go into specs/ directory.
-	if filepath.Dir(promoted) != filepath.Join(dir, "specs") {
-		t.Errorf("promoted dir = %q, want specs/", filepath.Dir(promoted))
+	if promoted != filepath.Join(dir, "specs") {
+		t.Fatalf("promoted path = %q, want %q", promoted, filepath.Join(dir, "specs"))
 	}
 
-	got, err := os.ReadFile(promoted)
+	got, err := os.ReadFile(filepath.Join(promoted, "watch-cli", "spec.md"))
 	if err != nil {
-		t.Fatalf("read promoted spec: %v", err)
+		t.Fatalf("read promoted watch-cli spec: %v", err)
 	}
-	if string(got) != string(content) {
-		t.Errorf("content = %q, want %q", got, content)
+	if string(got) != string(contentA) {
+		t.Errorf("content = %q, want %q", got, contentA)
+	}
+	got, err = os.ReadFile(filepath.Join(promoted, "watch-loop", "spec.md"))
+	if err != nil {
+		t.Fatalf("read promoted watch-loop spec: %v", err)
+	}
+	if string(got) != string(contentB) {
+		t.Errorf("content = %q, want %q", got, contentB)
+	}
+	if PendingExists(dir, state.PhaseSpec) {
+		t.Error("pending spec tree should be removed after promotion")
+	}
+}
+
+func TestPromoteSpecReplacesExistingDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "specs")
+	if err := os.MkdirAll(filepath.Join(dst, "obsolete"), 0o755); err != nil {
+		t.Fatalf("mkdir obsolete: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dst, "obsolete", "spec.md"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("write obsolete spec: %v", err)
+	}
+	src := PendingPath(dir, state.PhaseSpec)
+	if err := os.MkdirAll(filepath.Join(src, "watch-cli"), 0o755); err != nil {
+		t.Fatalf("mkdir pending watch-cli: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "watch-cli", "spec.md"), []byte("# Spec\n\n## Requirements\n- New\n"), 0o644); err != nil {
+		t.Fatalf("write new spec: %v", err)
+	}
+
+	promoted, err := Promote(dir, state.PhaseSpec, false)
+	if err != nil {
+		t.Fatalf("Promote spec replace: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(promoted, "obsolete", "spec.md")); !os.IsNotExist(err) {
+		t.Fatalf("obsolete spec should be removed, stat err = %v", err)
 	}
 }
 
@@ -265,13 +351,31 @@ func TestListPending(t *testing.T) {
 	dir := t.TempDir()
 	WritePending(dir, state.PhaseExplore, []byte("explore"))
 	WritePending(dir, state.PhasePropose, []byte("propose"))
+	if err := os.MkdirAll(filepath.Join(PendingPath(dir, state.PhaseSpec), "watch-cli"), 0o755); err != nil {
+		t.Fatalf("mkdir spec pending: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(PendingPath(dir, state.PhaseSpec), "watch-cli", "spec.md"), []byte("# Spec\n\n## Requirements\n- Watch\n"), 0o644); err != nil {
+		t.Fatalf("write spec pending: %v", err)
+	}
 
 	items, err := ListPending(dir)
 	if err != nil {
 		t.Fatalf("ListPending: %v", err)
 	}
-	if len(items) != 2 {
-		t.Errorf("pending count = %d, want 2", len(items))
+	if len(items) != 3 {
+		t.Errorf("pending count = %d, want 3", len(items))
+	}
+	foundSpec := false
+	for _, item := range items {
+		if item.Filename == filepath.Join("specs", "watch-cli", "spec.md") {
+			foundSpec = true
+			if item.Phase != state.PhaseSpec {
+				t.Fatalf("pending spec phase = %s, want spec", item.Phase)
+			}
+		}
+	}
+	if !foundSpec {
+		t.Fatal("expected nested spec pending file in listing")
 	}
 }
 
@@ -455,8 +559,11 @@ func TestPromote_SpecMkdirAllFails(t *testing.T) {
 	dir := t.TempDir()
 	WritePending(dir, state.PhaseSpec, []byte("spec content"))
 
-	// Create a file named "specs" so MkdirAll fails.
-	os.WriteFile(filepath.Join(dir, "specs"), []byte("block"), 0o644)
+	// Make the change directory read-only so creating specs/ fails.
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatalf("chmod dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 
 	_, err := Promote(dir, state.PhaseSpec, true)
 	if err == nil {

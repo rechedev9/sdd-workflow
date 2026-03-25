@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -71,6 +73,50 @@ func Validate(phase state.Phase, content []byte) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %s: missing %s", ErrValidation, phase, strings.Join(missing, ", "))
+}
+
+// ValidatePending validates the pending artifact at path for the given phase.
+// Directory-backed phases validate every markdown file under the directory.
+func ValidatePending(phase state.Phase, path string) error {
+	if !isDirectoryArtifact(phase) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read pending: %w", err)
+		}
+		return Validate(phase, data)
+	}
+
+	files, err := collectRegularFiles(path)
+	if err != nil {
+		return fmt.Errorf("walk pending: %w", err)
+	}
+
+	mdCount := 0
+	failures := make([]string, 0)
+	for _, file := range files {
+		if filepath.Ext(file) != ".md" {
+			continue
+		}
+		mdCount++
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("read pending: %w", err)
+		}
+		if err := Validate(phase, data); err != nil {
+			rel, relErr := filepath.Rel(path, file)
+			if relErr != nil {
+				rel = file
+			}
+			failures = append(failures, fmt.Sprintf("%s (%v)", rel, err))
+		}
+	}
+	if mdCount == 0 {
+		return fmt.Errorf("%w: %s: missing markdown files", ErrValidation, phase)
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("%w: %s", ErrValidation, strings.Join(failures, "; "))
+	}
+	return nil
 }
 
 func containsStr(s string) func([]byte) bool {
