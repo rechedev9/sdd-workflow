@@ -1,0 +1,21 @@
+{
+  "name": "file-watcher",
+  "description": "Debounced recursive file watcher that re-runs context assembly when artifacts change (sdd --watch mode)",
+  "current_phase": "archive",
+  "phases": {
+    "apply": "completed",
+    "archive": "pending",
+    "clean": "completed",
+    "design": "completed",
+    "explore": "completed",
+    "propose": "completed",
+    "review": "completed",
+    "ship": "completed",
+    "spec": "completed",
+    "tasks": "completed",
+    "verify": "completed"
+  },
+  "created_at": "2026-03-25T19:08:43.110607654Z",
+  "updated_at": "2026-03-25T20:27:59.485187471Z",
+  "base_ref": "74c8193160ce7968f58bf437a82bce12e1d6420c"
+}
