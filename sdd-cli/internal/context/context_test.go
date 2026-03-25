@@ -860,6 +860,81 @@ func TestInputHashDiskVsEmbedded(t *testing.T) {
 	}
 }
 
+func TestAssemble_ModelDirectivePresent(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+	p.Config.Models = config.Models{
+		Default: "sonnet",
+		Phases:  map[string]string{"explore": "opus"},
+	}
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	out := buf.String()
+	if !strings.HasPrefix(out, "<!-- sdd:model=opus -->") {
+		t.Errorf("expected output to start with model directive, got: %s", out[:min(80, len(out))])
+	}
+}
+
+func TestAssemble_ModelDirectiveDefault(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+	p.Config.Models = config.Models{Default: "haiku"}
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	out := buf.String()
+	if !strings.HasPrefix(out, "<!-- sdd:model=haiku -->") {
+		t.Errorf("expected default model directive, got: %s", out[:min(80, len(out))])
+	}
+}
+
+func TestAssemble_NoModelDirective(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+	// No models configured — directive must be absent.
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "<!-- sdd:model=") {
+		t.Error("model directive should not be present when models not configured")
+	}
+	if !strings.HasPrefix(out, "\n--- SKILL ---") {
+		t.Errorf("expected output to start with SKILL section, got: %s", out[:min(80, len(out))])
+	}
+}
+
+func TestAssemble_ModelInEvent(t *testing.T) {
+	t.Parallel()
+	_, _, p := setupFixture(t)
+	p.Broker = events.NewBroker()
+	p.Config.Models = config.Models{Phases: map[string]string{"explore": "opus"}}
+
+	var gotModel string
+	p.Broker.Subscribe(events.PhaseAssembled, func(e events.Event) {
+		payload := e.Payload.(events.PhaseAssembledPayload)
+		gotModel = payload.Model
+	})
+
+	var buf bytes.Buffer
+	if err := Assemble(&buf, state.PhaseExplore, p); err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	if gotModel != "opus" {
+		t.Errorf("event model = %q, want opus", gotModel)
+	}
+}
+
 func TestGitFileTree_NonGitDir(t *testing.T) {
 	t.Parallel()
 	// Non-git directory → git ls-files fails → error returned.

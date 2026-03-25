@@ -30,13 +30,13 @@ func runDump(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
-	cwd, err := getCWD(stderr, "dump")
+	projectRoot, err := getProjectRoot(stderr, "dump")
 	if err != nil {
 		return err
 	}
 
 	// Load config.
-	cfg, err := loadConfig(stderr, "dump", cwd)
+	cfg, err := loadConfig(stderr, "dump", projectRoot)
 	if err != nil {
 		return err
 	}

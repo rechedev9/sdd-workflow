@@ -8,3 +8,10 @@ commands:
   test: "/usr/local/go/bin/go test ./..."
   lint: "/home/reche/go/bin/golangci-lint run ./..."
   format: ""
+models:
+  default: sonnet
+  phases:
+    propose: opus
+    spec: opus
+    design: opus
+    review: opus

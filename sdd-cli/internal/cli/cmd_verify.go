@@ -36,23 +36,23 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "verify", err)
 	}
 
-	cwd, err := getCWD(stderr, "verify")
+	projectRoot, err := getProjectRoot(stderr, "verify")
 	if err != nil {
 		return err
 	}
 
 	// Load config for commands.
-	cfg, err := loadConfig(stderr, "verify", cwd)
+	cfg, err := loadConfig(stderr, "verify", projectRoot)
 	if err != nil {
 		return err
 	}
 
 	// Smart-skip: reuse last verify if no source files changed.
-	if shouldSkipVerify(cwd, changeDir) {
+	if shouldSkipVerify(projectRoot, changeDir) {
 		slog.Info("verify skipped", "reason", "no source changes since last PASS")
 
 		// Record smart-skip as passing results for dashboard charts.
-		if vdb := tryOpenStore(cwd); vdb != nil {
+		if vdb := tryOpenStore(projectRoot); vdb != nil {
 			for _, cmd := range []string{"build", "lint", "test"} {
 				_ = vdb.InsertVerifyResult(context.Background(), store.VerifyResult{
 					Timestamp:   time.Now().UTC(),
@@ -86,7 +86,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Early stopping: warn about recurring error patterns.
 	if !force {
-		if matches := checkRecurringFailures(cwd, name); len(matches) > 0 {
+		if matches := checkRecurringFailures(projectRoot, name); len(matches) > 0 {
 			fmt.Fprintf(stderr, "sdd verify: %d error pattern(s) recur 3+ times for %q:\n", len(matches), name)
 			for fp, count := range matches {
 				fmt.Fprintf(stderr, "  fingerprint %s — seen %d times\n", fp, count)
@@ -104,7 +104,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Run verification in the project root.
-	report, err := verify.Run(cwd, commands, verify.DefaultTimeout, stderr)
+	report, err := verify.Run(projectRoot, commands, verify.DefaultTimeout, stderr)
 	if err != nil {
 		return errs.WriteError(stderr, "verify", fmt.Errorf("run verify: %w", err))
 	}
@@ -115,7 +115,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Open store once for verify results + error collection.
-	db := tryOpenStore(cwd)
+	db := tryOpenStore(projectRoot)
 	if db != nil {
 		defer db.Close()
 	}
@@ -170,7 +170,7 @@ func runVerify(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 		broker.Emit(events.Event{
 			Type:    events.VerifyFailed,
-			Payload: events.VerifyFailedPayload{Change: name, ProjectDir: cwd, Results: failedCmds},
+			Payload: events.VerifyFailedPayload{Change: name, ProjectDir: projectRoot, Results: failedCmds},
 		})
 	}
 

@@ -23,10 +23,14 @@ scripts/
 # Go build
 sdd-cli/bin/
 
+# SDD cache and ephemeral artifacts
+**/.cache/
+
 # Internal planning docs (not distributed)
 roadmap.md
 TODOS.md
 *.txt
 CLAUDE.md
 **/CLAUDE.md
+cligocontext.md
 .gstack/

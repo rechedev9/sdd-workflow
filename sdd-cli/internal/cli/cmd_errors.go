@@ -20,12 +20,15 @@ func runErrors(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 	}
 
-	cwd, err := getCWD(stderr, "errors")
+	projectRoot, err := getCWD(stderr, "errors")
 	if err != nil {
 		return err
 	}
+	if resolved, rerr := resolveProjectRoot(projectRoot); rerr == nil {
+		projectRoot = resolved
+	}
 
-	log := errlog.Load(cwd)
+	log := errlog.Load(projectRoot)
 
 	if jsonOut {
 		type errorGroup struct {

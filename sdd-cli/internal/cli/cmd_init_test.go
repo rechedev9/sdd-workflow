@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -76,5 +77,31 @@ func TestRunInit_ForceOnExisting(t *testing.T) {
 	stdout.Reset()
 	if err := runInit([]string{"--force"}, &stdout, &stderr); err != nil {
 		t.Fatalf("init --force: %v", err)
+	}
+}
+
+func TestRunInit_NestedManifestFromContainerRoot(t *testing.T) {
+	// Uses Chdir — must not be parallel.
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "sdd-cli")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := runInit(nil, &stdout, &stderr); err != nil {
+		t.Fatalf("runInit nested manifest: %v\nstderr: %s", err, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(appDir, "openspec", "config.yaml")); err != nil {
+		t.Fatalf("nested config.yaml not created: %v", err)
 	}
 }

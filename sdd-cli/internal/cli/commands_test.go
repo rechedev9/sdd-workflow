@@ -183,6 +183,73 @@ func TestResolveDir(t *testing.T) {
 	})
 }
 
+func TestResolveProjectRoot(t *testing.T) {
+	t.Run("prefers_ancestor_with_openspec", func(t *testing.T) {
+		// Uses Chdir — must not be parallel.
+		root := t.TempDir()
+		projectRoot := filepath.Join(root, "app")
+		workDir := filepath.Join(projectRoot, "internal", "cli")
+		if err := os.MkdirAll(filepath.Join(projectRoot, "openspec"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(projectRoot, "openspec", "config.yaml"), []byte("version: 1\nproject_name: app\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(workDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := resolveProjectRoot(workDir)
+		if err != nil {
+			t.Fatalf("resolveProjectRoot: %v", err)
+		}
+		if got != projectRoot {
+			t.Fatalf("project root = %q, want %q", got, projectRoot)
+		}
+	})
+
+	t.Run("uses_single_descendant_with_openspec", func(t *testing.T) {
+		// Uses Chdir — must not be parallel.
+		root := t.TempDir()
+		projectRoot := filepath.Join(root, "sdd-cli")
+		if err := os.MkdirAll(filepath.Join(projectRoot, "openspec"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(projectRoot, "openspec", "config.yaml"), []byte("version: 1\nproject_name: sdd-cli\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := resolveProjectRoot(root)
+		if err != nil {
+			t.Fatalf("resolveProjectRoot: %v", err)
+		}
+		if got != projectRoot {
+			t.Fatalf("project root = %q, want %q", got, projectRoot)
+		}
+	})
+
+	t.Run("errors_on_multiple_descendants", func(t *testing.T) {
+		root := t.TempDir()
+		for _, name := range []string{"app-one", "app-two"} {
+			projectRoot := filepath.Join(root, name)
+			if err := os.MkdirAll(filepath.Join(projectRoot, "openspec"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(projectRoot, "openspec", "config.yaml"), []byte("version: 1\nproject_name: "+name+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		_, err := resolveProjectRoot(root)
+		if err == nil {
+			t.Fatal("expected error for multiple project roots")
+		}
+		if !strings.Contains(err.Error(), "multiple candidate project roots") {
+			t.Fatalf("error = %v, want multiple candidate project roots", err)
+		}
+	})
+}
+
 func TestResolveChangeDir_FileNotDir(t *testing.T) {
 	// Uses Chdir — must not be parallel.
 	dir := t.TempDir()

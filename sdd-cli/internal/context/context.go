@@ -68,7 +68,13 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 	}
 
 	phaseStr := string(ph)
+	model := p.Config.ModelFor(phaseStr)
 	start := time.Now()
+
+	// Write model directive before any content (outside cache layer).
+	if model != "" {
+		io.WriteString(w, "<!-- sdd:model="+model+" -->\n\n") //nolint:errcheck
+	}
 
 	// Compact mode bypasses cache — it produces a different output variant
 	// and caching is keyed only by phase + artifact hashes, not by flags.
@@ -98,6 +104,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 				DurationMs: time.Since(start).Milliseconds(),
 				ChangeDir:  p.ChangeDir,
 				SkillsPath: p.SkillsPath,
+				Model:      model,
 			},
 		})
 		return nil
@@ -130,6 +137,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 				ChangeDir:  p.ChangeDir,
 				SkillsPath: p.SkillsPath,
 				InputHash:  computedHash,
+				Model:      model,
 			},
 		})
 
@@ -174,6 +182,7 @@ func Assemble(w io.Writer, ph state.Phase, p *Params) error {
 			SkillsPath: p.SkillsPath,
 			Content:    content,
 			InputHash:  computedHash,
+			Model:      model,
 		},
 	})
 

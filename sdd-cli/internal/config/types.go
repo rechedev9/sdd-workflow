@@ -8,6 +8,7 @@ type Config struct {
 	SkillsPath   string       `yaml:"skills_path"     json:"skills_path"`
 	Commands     Commands     `yaml:"commands"        json:"commands"`
 	Capabilities Capabilities `yaml:"capabilities"    json:"capabilities"`
+	Models       Models       `yaml:"models"          json:"models"`
 }
 
 // Stack describes the detected tech stack.
@@ -32,4 +33,11 @@ type Commands struct {
 // Capabilities toggles optional features.
 type Capabilities struct {
 	MemoryEnabled bool `yaml:"memory_enabled" json:"memory_enabled"`
+}
+
+// Models configures per-phase LLM model routing.
+// Zero value = no model directives emitted (backward compatible).
+type Models struct {
+	Default string            `yaml:"default" json:"default"`
+	Phases  map[string]string `yaml:"phases"  json:"phases,omitempty"`
 }

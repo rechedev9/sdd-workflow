@@ -50,24 +50,24 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "ship", fmt.Errorf("no base_ref in state.json; cannot compute diff"))
 	}
 
-	cwd, err := getCWD(stderr, "ship")
+	projectRoot, err := getProjectRoot(stderr, "ship")
 	if err != nil {
 		return err
 	}
 
 	// Require clean working tree — uncommitted changes would not be pushed.
-	if err := gitRequireClean(cwd); err != nil {
+	if err := gitRequireClean(projectRoot); err != nil {
 		return errs.WriteError(stderr, "ship",
 			fmt.Errorf("working tree is not clean; commit or stash changes first: %w", err))
 	}
 
 	// Check gh CLI.
-	if err := ghAuthStatus(cwd); err != nil {
+	if err := ghAuthStatus(projectRoot); err != nil {
 		return errs.WriteError(stderr, "ship", err)
 	}
 
 	// Detect base branch (main, master, etc.).
-	baseBranch, err := detectBaseBranch(cwd)
+	baseBranch, err := detectBaseBranch(projectRoot)
 	if err != nil {
 		return errs.WriteError(stderr, "ship", err)
 	}
@@ -75,7 +75,7 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 	branch := "sdd/" + name
 
 	// Check remote branch does not already exist.
-	exists, err := gitRemoteBranchExists(cwd, "origin", branch)
+	exists, err := gitRemoteBranchExists(projectRoot, "origin", branch)
 	if err != nil {
 		return errs.WriteError(stderr, "ship", fmt.Errorf("check remote branch: %w", err))
 	}
@@ -84,7 +84,7 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Compute changed source files (exclude openspec/).
-	allFiles, err := gitDiffFiles(cwd, st.BaseRef)
+	allFiles, err := gitDiffFiles(projectRoot, st.BaseRef)
 	if err != nil {
 		return errs.WriteError(stderr, "ship", fmt.Errorf("compute diff: %w", err))
 	}
@@ -127,26 +127,26 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Create and checkout branch.
-	if err := gitCheckoutNewBranch(cwd, branch); err != nil {
+	if err := gitCheckoutNewBranch(projectRoot, branch); err != nil {
 		return errs.WriteError(stderr, "ship", err)
 	}
 
 	// Push branch.
-	if err := gitPush(cwd, "origin", branch); err != nil {
+	if err := gitPush(projectRoot, "origin", branch); err != nil {
 		// Cleanup: return to master and delete local branch.
-		gitCheckout(cwd, baseBranch)      //nolint:errcheck
-		gitDeleteLocalBranch(cwd, branch) //nolint:errcheck
+		gitCheckout(projectRoot, baseBranch)      //nolint:errcheck
+		gitDeleteLocalBranch(projectRoot, branch) //nolint:errcheck
 		return errs.WriteError(stderr, "ship", err)
 	}
 
 	// Create PR.
-	prURL, err := ghCreatePR(cwd, baseBranch, branch, title, body)
+	prURL, err := ghCreatePR(projectRoot, baseBranch, branch, title, body)
 	if err != nil {
 		// Cleanup: delete remote branch, return to master, delete local branch.
 		slog.Warn("ship: PR creation failed, cleaning up", "error", err)
-		gitDeleteRemoteBranch(cwd, "origin", branch) //nolint:errcheck
-		gitCheckout(cwd, baseBranch)                 //nolint:errcheck
-		gitDeleteLocalBranch(cwd, branch)            //nolint:errcheck
+		gitDeleteRemoteBranch(projectRoot, "origin", branch) //nolint:errcheck
+		gitCheckout(projectRoot, baseBranch)                 //nolint:errcheck
+		gitDeleteLocalBranch(projectRoot, branch)            //nolint:errcheck
 		return errs.WriteError(stderr, "ship", err)
 	}
 
@@ -170,7 +170,7 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Return to base branch.
-	if err := gitCheckout(cwd, baseBranch); err != nil {
+	if err := gitCheckout(projectRoot, baseBranch); err != nil {
 		slog.Warn("ship: failed to return to base branch", "error", err)
 	}
 

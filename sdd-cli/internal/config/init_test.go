@@ -99,6 +99,28 @@ func TestInitNoManifest(t *testing.T) {
 	}
 }
 
+func TestInitNestedManifest(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "sdd-cli")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "go.mod"), []byte("module test\n\ngo 1.22\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Init(dir, false)
+	if err != nil {
+		t.Fatalf("Init nested manifest: %v", err)
+	}
+	if got, want := result.ConfigPath, filepath.Join(appDir, "openspec", "config.yaml"); got != want {
+		t.Fatalf("config path = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(appDir, "openspec", "changes")); err != nil {
+		t.Fatalf("nested openspec not created: %v", err)
+	}
+}
+
 func TestInit_MkdirFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

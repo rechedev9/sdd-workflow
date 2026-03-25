@@ -270,6 +270,124 @@ func TestLoadVersionMismatch_Warns(t *testing.T) {
 	}
 }
 
+func TestModelFor_PhaseOverride(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		Models: Models{
+			Default: "sonnet",
+			Phases:  map[string]string{"propose": "opus", "spec": "opus"},
+		},
+	}
+	if got := cfg.ModelFor("propose"); got != "opus" {
+		t.Errorf("ModelFor(propose) = %q, want opus", got)
+	}
+	if got := cfg.ModelFor("apply"); got != "sonnet" {
+		t.Errorf("ModelFor(apply) = %q, want sonnet (default)", got)
+	}
+}
+
+func TestModelFor_DefaultOnly(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{Models: Models{Default: "haiku"}}
+	if got := cfg.ModelFor("explore"); got != "haiku" {
+		t.Errorf("ModelFor(explore) = %q, want haiku", got)
+	}
+}
+
+func TestModelFor_Empty(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{}
+	if got := cfg.ModelFor("explore"); got != "" {
+		t.Errorf("ModelFor(explore) = %q, want empty", got)
+	}
+}
+
+func TestValidateModels_Valid(t *testing.T) {
+	t.Parallel()
+	m := Models{
+		Default: "sonnet",
+		Phases:  map[string]string{"propose": "opus", "review": "haiku"},
+	}
+	if err := validateModels(m); err != nil {
+		t.Fatalf("validateModels: unexpected error: %v", err)
+	}
+}
+
+func TestValidateModels_InvalidDefault(t *testing.T) {
+	t.Parallel()
+	m := Models{Default: "gpt-4"}
+	err := validateModels(m)
+	if err == nil {
+		t.Fatal("expected error for invalid default model")
+	}
+}
+
+func TestValidateModels_InvalidPhaseModel(t *testing.T) {
+	t.Parallel()
+	m := Models{Phases: map[string]string{"propose": "gpt-4"}}
+	err := validateModels(m)
+	if err == nil {
+		t.Fatal("expected error for invalid phase model")
+	}
+}
+
+func TestValidateModels_UnknownPhase(t *testing.T) {
+	t.Parallel()
+	m := Models{Phases: map[string]string{"nonexistent": "opus"}}
+	err := validateModels(m)
+	if err == nil {
+		t.Fatal("expected error for unknown phase name")
+	}
+}
+
+func TestValidateModels_Empty(t *testing.T) {
+	t.Parallel()
+	if err := validateModels(Models{}); err != nil {
+		t.Fatalf("empty models should be valid: %v", err)
+	}
+}
+
+func TestLoadWithModels(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	yaml := `project_name: test
+models:
+  default: sonnet
+  phases:
+    propose: opus
+    design: opus
+`
+	os.WriteFile(path, []byte(yaml), 0o644)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Models.Default != "sonnet" {
+		t.Errorf("models.default = %q, want sonnet", cfg.Models.Default)
+	}
+	if cfg.Models.Phases["propose"] != "opus" {
+		t.Errorf("models.phases.propose = %q, want opus", cfg.Models.Phases["propose"])
+	}
+}
+
+func TestLoadWithInvalidModel_Fails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	yaml := `project_name: test
+models:
+  default: gpt-4
+`
+	os.WriteFile(path, []byte(yaml), 0o644)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid model in config")
+	}
+}
+
 func TestSave_MkdirAllError(t *testing.T) {
 	t.Parallel()
 	// Create a file where the parent dir should be, so MkdirAll fails.

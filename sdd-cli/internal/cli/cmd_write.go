@@ -38,11 +38,11 @@ func runWrite(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	statePath := filepath.Join(changeDir, "state.json")
 
-	cwd, err := getCWD(stderr, "write")
+	projectRoot, err := getProjectRoot(stderr, "write")
 	if err != nil {
 		return err
 	}
-	db := tryOpenStore(cwd)
+	db := tryOpenStore(projectRoot)
 	if db != nil {
 		defer db.Close()
 	}

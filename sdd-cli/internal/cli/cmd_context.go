@@ -40,18 +40,18 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
-	cwd, err := getCWD(stderr, "context")
+	projectRoot, err := getProjectRoot(stderr, "context")
 	if err != nil {
 		return err
 	}
 
 	// Load config.
-	cfg, err := loadConfig(stderr, "context", cwd)
+	cfg, err := loadConfig(stderr, "context", projectRoot)
 	if err != nil {
 		return err
 	}
 
-	db := tryOpenStore(cwd)
+	db := tryOpenStore(projectRoot)
 	if db != nil {
 		defer db.Close()
 	}
@@ -60,7 +60,7 @@ func runContext(args []string, stdout io.Writer, stderr io.Writer) error {
 		ChangeDir:   changeDir,
 		ChangeName:  st.Name,
 		Description: st.Description,
-		ProjectDir:  cwd,
+		ProjectDir:  projectRoot,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
 		Broker:      broker,

@@ -14,9 +14,12 @@ func runList(args []string, stdout io.Writer, stderr io.Writer) error {
 	if len(args) > 0 {
 		return errUnknownFlag(args[0])
 	}
-	cwd, err := getCWD(stderr, "list")
+	projectRoot, err := getCWD(stderr, "list")
 	if err != nil {
 		return err
+	}
+	if resolved, rerr := resolveProjectRoot(projectRoot); rerr == nil {
+		projectRoot = resolved
 	}
 
 	type changeInfo struct {
@@ -27,7 +30,7 @@ func runList(args []string, stdout io.Writer, stderr io.Writer) error {
 		Stale        bool   `json:"stale"`
 	}
 
-	changesDir := openspecChanges(cwd)
+	changesDir := openspecChanges(projectRoot)
 	if _, err := os.ReadDir(changesDir); err != nil && !os.IsNotExist(err) {
 		return errs.WriteError(stderr, "list", fmt.Errorf("read changes directory: %w", err))
 	}

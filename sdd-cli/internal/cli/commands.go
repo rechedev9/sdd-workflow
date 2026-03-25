@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,7 +44,10 @@ func tryOpenStore(cwd string) *store.Store {
 
 // staleThreshold is the duration after which a change is considered abandoned.
 // Changes inactive longer than this are flagged as stale.
-const staleThreshold = 24 * time.Hour
+const (
+	staleThreshold         = 24 * time.Hour
+	projectRootSearchDepth = 3
+)
 
 func resolveDir(dir string) (string, error) {
 	abs, err := filepath.Abs(dir)
@@ -57,6 +62,83 @@ func resolveDir(dir string) (string, error) {
 		return "", fmt.Errorf("not a directory: %s", abs)
 	}
 	return abs, nil
+}
+
+func resolveProjectRoot(start string) (string, error) {
+	abs, err := resolveDir(start)
+	if err != nil {
+		return "", err
+	}
+	for dir := abs; ; dir = filepath.Dir(dir) {
+		if hasOpenspecRoot(dir) {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+	}
+
+	candidates, err := findDescendantProjectRoots(abs, projectRootSearchDepth)
+	if err != nil {
+		return "", err
+	}
+	switch len(candidates) {
+	case 0:
+		return "", fmt.Errorf("openspec/ not found from %s (run 'sdd init' first)", abs)
+	case 1:
+		return candidates[0], nil
+	default:
+		return "", fmt.Errorf("multiple candidate project roots found under %s: %s", abs, strings.Join(candidates, ", "))
+	}
+}
+
+func findDescendantProjectRoots(start string, maxDepth int) ([]string, error) {
+	candidates := make(map[string]struct{}, 4)
+	err := filepath.WalkDir(start, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == start {
+			return nil
+		}
+		rel, err := filepath.Rel(start, path)
+		if err != nil {
+			return err
+		}
+		depth := strings.Count(rel, string(filepath.Separator)) + 1
+		if d.IsDir() {
+			if depth > maxDepth {
+				return filepath.SkipDir
+			}
+			switch d.Name() {
+			case ".git":
+				return filepath.SkipDir
+			case "openspec":
+				candidates[filepath.Dir(path)] = struct{}{}
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if depth > maxDepth {
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan project roots: %w", err)
+	}
+	out := make([]string, 0, len(candidates))
+	for dir := range candidates {
+		out = append(out, dir)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+func hasOpenspecRoot(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, "openspec"))
+	return err == nil && info.IsDir()
 }
 
 // validateChangeName rejects names that contain path separators, special
@@ -109,7 +191,11 @@ func resolveChangeDir(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get working directory: %w", err)
 	}
-	changeDir := filepath.Join(openspecChanges(cwd), name)
+	projectRoot, err := resolveProjectRoot(cwd)
+	if err != nil {
+		return "", err
+	}
+	changeDir := filepath.Join(openspecChanges(projectRoot), name)
 	info, err := os.Stat(changeDir)
 	if err != nil {
 		return "", fmt.Errorf("change directory not found: %s", changeDir)
@@ -128,6 +214,18 @@ func getCWD(stderr io.Writer, cmd string) (string, error) {
 		return "", errs.WriteError(stderr, cmd, fmt.Errorf("get working directory: %w", err))
 	}
 	return cwd, nil
+}
+
+func getProjectRoot(stderr io.Writer, cmd string) (string, error) {
+	cwd, err := getCWD(stderr, cmd)
+	if err != nil {
+		return "", err
+	}
+	root, err := resolveProjectRoot(cwd)
+	if err != nil {
+		return "", errs.WriteError(stderr, cmd, err)
+	}
+	return root, nil
 }
 
 // openspecConfig returns the path to openspec/config.yaml in the project root.

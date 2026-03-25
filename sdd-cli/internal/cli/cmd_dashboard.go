@@ -36,12 +36,12 @@ func runDashboard(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.Usage(fmt.Sprintf("invalid port: %s (must be 1024-65535)", port))
 	}
 
-	cwd, err := getCWD(stderr, "dashboard")
+	projectRoot, err := getProjectRoot(stderr, "dashboard")
 	if err != nil {
 		return err
 	}
-	dbPath := openspecDB(cwd)
-	changesDir := openspecChanges(cwd)
+	dbPath := openspecDB(projectRoot)
+	changesDir := openspecChanges(projectRoot)
 
 	db, err := store.Open(dbPath)
 	if err != nil {
