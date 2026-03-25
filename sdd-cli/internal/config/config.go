@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/rechedev9/shenronSDD/sdd-cli/internal/fsutil"
 
@@ -15,6 +17,8 @@ import (
 const ConfigVersion = 1
 
 var ErrNoManifest = errors.New("no recognized project manifest found")
+
+const nestedManifestSearchDepth = 3
 
 var validModels = map[string]bool{
 	"opus":   true,
@@ -101,6 +105,42 @@ var manifests = []struct {
 
 // Detect scans projectDir for known manifest files and returns a Config.
 func Detect(projectDir string) (*Config, error) {
+	return detectConfig(projectDir)
+}
+
+// DetectRoot resolves the effective project root for init-style flows.
+// It first checks startDir directly, then searches descendants up to a
+// bounded depth. If exactly one descendant candidate is found, it wins.
+// Multiple candidates are rejected to avoid guessing in container repos.
+func DetectRoot(startDir string) (string, *Config, error) {
+	cfg, err := detectConfig(startDir)
+	if err == nil {
+		return startDir, cfg, nil
+	}
+	if !errors.Is(err, ErrNoManifest) {
+		return "", nil, err
+	}
+	noManifestErr := err
+
+	candidates, err := findManifestDirs(startDir, nestedManifestSearchDepth)
+	if err != nil {
+		return "", nil, err
+	}
+	switch len(candidates) {
+	case 0:
+		return "", nil, noManifestErr
+	case 1:
+		cfg, derr := detectConfig(candidates[0])
+		if derr != nil {
+			return "", nil, derr
+		}
+		return candidates[0], cfg, nil
+	default:
+		return "", nil, fmt.Errorf("multiple candidate project roots found under %s: %s", startDir, strings.Join(candidates, ", "))
+	}
+}
+
+func detectConfig(projectDir string) (*Config, error) {
 	var found []string
 	var primary *manifestInfo
 
@@ -139,6 +179,61 @@ func Detect(projectDir string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func findManifestDirs(startDir string, maxDepth int) ([]string, error) {
+	candidates := make(map[string]struct{}, 8)
+	err := filepath.WalkDir(startDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == startDir {
+			return nil
+		}
+
+		rel, err := filepath.Rel(startDir, path)
+		if err != nil {
+			return err
+		}
+		depth := pathDepth(rel)
+
+		if d.IsDir() {
+			if depth > maxDepth {
+				return filepath.SkipDir
+			}
+			switch d.Name() {
+			case ".git", "openspec":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if depth > maxDepth {
+			return nil
+		}
+		for _, m := range manifests {
+			if d.Name() == m.File {
+				candidates[filepath.Dir(path)] = struct{}{}
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan nested manifests: %w", err)
+	}
+	out := make([]string, 0, len(candidates))
+	for dir := range candidates {
+		out = append(out, dir)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+func pathDepth(rel string) int {
+	if rel == "." || rel == "" {
+		return 0
+	}
+	return strings.Count(rel, string(filepath.Separator)) + 1
 }
 
 // Load reads a config.yaml file.

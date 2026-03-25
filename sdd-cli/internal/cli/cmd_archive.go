@@ -40,11 +40,11 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	// Verify PR was merged before archiving (best-effort).
 	if st.Phases[state.PhaseShip] == state.StatusCompleted {
-		cwd, err := getCWD(stderr, "archive")
+		projectRoot, err := getProjectRoot(stderr, "archive")
 		if err != nil {
 			return err
 		}
-		if err := verifyPRMerged(cwd, changeDir); err != nil {
+		if err := verifyPRMerged(projectRoot, changeDir); err != nil {
 			if !force {
 				return errs.WriteError(stderr, "archive", fmt.Errorf("PR not merged: %w", err))
 			}

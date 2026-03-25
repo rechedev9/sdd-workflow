@@ -19,18 +19,16 @@ type InitResult struct {
 // Init bootstraps the openspec/ directory structure and writes config.yaml.
 // If force is true, it overwrites an existing openspec/.
 func Init(projectDir string, force bool) (*InitResult, error) {
-	openspecDir := filepath.Join(projectDir, "openspec")
+	detectedRoot, cfg, err := DetectRoot(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("detect stack: %w", err)
+	}
+	openspecDir := filepath.Join(detectedRoot, "openspec")
 	configPath := filepath.Join(openspecDir, "config.yaml")
 
 	// Check for existing openspec/.
 	if _, err := os.Stat(openspecDir); err == nil && !force {
 		return nil, fmt.Errorf("%w: use --force to reinitialize", ErrAlreadyInitialized)
-	}
-
-	// Detect stack.
-	cfg, err := Detect(projectDir)
-	if err != nil {
-		return nil, fmt.Errorf("detect stack: %w", err)
 	}
 
 	// Create directory structure.

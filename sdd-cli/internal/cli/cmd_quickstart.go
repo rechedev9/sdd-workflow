@@ -49,19 +49,19 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "quickstart", fmt.Errorf("read spec file: %w", err))
 	}
 
-	cwd, err := getCWD(stderr, "quickstart")
+	projectRoot, err := getProjectRoot(stderr, "quickstart")
 	if err != nil {
 		return err
 	}
 
 	// Ensure config exists.
-	configPath := openspecConfig(cwd)
+	configPath := openspecConfig(projectRoot)
 	if _, err := config.Load(configPath); err != nil {
 		return errs.WriteError(stderr, "quickstart", fmt.Errorf("load config (run 'sdd init' first): %w", err))
 	}
 
 	// Create change directory structure.
-	changeDir := filepath.Join(openspecChanges(cwd), name)
+	changeDir := filepath.Join(openspecChanges(projectRoot), name)
 	specsDir := filepath.Join(changeDir, "specs")
 	for _, d := range []string{changeDir, specsDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -102,7 +102,7 @@ func runQuickstart(args []string, stdout io.Writer, stderr io.Writer) error {
 	st.UpdatedAt = now
 
 	// Capture git HEAD.
-	if sha, err := gitHeadSHA(cwd); err == nil {
+	if sha, err := gitHeadSHA(projectRoot); err == nil {
 		st.BaseRef = sha
 	}
 

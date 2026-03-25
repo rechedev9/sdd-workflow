@@ -193,13 +193,13 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		}
 	}
 
-	cwd, err := getCWD(stderr, "doctor")
+	projectRoot, err := getProjectRoot(stderr, "doctor")
 	if err != nil {
 		return err
 	}
 
-	configPath := openspecConfig(cwd)
-	changesDir := openspecChanges(cwd)
+	configPath := openspecConfig(projectRoot)
+	changesDir := openspecChanges(projectRoot)
 
 	configResult, cfg := checkConfig(configPath)
 	checks := []CheckResult{
@@ -208,7 +208,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) error {
 		checkOrphanedPending(changesDir),
 		checkSkillsPath(cfg),
 		checkBuildTools(cfg),
-		checkErrors(cwd),
+		checkErrors(projectRoot),
 		checkPprof(),
 	}
 

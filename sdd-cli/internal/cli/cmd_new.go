@@ -40,20 +40,20 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.Usage(err.Error())
 	}
 
-	cwd, err := getCWD(stderr, "new")
+	projectRoot, err := getProjectRoot(stderr, "new")
 	if err != nil {
 		return err
 	}
 
 	// Load config.
-	configPath := openspecConfig(cwd)
+	configPath := openspecConfig(projectRoot)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("load config (run 'sdd init' first): %w", err))
 	}
 
 	// Create change directory.
-	changeDir := filepath.Join(openspecChanges(cwd), name)
+	changeDir := filepath.Join(openspecChanges(projectRoot), name)
 	if err := os.MkdirAll(changeDir, 0o755); err != nil {
 		return errs.WriteError(stderr, "new", fmt.Errorf("create change dir: %w", err))
 	}
@@ -66,7 +66,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Capture git HEAD for diff support. Non-fatal: not all projects use git.
-	if sha, err := gitHeadSHA(cwd); err == nil {
+	if sha, err := gitHeadSHA(projectRoot); err == nil {
 		st.BaseRef = sha
 		_ = state.Save(st, statePath) // best-effort re-save
 	}
@@ -92,7 +92,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	// Run explore assembler to stdout.
-	db := tryOpenStore(cwd)
+	db := tryOpenStore(projectRoot)
 	if db != nil {
 		defer db.Close()
 	}
@@ -101,7 +101,7 @@ func runNew(args []string, stdout io.Writer, stderr io.Writer) error {
 		ChangeDir:   changeDir,
 		ChangeName:  name,
 		Description: description,
-		ProjectDir:  cwd,
+		ProjectDir:  projectRoot,
 		Config:      cfg,
 		SkillsPath:  cfg.SkillsPath,
 		Broker:      broker,

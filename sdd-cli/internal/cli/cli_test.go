@@ -83,6 +83,13 @@ func TestRunSubcommands(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			orig, _ := os.Getwd()
+			tmp := t.TempDir()
+			if err := os.Chdir(tmp); err != nil {
+				t.Fatalf("chdir temp dir: %v", err)
+			}
+			t.Cleanup(func() { os.Chdir(orig) })
+
 			var stdout, stderr bytes.Buffer
 			err := Run(tt.args, &stdout, &stderr)
 			if err == nil {
@@ -112,6 +119,13 @@ func TestRunErrorsWriteJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			orig, _ := os.Getwd()
+			tmp := t.TempDir()
+			if err := os.Chdir(tmp); err != nil {
+				t.Fatalf("chdir temp dir: %v", err)
+			}
+			t.Cleanup(func() { os.Chdir(orig) })
+
 			var stdout, stderr bytes.Buffer
 			_ = Run(tt.args, &stdout, &stderr)
 			if !strings.Contains(stderr.String(), tt.want) {

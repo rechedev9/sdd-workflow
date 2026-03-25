@@ -26,12 +26,12 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errs.WriteError(stderr, "diff", fmt.Errorf("base_ref not recorded; change was created before diff support"))
 	}
 
-	cwd, err := getCWD(stderr, "diff")
+	projectRoot, err := getProjectRoot(stderr, "diff")
 	if err != nil {
 		return err
 	}
 
-	files, err := gitDiffFiles(cwd, st.BaseRef)
+	files, err := gitDiffFiles(projectRoot, st.BaseRef)
 	if err != nil {
 		return errs.WriteError(stderr, "diff", fmt.Errorf("git diff: %w", err))
 	}
