@@ -332,6 +332,10 @@ func TestValidateChangeName(t *testing.T) {
 		{"forward slash", "a/b", true},
 		{"backslash", `a\b`, true},
 		{"path traversal", "../etc/passwd", true},
+		{"trailing dot", "foo.", true},
+		{"null byte", "foo\x00bar", true},
+		{"control char", "foo\x1fbar", true},
+		{"del char", "foo\x7fbar", true},
 	}
 
 	for _, tc := range tests {

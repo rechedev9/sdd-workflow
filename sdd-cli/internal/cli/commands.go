@@ -87,8 +87,16 @@ func validateChangeName(name string) error {
 	if strings.HasSuffix(name, ".lock") {
 		return fmt.Errorf("change name must not end with '.lock': %q", name)
 	}
+	if strings.HasSuffix(name, ".") {
+		return fmt.Errorf("change name must not end with '.': %q", name)
+	}
 	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "-") {
 		return fmt.Errorf("change name must not start with '.' or '-': %q", name)
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("change name contains control characters: %q", name)
+		}
 	}
 	return nil
 }
@@ -198,6 +206,22 @@ func gitHeadSHA(dir string) (string, error) {
 		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
 	}
 	return string(bytes.TrimSpace(out)), nil
+}
+
+// gitRequireClean returns an error if the working tree has uncommitted changes.
+func gitRequireClean(dir string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "status", "--porcelain")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("git status: %w", err)
+	}
+	if len(bytes.TrimSpace(out)) > 0 {
+		return fmt.Errorf("uncommitted changes detected")
+	}
+	return nil
 }
 
 // gitDiffFiles returns files changed between ref and the working tree.

@@ -182,6 +182,12 @@ func validate(s *State) error {
 	for _, p := range missing {
 		s.Phases[p] = StatusPending
 	}
+	// If current_phase is stale after migration (e.g. it points to a
+	// completed/skipped phase while newly inserted phases are pending),
+	// recalculate to the first ready phase.
+	if len(missing) > 0 && s.Phases[s.CurrentPhase] != StatusPending {
+		s.CurrentPhase = s.nextReady()
+	}
 	return nil
 }
 

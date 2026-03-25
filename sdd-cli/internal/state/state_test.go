@@ -503,6 +503,56 @@ func TestValidate_MissingPhase_AutoInserts(t *testing.T) {
 	}
 }
 
+func TestValidate_AutoMigrate_RecalculatesCurrentPhase(t *testing.T) {
+	t.Parallel()
+	// Simulate a pre-ship state.json: all phases through clean are completed,
+	// current_phase is "" (pipeline was "done"), and ship phase is missing.
+	s := NewState("test", "desc")
+	for _, p := range []Phase{
+		PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
+		PhaseTasks, PhaseApply, PhaseReview, PhaseVerify, PhaseClean,
+	} {
+		s.Phases[p] = StatusCompleted
+	}
+	// Remove ship+archive to simulate old state, then re-add archive as completed
+	// (like a state.json created before ship existed).
+	delete(s.Phases, PhaseShip)
+	s.Phases[PhaseArchive] = StatusCompleted
+	s.CurrentPhase = "" // pipeline was "done"
+
+	err := validate(s)
+	if err != nil {
+		t.Fatalf("validate should auto-insert ship, got: %v", err)
+	}
+	if s.Phases[PhaseShip] != StatusPending {
+		t.Errorf("ship should be auto-inserted as pending, got %q", s.Phases[PhaseShip])
+	}
+	// CurrentPhase must be recalculated to ship (the only pending phase with prereqs met).
+	if s.CurrentPhase != PhaseShip {
+		t.Errorf("current_phase = %q, want ship (recalculated after migration)", s.CurrentPhase)
+	}
+}
+
+func TestValidate_AutoMigrate_NoRecalcWhenCurrentStillPending(t *testing.T) {
+	t.Parallel()
+	// State with current_phase = apply (still pending), and ship missing.
+	// After migration, current_phase should remain apply (not recalculated).
+	s := NewState("test", "desc")
+	for _, p := range []Phase{PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign, PhaseTasks} {
+		s.Phases[p] = StatusCompleted
+	}
+	delete(s.Phases, PhaseShip)
+	s.CurrentPhase = PhaseApply // still pending
+
+	err := validate(s)
+	if err != nil {
+		t.Fatalf("validate should auto-insert ship, got: %v", err)
+	}
+	if s.CurrentPhase != PhaseApply {
+		t.Errorf("current_phase = %q, want apply (should not recalculate when still pending)", s.CurrentPhase)
+	}
+}
+
 func TestValidate_ManyMissing_ReturnsError(t *testing.T) {
 	t.Parallel()
 	// Delete 3 phases from a complete state → exceeds threshold.

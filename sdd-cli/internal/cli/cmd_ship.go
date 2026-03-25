@@ -55,6 +55,12 @@ func runShip(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
+	// Require clean working tree — uncommitted changes would not be pushed.
+	if err := gitRequireClean(cwd); err != nil {
+		return errs.WriteError(stderr, "ship",
+			fmt.Errorf("working tree is not clean; commit or stash changes first: %w", err))
+	}
+
 	// Check gh CLI.
 	if err := ghAuthStatus(cwd); err != nil {
 		return errs.WriteError(stderr, "ship", err)

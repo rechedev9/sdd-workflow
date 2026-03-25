@@ -120,18 +120,22 @@ func TestRunShip_TitleFlag(t *testing.T) {
 func TestValidateChangeName_GitRefUnsafe(t *testing.T) {
 	t.Parallel()
 	bad := []string{
-		"foo bar",  // space
-		"foo:bar",  // colon
-		"foo~bar",  // tilde
-		"foo^bar",  // caret
-		"foo?bar",  // question mark
-		"foo*bar",  // asterisk
-		"foo[bar",  // open bracket
-		"foo..bar", // double dot
-		"foo@{bar", // at-brace
-		"foo.lock", // .lock suffix
-		".hidden",  // leading dot
-		"-dashed",  // leading dash
+		"foo bar",       // space
+		"foo:bar",       // colon
+		"foo~bar",       // tilde
+		"foo^bar",       // caret
+		"foo?bar",       // question mark
+		"foo*bar",       // asterisk
+		"foo[bar",       // open bracket
+		"foo..bar",      // double dot
+		"foo@{bar",      // at-brace
+		"foo.lock",      // .lock suffix
+		".hidden",       // leading dot
+		"-dashed",       // leading dash
+		"foo.",          // trailing dot
+		"foo\x00bar",   // null byte (control char)
+		"foo\x1fbar",   // control char
+		"foo\x7fbar",   // DEL control char
 	}
 	for _, name := range bad {
 		if err := validateChangeName(name); err == nil {
