@@ -505,52 +505,80 @@ func TestValidate_MissingPhase_AutoInserts(t *testing.T) {
 
 func TestValidate_AutoMigrate_RecalculatesCurrentPhase(t *testing.T) {
 	t.Parallel()
-	// Simulate a pre-ship state.json: all phases through clean are completed,
-	// current_phase is "" (pipeline was "done"), and ship phase is missing.
-	s := NewState("test", "desc")
-	for _, p := range []Phase{
-		PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
-		PhaseTasks, PhaseApply, PhaseReview, PhaseVerify, PhaseClean,
-	} {
-		s.Phases[p] = StatusCompleted
-	}
-	// Remove ship+archive to simulate old state, then re-add archive as completed
-	// (like a state.json created before ship existed).
-	delete(s.Phases, PhaseShip)
-	s.Phases[PhaseArchive] = StatusCompleted
-	s.CurrentPhase = "" // pipeline was "done"
 
-	err := validate(s)
-	if err != nil {
-		t.Fatalf("validate should auto-insert ship, got: %v", err)
-	}
-	if s.Phases[PhaseShip] != StatusPending {
-		t.Errorf("ship should be auto-inserted as pending, got %q", s.Phases[PhaseShip])
-	}
-	// CurrentPhase must be recalculated to ship (the only pending phase with prereqs met).
-	if s.CurrentPhase != PhaseShip {
-		t.Errorf("current_phase = %q, want ship (recalculated after migration)", s.CurrentPhase)
-	}
-}
+	t.Run("current_phase_archive_pending_ship_missing", func(t *testing.T) {
+		t.Parallel()
+		// The realistic pre-ship state: all through clean completed,
+		// current_phase=archive, archive=pending, ship key absent.
+		// After migration ship is inserted as pending with prereqs met,
+		// so CurrentPhase must move to ship (earlier in pipeline).
+		s := NewState("test", "desc")
+		for _, p := range []Phase{
+			PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
+			PhaseTasks, PhaseApply, PhaseReview, PhaseVerify, PhaseClean,
+		} {
+			s.Phases[p] = StatusCompleted
+		}
+		delete(s.Phases, PhaseShip)
+		// archive stays pending (from NewState), current_phase points to it.
+		s.CurrentPhase = PhaseArchive
 
-func TestValidate_AutoMigrate_NoRecalcWhenCurrentStillPending(t *testing.T) {
-	t.Parallel()
-	// State with current_phase = apply (still pending), and ship missing.
-	// After migration, current_phase should remain apply (not recalculated).
-	s := NewState("test", "desc")
-	for _, p := range []Phase{PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign, PhaseTasks} {
-		s.Phases[p] = StatusCompleted
-	}
-	delete(s.Phases, PhaseShip)
-	s.CurrentPhase = PhaseApply // still pending
+		err := validate(s)
+		if err != nil {
+			t.Fatalf("validate should auto-insert ship, got: %v", err)
+		}
+		if s.Phases[PhaseShip] != StatusPending {
+			t.Errorf("ship should be auto-inserted as pending, got %q", s.Phases[PhaseShip])
+		}
+		if s.CurrentPhase != PhaseShip {
+			t.Errorf("current_phase = %q, want ship", s.CurrentPhase)
+		}
+	})
 
-	err := validate(s)
-	if err != nil {
-		t.Fatalf("validate should auto-insert ship, got: %v", err)
-	}
-	if s.CurrentPhase != PhaseApply {
-		t.Errorf("current_phase = %q, want apply (should not recalculate when still pending)", s.CurrentPhase)
-	}
+	t.Run("current_phase_empty_archive_completed", func(t *testing.T) {
+		t.Parallel()
+		// Edge case: pipeline was fully "done" (archive=completed),
+		// current_phase="" — ship missing. After migration → ship.
+		s := NewState("test", "desc")
+		for _, p := range []Phase{
+			PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
+			PhaseTasks, PhaseApply, PhaseReview, PhaseVerify, PhaseClean,
+		} {
+			s.Phases[p] = StatusCompleted
+		}
+		delete(s.Phases, PhaseShip)
+		s.Phases[PhaseArchive] = StatusCompleted
+		s.CurrentPhase = ""
+
+		err := validate(s)
+		if err != nil {
+			t.Fatalf("validate should auto-insert ship, got: %v", err)
+		}
+		if s.CurrentPhase != PhaseShip {
+			t.Errorf("current_phase = %q, want ship", s.CurrentPhase)
+		}
+	})
+
+	t.Run("current_phase_still_valid_pending", func(t *testing.T) {
+		t.Parallel()
+		// current_phase=apply (still pending, prereqs met), ship missing.
+		// After migration, nextReady() should still return apply
+		// because it comes before ship in pipeline order.
+		s := NewState("test", "desc")
+		for _, p := range []Phase{PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign, PhaseTasks} {
+			s.Phases[p] = StatusCompleted
+		}
+		delete(s.Phases, PhaseShip)
+		s.CurrentPhase = PhaseApply
+
+		err := validate(s)
+		if err != nil {
+			t.Fatalf("validate should auto-insert ship, got: %v", err)
+		}
+		if s.CurrentPhase != PhaseApply {
+			t.Errorf("current_phase = %q, want apply (earlier in pipeline)", s.CurrentPhase)
+		}
+	})
 }
 
 func TestValidate_ManyMissing_ReturnsError(t *testing.T) {

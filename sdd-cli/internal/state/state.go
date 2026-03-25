@@ -182,10 +182,12 @@ func validate(s *State) error {
 	for _, p := range missing {
 		s.Phases[p] = StatusPending
 	}
-	// If current_phase is stale after migration (e.g. it points to a
-	// completed/skipped phase while newly inserted phases are pending),
-	// recalculate to the first ready phase.
-	if len(missing) > 0 && s.Phases[s.CurrentPhase] != StatusPending {
+	// Recalculate current_phase after migration. The stored value may be
+	// stale — e.g. current_phase=archive with archive=pending and a newly
+	// inserted ship=pending whose prereqs are already met. nextReady()
+	// returns the first pending phase in pipeline order with prereqs met,
+	// so if current_phase was already correct it stays the same.
+	if len(missing) > 0 {
 		s.CurrentPhase = s.nextReady()
 	}
 	return nil
