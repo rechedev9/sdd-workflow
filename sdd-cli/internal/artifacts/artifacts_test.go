@@ -295,6 +295,52 @@ func TestListWithSpecs(t *testing.T) {
 	}
 }
 
+func TestList_NestedSpecSubdirs(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Exact real layout: specs/watch-cli/spec.md + specs/watch-loop/spec.md
+	os.MkdirAll(filepath.Join(dir, "specs", "watch-cli"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "specs", "watch-loop"), 0o755)
+	os.WriteFile(filepath.Join(dir, "specs", "watch-cli", "spec.md"), []byte("# Watch CLI Spec"), 0o644)
+	os.WriteFile(filepath.Join(dir, "specs", "watch-loop", "spec.md"), []byte("# Watch Loop Spec"), 0o644)
+
+	items, err := List(dir)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("item count = %d, want 2 (nested spec files)", len(items))
+	}
+
+	// Collect returned filenames for assertion.
+	filenames := map[string]bool{}
+	for _, item := range items {
+		if item.Phase != state.PhaseSpec {
+			t.Errorf("phase = %s, want spec", item.Phase)
+		}
+		filenames[item.Filename] = true
+		if item.Size == 0 {
+			t.Errorf("artifact %s has zero size", item.Filename)
+		}
+		// Path must be absolute and actually exist.
+		if !filepath.IsAbs(item.Path) {
+			t.Errorf("path %q is not absolute", item.Path)
+		}
+		if _, err := os.Stat(item.Path); err != nil {
+			t.Errorf("path %q does not exist: %v", item.Path, err)
+		}
+	}
+
+	wantA := filepath.Join("specs", "watch-cli", "spec.md")
+	wantB := filepath.Join("specs", "watch-loop", "spec.md")
+	if !filenames[wantA] {
+		t.Errorf("missing %q in filenames: %v", wantA, filenames)
+	}
+	if !filenames[wantB] {
+		t.Errorf("missing %q in filenames: %v", wantB, filenames)
+	}
+}
+
 func TestList_SpecsDirEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
