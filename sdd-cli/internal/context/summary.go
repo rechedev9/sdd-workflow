@@ -189,13 +189,44 @@ func compactDesign(content string) string {
 
 // projectContext returns a compact project overview string with stack info.
 func projectContext(p *Params) string {
-	return fmt.Sprintf(
-		"Project: %s\nLanguage: %s\nBuild Tool: %s\nManifests: %s",
-		p.Config.ProjectName,
-		p.Config.Stack.Language,
-		p.Config.Stack.BuildTool,
-		strings.Join(p.Config.Stack.Manifests, ", "),
-	)
+	parts := []string{
+		"Project: " + p.Config.ProjectName,
+		"Language: " + p.Config.Stack.Language,
+		"Build Tool: " + p.Config.Stack.BuildTool,
+		"Manifests: " + strings.Join(p.Config.Stack.Manifests, ", "),
+	}
+	if p.ProjectDir != "" {
+		parts = append(parts,
+			"Project Root: "+p.ProjectDir,
+			"Execution Root: Run all build/test/lint commands from the Project Root above.",
+		)
+	}
+
+	if cmds := configuredCommands(p); len(cmds) > 0 {
+		parts = append(parts, cmds...)
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func configuredCommands(p *Params) []string {
+	if p == nil || p.Config == nil {
+		return nil
+	}
+	cmds := make([]string, 0, 4)
+	if p.Config.Commands.Build != "" {
+		cmds = append(cmds, "Build Command: "+p.Config.Commands.Build)
+	}
+	if p.Config.Commands.Test != "" {
+		cmds = append(cmds, "Test Command: "+p.Config.Commands.Test)
+	}
+	if p.Config.Commands.Lint != "" {
+		cmds = append(cmds, "Lint Command: "+p.Config.Commands.Lint)
+	}
+	if p.Config.Commands.Format != "" {
+		cmds = append(cmds, "Format Command: "+p.Config.Commands.Format)
+	}
+	return cmds
 }
 
 // manifestReadLimit is the max bytes read per manifest file.

@@ -217,6 +217,43 @@ func TestLoadManifestContents_EmptyFile(t *testing.T) {
 	}
 }
 
+func TestProjectContext_IncludesExecutionRootAndCommands(t *testing.T) {
+	t.Parallel()
+	p := &Params{
+		ProjectDir: "/tmp/worktree/sdd-cli",
+		Config: &config.Config{
+			ProjectName: "sdd-cli",
+			Stack: config.Stack{
+				Language:  "go",
+				BuildTool: "go",
+				Manifests: []string{"go.mod"},
+			},
+			Commands: config.Commands{
+				Build: "go build ./...",
+				Test:  "go test ./...",
+				Lint:  "golangci-lint run ./...",
+			},
+		},
+	}
+
+	got := projectContext(p)
+	if !strings.Contains(got, "Project Root: /tmp/worktree/sdd-cli") {
+		t.Fatalf("missing project root in project context: %q", got)
+	}
+	if !strings.Contains(got, "Execution Root: Run all build/test/lint commands from the Project Root above.") {
+		t.Fatalf("missing execution root instruction: %q", got)
+	}
+	if !strings.Contains(got, "Build Command: go build ./...") {
+		t.Fatalf("missing build command: %q", got)
+	}
+	if !strings.Contains(got, "Test Command: go test ./...") {
+		t.Fatalf("missing test command: %q", got)
+	}
+	if !strings.Contains(got, "Lint Command: golangci-lint run ./...") {
+		t.Fatalf("missing lint command: %q", got)
+	}
+}
+
 func TestExtractFirst_SubHeaderBeforeContent(t *testing.T) {
 	t.Parallel()
 	// Hit the continue branch: collecting=true, sub-header encountered before any content.

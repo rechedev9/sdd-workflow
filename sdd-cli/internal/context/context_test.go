@@ -39,6 +39,11 @@ func setupFixture(t *testing.T) (string, string, *Params) {
 			BuildTool: "go",
 			Manifests: []string{"go.mod"},
 		},
+		Commands: config.Commands{
+			Build: "go build ./...",
+			Test:  "go test ./...",
+			Lint:  "golangci-lint run ./...",
+		},
 	}
 
 	p := &Params{
@@ -75,6 +80,15 @@ func TestAssembleExplore(t *testing.T) {
 	}
 	if !strings.Contains(out, "test-project") {
 		t.Error("missing project name")
+	}
+	if !strings.Contains(out, "Project Root: "+p.ProjectDir) {
+		t.Error("missing explicit project root")
+	}
+	if !strings.Contains(out, "Execution Root: Run all build/test/lint commands from the Project Root above.") {
+		t.Error("missing execution root instruction")
+	}
+	if !strings.Contains(out, "Test Command: go test ./...") {
+		t.Error("missing configured test command")
 	}
 	if !strings.Contains(out, "--- CHANGE ---") {
 		t.Error("missing CHANGE section")
@@ -135,6 +149,12 @@ func TestAssembleSpec(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "sdd-spec") {
 		t.Error("missing sdd-spec skill content")
+	}
+	if !strings.Contains(out, "Project Root: "+p.ProjectDir) {
+		t.Error("missing explicit project root in spec context")
+	}
+	if !strings.Contains(out, "Execution Root: Run all build/test/lint commands from the Project Root above.") {
+		t.Error("missing execution root instruction in spec context")
 	}
 	if !strings.Contains(out, "--- PROPOSAL ---") {
 		t.Error("missing PROPOSAL section")
