@@ -80,6 +80,8 @@ func TestRunSubcommands(t *testing.T) {
 		{"diff no change", []string{"diff", "nonexistent"}, 1},
 		{"health missing args", []string{"health"}, 2},
 		{"health no change", []string{"health", "nonexistent"}, 1},
+		{"watch missing args", []string{"watch"}, 2},
+		{"watch no change", []string{"watch", "nonexistent"}, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,6 +118,7 @@ func TestRunErrorsWriteJSON(t *testing.T) {
 		{"archive no change", []string{"archive", "nope"}, `"command":"archive"`},
 		{"diff no change", []string{"diff", "nope"}, `"command":"diff"`},
 		{"health no change", []string{"health", "nope"}, `"command":"health"`},
+		{"watch no change", []string{"watch", "nope"}, `"command":"watch"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -538,5 +541,47 @@ func TestRunDump_LegacyHashFormat(t *testing.T) {
 	}
 	if cacheKeys["explore"] != "deadbeef" {
 		t.Errorf("cache_keys[explore] = %v, want deadbeef", cacheKeys["explore"])
+	}
+}
+
+func TestRunDispatch_Watch(t *testing.T) {
+	// "watch foo" should dispatch to runWatch, not return "unknown command".
+	// It will fail because "foo" doesn't exist, but the error should NOT be
+	// "unknown command: watch".
+	orig, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(orig) })
+	os.Chdir(t.TempDir())
+
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"watch", "foo"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error (change not found), got nil")
+	}
+	if strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("watch should be dispatched, not 'unknown command': %v", err)
+	}
+}
+
+func TestRunHelp_ContainsWatch(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"help"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "watch") {
+		t.Error("help output should contain 'watch'")
+	}
+}
+
+func TestRunWatch_PerCommandHelp(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := Run([]string{"watch", "--help"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "debounce") {
+		t.Error("watch --help should mention debounce")
 	}
 }
