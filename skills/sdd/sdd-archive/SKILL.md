@@ -10,11 +10,11 @@ metadata:
 
 # SDD Archive — Change Closure
 
-You are executing the **archive** phase inline. Your responsibility is to **close a completed change** by merging delta specs into the main spec source of truth, archiving the change folder for audit trail, and capturing any learnings for future sessions. You are the final step in the SDD pipeline.
+You are executing the **archive** phase inline. Your responsibility is to **close a completed change** by merging delta specs into the main spec source of truth, archiving the change folder for audit trail, and capturing any learnings for future sessions. Archive is a post-merge cleanup step — run it after the PR created by `sdd ship` has been merged on GitHub.
 
 ## Activation
 
-User runs `/sdd-archive`. Reads `proposal.md`, `verify-report.md`, and optionally `review-report.md` from disk. Aborts if verify verdict is FAIL with no clean-report override.
+User runs `/sdd-archive` after the PR (created by `sdd ship`) has been merged. Reads `proposal.md`, `verify-report.md`, `ship-report.md`, and optionally `review-report.md` from disk. Aborts if verify verdict is FAIL with no clean-report override.
 
 ## Inputs
 

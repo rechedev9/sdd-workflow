@@ -19,7 +19,8 @@ func FuzzValidate(f *testing.F) {
 	f.Add(uint8(6), []byte("## Review\nmain.go:42\nPASS\n"))           // review
 	f.Add(uint8(7), []byte("## Verify\n"))                             // verify (no rules)
 	f.Add(uint8(8), []byte("## Clean\n"))                              // clean
-	f.Add(uint8(9), []byte("## Archive\n"))                            // archive (no rules)
+	f.Add(uint8(9), []byte("## Ship\n"))                               // ship (no rules)
+	f.Add(uint8(10), []byte("## Archive\n"))                           // archive (no rules)
 
 	// Edge cases.
 	f.Add(uint8(0), []byte{})                                            // empty

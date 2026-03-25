@@ -41,6 +41,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runList(rest, stdout, stderr)
 	case "verify":
 		return runVerify(rest, stdout, stderr)
+	case "ship":
+		return runShip(rest, stdout, stderr)
 	case "archive":
 		return runArchive(rest, stdout, stderr)
 	case "diff":
@@ -92,6 +94,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  context <name>    Assemble context for current (or specified) phase")
 	fmt.Fprintln(w, "  write <name> <ph> Promote .pending artifact, advance state machine")
 	fmt.Fprintln(w, "  verify <name>     Run build/lint/test quality gate (zero tokens)")
+	fmt.Fprintln(w, "  ship <name>       Create branch, push, open PR (trunk-based)")
 	fmt.Fprintln(w, "  archive <name>    Archive completed change (zero tokens)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Inspection commands:")
@@ -156,7 +159,7 @@ the current phase from state.json.
 
 Arguments:
   name          Change name
-  phase         Optional: explore, propose, spec, design, tasks, apply, review, clean
+  phase         Optional: explore, propose, spec, design, tasks, apply, review, clean, ship
 
 Flags:
   --json        Wrap assembled context in JSON envelope with byte/token counts
@@ -345,6 +348,29 @@ Flags:
 Output: JSON with change info, skipped phases, and current phase (apply).
 Exit:   0 success, 1 error, 2 usage`,
 
+	"ship": `sdd ship — Create branch, push, and open PR
+
+Usage: sdd ship <name> [--dry-run] [--title <title>]
+
+Creates an ephemeral branch sdd/<name> from the current HEAD, pushes it
+to origin, and opens a pull request via gh CLI. The PR body is assembled
+from proposal.md and design.md artifacts.
+
+Requires all prerequisite phases (through clean) to be completed.
+Requires the gh CLI to be installed and authenticated.
+
+After the PR is merged on GitHub, run 'sdd archive <name>' to clean up.
+
+Arguments:
+  name          Change name
+
+Flags:
+  --dry-run     Show what would happen without executing
+  --title <t>   Override the PR title (default: feat(<name>): <description>)
+
+Output: JSON with branch name, PR URL, and files count.
+Exit:   0 success, 1 error, 2 usage`,
+
 	"archive": `sdd archive — Archive completed change
 
 Usage: sdd archive <name> [--force]
@@ -352,7 +378,7 @@ Usage: sdd archive <name> [--force]
 Moves the change directory to openspec/changes/archive/<timestamp>-<name>/
 and writes archive-manifest.md listing all preserved artifacts.
 
-Requires all prerequisite phases (through clean) to be completed.
+Requires all prerequisite phases (through ship) to be completed.
 Use --force to archive even when prerequisites are not met.
 
 This is a zero-token operation — runs entirely in Go.

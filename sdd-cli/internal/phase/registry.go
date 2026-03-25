@@ -2,7 +2,7 @@ package phase
 
 import "time"
 
-// builtinPhases defines all 10 SDD pipeline phases in pipeline order.
+// builtinPhases defines all 11 SDD pipeline phases in pipeline order.
 // Assemble fields are nil here — wired by context.init() via SetAssembler.
 var builtinPhases = []Phase{
 	{
@@ -73,14 +73,22 @@ var builtinPhases = []Phase{
 	{
 		Name:          "clean",
 		Prerequisites: []string{"verify"},
-		NextPhases:    []string{"archive"},
+		NextPhases:    []string{"ship"},
 		ArtifactFile:  "clean-report.md",
 		CacheInputs:   []string{"verify-report.md", "tasks.md", "design.md", "specs/"},
 		CacheTTL:      1 * time.Hour,
 	},
 	{
-		Name:          "archive",
+		Name:          "ship",
 		Prerequisites: []string{"clean"},
+		NextPhases:    []string{"archive"},
+		ArtifactFile:  "ship-report.md",
+		CacheInputs:   []string{},
+		CacheTTL:      0,
+	},
+	{
+		Name:          "archive",
+		Prerequisites: []string{"ship"},
 		NextPhases:    []string{},
 		ArtifactFile:  "archive-manifest.md",
 		CacheInputs:   []string{},

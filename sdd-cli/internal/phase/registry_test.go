@@ -11,8 +11,8 @@ import (
 func TestBuiltinPhaseCount(t *testing.T) {
 	t.Parallel()
 	all := phase.DefaultRegistry.All()
-	if len(all) != 10 {
-		t.Fatalf("expected 10 built-in phases, got %d", len(all))
+	if len(all) != 11 {
+		t.Fatalf("expected 11 built-in phases, got %d", len(all))
 	}
 }
 
@@ -73,7 +73,7 @@ func TestAllPhasesOrder(t *testing.T) {
 	t.Parallel()
 	expected := []string{
 		"explore", "propose", "spec", "design", "tasks",
-		"apply", "review", "verify", "clean", "archive",
+		"apply", "review", "verify", "clean", "ship", "archive",
 	}
 	names := phase.DefaultRegistry.AllNames()
 	if len(names) != len(expected) {
@@ -92,7 +92,7 @@ func TestVerifyAndArchiveHaveNilAssemble(t *testing.T) {
 	// verify and archive should remain nil even after wiring (they have
 	// no assembler). This test runs in the phase package — context.init()
 	// has NOT run, so we only check the default state.
-	for _, name := range []string{"verify", "archive"} {
+	for _, name := range []string{"verify", "ship", "archive"} {
 		p, ok := phase.DefaultRegistry.Get(name)
 		if !ok {
 			t.Fatalf("phase %q not found", name)

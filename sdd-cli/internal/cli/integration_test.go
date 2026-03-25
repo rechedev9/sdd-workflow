@@ -14,7 +14,7 @@ import (
 )
 
 // TestEndToEndPipeline exercises the full SDD pipeline in a temp directory:
-// init → new → write (explore..review) → verify → write clean → status → list → archive.
+// init → new → write (explore..review) → verify → write (clean, ship) → status → list → archive.
 func TestEndToEndPipeline(t *testing.T) {
 	root := t.TempDir()
 
@@ -211,7 +211,20 @@ func TestEndToEndPipeline(t *testing.T) {
 		}
 	})
 
-	// ── Step 7: sdd archive ──────────────────────────────────────
+	// ── Step 7: advance ship via sdd write (ship needs git remote) ──
+	t.Run("write_ship", func(t *testing.T) {
+		shipContent := "# Ship Report\n\n**Branch:** `sdd/test-feature`\n**PR:** https://github.com/test/repo/pull/1\n"
+		if err := artifacts.WritePending(changeDir, state.PhaseShip, []byte(shipContent)); err != nil {
+			t.Fatalf("write pending ship: %v", err)
+		}
+		var stdout, stderr bytes.Buffer
+		err := Run([]string{"write", "test-feature", "ship"}, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("write ship failed: %v\nstderr: %s", err, stderr.String())
+		}
+	})
+
+	// ── Step 8: sdd archive ──────────────────────────────────────
 	t.Run("archive", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		err := Run([]string{"archive", "test-feature"}, &stdout, &stderr)
@@ -249,7 +262,7 @@ func TestEndToEndPipeline(t *testing.T) {
 		assertFile(t, filepath.Join(archivePath, "tasks.md"))
 	})
 
-	// ── Step 8: list after archive — should be empty ─────────────
+	// ── Step 9: list after archive — should be empty ─────────────
 	t.Run("list_after_archive", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		err := Run([]string{"list"}, &stdout, &stderr)

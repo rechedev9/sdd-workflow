@@ -17,7 +17,7 @@ import (
 //   explore ──→ propose ──→ spec  ──┐
 //                           design ─┤ (spec + design are parallel after propose)
 //                                   ↓
-//                                 tasks ──→ apply ──→ review ──→ verify ──→ clean ──→ archive
+//                                 tasks ──→ apply ──→ review ──→ verify ──→ clean ──→ ship ──→ archive
 //
 // spec and design both require propose completed.
 // tasks requires BOTH spec AND design completed.
@@ -154,7 +154,15 @@ func Load(path string) (*State, error) {
 	return &s, nil
 }
 
+// maxAutoMigratePhases is the maximum number of missing phases that validate()
+// will auto-insert as pending. Beyond this threshold, the state is likely corrupt
+// rather than just missing a newly added phase.
+const maxAutoMigratePhases = 2
+
 // validate checks that a loaded state has all required fields.
+// Up to 2 missing phases are auto-inserted as pending for backward compatibility
+// (e.g. state.json created before the "ship" phase was added).
+// More than 2 missing phases is treated as corruption.
 func validate(s *State) error {
 	if s.Name == "" {
 		return errors.New("missing name")
@@ -162,10 +170,17 @@ func validate(s *State) error {
 	if s.Phases == nil {
 		return errors.New("missing phases map")
 	}
+	var missing []Phase
 	for _, p := range AllPhases() {
 		if _, ok := s.Phases[p]; !ok {
-			return fmt.Errorf("missing phase: %s", p)
+			missing = append(missing, p)
 		}
+	}
+	if len(missing) > maxAutoMigratePhases {
+		return fmt.Errorf("missing %d phases (possible corruption): %v", len(missing), missing)
+	}
+	for _, p := range missing {
+		s.Phases[p] = StatusPending
 	}
 	return nil
 }

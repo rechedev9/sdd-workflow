@@ -43,8 +43,11 @@ func TestValidTransitions(t *testing.T) {
 		{"clean after verify", func(s *State) {
 			completeUpTo(s, PhaseVerify)
 		}, PhaseClean},
-		{"archive after clean", func(s *State) {
+		{"ship after clean", func(s *State) {
 			completeUpTo(s, PhaseClean)
+		}, PhaseShip},
+		{"archive after ship", func(s *State) {
+			completeUpTo(s, PhaseShip)
 		}, PhaseArchive},
 	}
 	for _, tt := range tests {
@@ -87,6 +90,9 @@ func TestInvalidTransitions(t *testing.T) {
 		{"apply without tasks", func(s *State) {
 			completeUpTo(s, PhaseDesign)
 		}, PhaseApply, ErrPrerequisitesNotMet},
+		{"archive without ship", func(s *State) {
+			completeUpTo(s, PhaseClean)
+		}, PhaseArchive, ErrPrerequisitesNotMet},
 		{"already completed", func(s *State) {
 			s.Phases[PhaseExplore] = StatusCompleted
 		}, PhaseExplore, ErrAlreadyCompleted},
@@ -118,7 +124,7 @@ func TestAdvance(t *testing.T) {
 	steps := []Phase{
 		PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
 		PhaseTasks, PhaseApply, PhaseReview, PhaseVerify,
-		PhaseClean, PhaseArchive,
+		PhaseClean, PhaseShip, PhaseArchive,
 	}
 	for _, step := range steps {
 		if err := s.Advance(step); err != nil {
@@ -283,21 +289,55 @@ func TestLoadMissingName(t *testing.T) {
 	}
 }
 
-func TestLoadMissingPhase(t *testing.T) {
+func TestLoadMissingPhase_AutoMigrates(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
 
+	// Simulate a pre-ship state.json: all phases except ship (1 missing → auto-migrate).
 	s := &State{Name: "test", Phases: map[Phase]PhaseStatus{
-		PhaseExplore: StatusPending,
-		// Missing other phases.
+		PhaseExplore: StatusCompleted,
+		PhasePropose: StatusCompleted,
+		PhaseSpec:    StatusCompleted,
+		PhaseDesign:  StatusCompleted,
+		PhaseTasks:   StatusPending,
+		PhaseApply:   StatusPending,
+		PhaseReview:  StatusPending,
+		PhaseVerify:  StatusPending,
+		PhaseClean:   StatusPending,
+		// PhaseShip missing — should be auto-inserted as pending.
+		PhaseArchive: StatusPending,
+	}}
+	data, _ := json.Marshal(s)
+	os.WriteFile(path, data, 0o644)
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load should auto-migrate 1 missing phase, got: %v", err)
+	}
+	if loaded.Phases[PhaseExplore] != StatusCompleted {
+		t.Errorf("explore should remain completed, got %q", loaded.Phases[PhaseExplore])
+	}
+	if loaded.Phases[PhaseShip] != StatusPending {
+		t.Errorf("ship should be auto-inserted as pending, got %q", loaded.Phases[PhaseShip])
+	}
+}
+
+func TestLoadManyMissingPhases_ReturnsError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	// Only 1 phase present, 10 missing → exceeds threshold → corruption.
+	s := &State{Name: "test", Phases: map[Phase]PhaseStatus{
+		PhaseExplore: StatusCompleted,
 	}}
 	data, _ := json.Marshal(s)
 	os.WriteFile(path, data, 0o644)
 
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for missing phases")
+		t.Fatal("expected error for many missing phases (corruption)")
 	}
 	if !errors.Is(err, ErrCorruptState) {
 		t.Errorf("error = %v, want ErrCorruptState", err)
@@ -395,7 +435,7 @@ func completeUpTo(s *State, target Phase) {
 	order := []Phase{
 		PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
 		PhaseTasks, PhaseApply, PhaseReview, PhaseVerify,
-		PhaseClean, PhaseArchive,
+		PhaseClean, PhaseShip, PhaseArchive,
 	}
 	for _, p := range order {
 		s.Phases[p] = StatusCompleted
@@ -448,15 +488,32 @@ func TestReadyPhases_Empty(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingPhase(t *testing.T) {
+func TestValidate_MissingPhase_AutoInserts(t *testing.T) {
 	t.Parallel()
-	// Build a state JSON missing one phase to hit the validate loop.
+	// Build a state missing one phase — validate auto-inserts as pending.
 	s := NewState("test", "desc")
-	delete(s.Phases, PhaseApply) // remove a phase
+	delete(s.Phases, PhaseApply)
+
+	err := validate(s)
+	if err != nil {
+		t.Fatalf("validate should auto-insert missing phases, got: %v", err)
+	}
+	if s.Phases[PhaseApply] != StatusPending {
+		t.Errorf("apply should be auto-inserted as pending, got %q", s.Phases[PhaseApply])
+	}
+}
+
+func TestValidate_ManyMissing_ReturnsError(t *testing.T) {
+	t.Parallel()
+	// Delete 3 phases from a complete state → exceeds threshold.
+	s := NewState("test", "desc")
+	delete(s.Phases, PhaseApply)
+	delete(s.Phases, PhaseReview)
+	delete(s.Phases, PhaseShip)
 
 	err := validate(s)
 	if err == nil {
-		t.Fatal("expected error for missing phase in validate")
+		t.Fatal("expected error for 3+ missing phases")
 	}
 }
 

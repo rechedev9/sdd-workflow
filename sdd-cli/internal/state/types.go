@@ -20,6 +20,7 @@ const (
 	PhaseReview  Phase = "review"
 	PhaseVerify  Phase = "verify"
 	PhaseClean   Phase = "clean"
+	PhaseShip    Phase = "ship"
 	PhaseArchive Phase = "archive"
 )
 
@@ -47,7 +48,7 @@ type State struct {
 // NewState creates a fresh state for a new change.
 func NewState(name, description string) *State {
 	now := time.Now().UTC()
-	phases := make(map[Phase]PhaseStatus, 10)
+	phases := make(map[Phase]PhaseStatus, len(AllPhases()))
 	for _, p := range AllPhases() {
 		phases[p] = StatusPending
 	}

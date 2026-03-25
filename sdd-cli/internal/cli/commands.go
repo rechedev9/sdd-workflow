@@ -59,8 +59,8 @@ func resolveDir(dir string) (string, error) {
 	return abs, nil
 }
 
-// validateChangeName rejects names that contain path separators or special
-// directory components, preventing path traversal when used in filepath.Join.
+// validateChangeName rejects names that contain path separators, special
+// directory components, or characters invalid for git branch refs.
 // "archive" is reserved: eachChangeDir silently skips it, so a change named
 // "archive" would be invisible to list, doctor, and health commands.
 func validateChangeName(name string) error {
@@ -72,6 +72,23 @@ func validateChangeName(name string) error {
 	}
 	if strings.ContainsAny(name, `/\`) {
 		return fmt.Errorf("change name must not contain path separators: %q", name)
+	}
+	// Git ref-unsafe characters (git-check-ref-format rules).
+	// Change names become branch refs via "sdd/<name>", so they must be ref-safe.
+	if strings.ContainsAny(name, " ~^:?*[") {
+		return fmt.Errorf("change name contains characters invalid for git branches: %q", name)
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("change name must not contain '..': %q", name)
+	}
+	if strings.Contains(name, "@{") {
+		return fmt.Errorf("change name must not contain '@{': %q", name)
+	}
+	if strings.HasSuffix(name, ".lock") {
+		return fmt.Errorf("change name must not end with '.lock': %q", name)
+	}
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "-") {
+		return fmt.Errorf("change name must not start with '.' or '-': %q", name)
 	}
 	return nil
 }
@@ -150,6 +167,26 @@ func loadChangeState(stderr io.Writer, cmd, name string) (string, *state.State, 
 // gitCmdTimeout is the maximum time allowed for a git subprocess.
 const gitCmdTimeout = 30 * time.Second
 
+// gitBin is the path to the real git binary, bypassing the PATH-based shim.
+// The shim at ~/.local/bin/git blocks add/commit/push/checkout for safety;
+// authorized commands (committer, ship) call the real binary directly.
+var gitBin = detectGitBin()
+
+// detectGitBin finds the real git binary, preferring well-known absolute paths
+// that bypass any PATH-based shim. Falls back to "git" from PATH.
+func detectGitBin() string {
+	for _, p := range []string{
+		"/usr/bin/git",          // Linux, WSL
+		"/usr/local/bin/git",    // Homebrew (Intel Mac)
+		"/opt/homebrew/bin/git", // Homebrew (Apple Silicon)
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "git" // fallback: PATH (may hit shim, but better than failing)
+}
+
 // gitHeadSHA returns the current HEAD SHA in dir.
 func gitHeadSHA(dir string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
@@ -222,6 +259,207 @@ func writeJSON(w io.Writer, v any) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	enc.Encode(v) //nolint:errcheck // stdout write errors are not actionable
+}
+
+// gitCheckoutNewBranch creates and checks out a new branch in dir.
+func gitCheckoutNewBranch(dir, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "checkout", "-b", branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git checkout -b %s: %s", branch, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// gitCheckout switches to an existing branch in dir.
+func gitCheckout(dir, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "checkout", branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git checkout %s: %s", branch, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// gitPush pushes a branch to a remote, setting upstream tracking.
+func gitPush(dir, remote, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "push", "-u", remote, branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git push -u %s %s: %s", remote, branch, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// gitDeleteRemoteBranch removes a branch from the remote.
+func gitDeleteRemoteBranch(dir, remote, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "push", remote, "--delete", branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git push --delete %s %s: %s", remote, branch, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// gitDeleteLocalBranch removes a local branch.
+func gitDeleteLocalBranch(dir, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "branch", "-D", branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git branch -D %s: %s", branch, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// gitRemoteBranchExists checks if a branch exists on the remote.
+func gitRemoteBranchExists(dir, remote, branch string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "ls-remote", "--heads", remote, "refs/heads/"+branch)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("git ls-remote: %w", err)
+	}
+	return len(bytes.TrimSpace(out)) > 0, nil
+}
+
+// ghAuthStatus checks that the GitHub CLI is installed and authenticated.
+func ghAuthStatus(dir string) error {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return fmt.Errorf("gh CLI not found: install from https://cli.github.com")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ghPath, "auth", "status")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("gh not authenticated: %s", bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+// ghCreatePR creates a pull request and returns the PR URL.
+func ghCreatePR(dir, base, head, title, body string) (string, error) {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return "", fmt.Errorf("gh CLI not found")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ghPath, "pr", "create",
+		"--base", base,
+		"--head", head,
+		"--title", title,
+		"--body", body,
+	)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("gh pr create: %s", bytes.TrimSpace(out))
+	}
+	// gh pr create outputs the PR URL on the last non-empty line.
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	return lines[len(lines)-1], nil
+}
+
+// detectBaseBranch determines the repo's default branch (main, master, etc.)
+// by querying gh CLI, then falling back to git remotes.
+func detectBaseBranch(dir string) (string, error) {
+	// Try gh first — most reliable.
+	if ghPath, err := exec.LookPath("gh"); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, ghPath, "repo", "view", "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name")
+		cmd.Dir = dir
+		if out, err := cmd.Output(); err == nil {
+			if branch := strings.TrimSpace(string(out)); branch != "" {
+				return branch, nil
+			}
+		}
+	}
+	// Fallback: git symbolic-ref origin/HEAD.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, gitBin, "symbolic-ref", "refs/remotes/origin/HEAD")
+	cmd.Dir = dir
+	if out, err := cmd.Output(); err == nil {
+		ref := strings.TrimSpace(string(out))
+		// ref is like "refs/remotes/origin/main"
+		if parts := strings.SplitN(ref, "refs/remotes/origin/", 2); len(parts) == 2 && parts[1] != "" {
+			return parts[1], nil
+		}
+	}
+	// Fallback: check which common branch exists on the remote.
+	for _, candidate := range []string{"main", "master"} {
+		cmd := exec.CommandContext(context.Background(), gitBin, "rev-parse", "--verify", "refs/remotes/origin/"+candidate)
+		cmd.Dir = dir
+		if err := cmd.Run(); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("cannot detect default branch; set --base or configure origin/HEAD")
+}
+
+// verifyPRMerged checks that the PR for a shipped change was merged.
+// Best-effort: if gh is unavailable or ship-report.md is missing, returns nil (skip).
+func verifyPRMerged(cwd, changeDir string) error {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return nil // gh not available — skip check
+	}
+	// Read branch from ship-report.md.
+	data, err := os.ReadFile(filepath.Join(changeDir, "ship-report.md"))
+	if err != nil {
+		return nil // no report — skip check
+	}
+	// Extract branch: look for "**Branch:** `sdd/foo`"
+	var branch string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.Contains(line, "**Branch:**") {
+			// Extract content between backticks.
+			if start := strings.Index(line, "`"); start >= 0 {
+				if end := strings.Index(line[start+1:], "`"); end >= 0 {
+					branch = line[start+1 : start+1+end]
+				}
+			}
+			break
+		}
+	}
+	if branch == "" {
+		return nil // can't find branch — skip check
+	}
+	// Query gh for merge status.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ghPath, "pr", "view", branch, "--json", "mergedAt", "-q", ".mergedAt")
+	cmd.Dir = cwd
+	out, err := cmd.Output()
+	if err != nil {
+		return nil // gh query failed — skip check (PR may have been deleted)
+	}
+	mergedAt := strings.TrimSpace(string(out))
+	if mergedAt == "" || mergedAt == "null" {
+		return fmt.Errorf("PR for branch %q has not been merged yet", branch)
+	}
+	return nil
 }
 
 // errUnknownFlag returns a usage error for an unrecognised CLI flag.

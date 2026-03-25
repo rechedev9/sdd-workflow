@@ -110,7 +110,7 @@ openspec/
 
 ```
 explore → propose → spec ──┐
-                   design ─┴→ tasks → apply → review → verify → clean → archive
+                   design ─┴→ tasks → apply → review → verify → clean → ship → archive
 ```
 
 `spec` and `design` are independent parallelizable branches that both require `propose` to complete. `tasks` requires both `spec` AND `design`.
@@ -336,7 +336,7 @@ Special case: `PhaseSpec` promotes into `specs/{phase}.md` inside a `specs/` dir
 2. `os.Rename(changeDir, archivePath)` — atomic directory move.
 3. `writeManifest(archivePath, ...)` — scans directory, counts phase artifacts and spec files, writes `archive-manifest.md` atomically (tmp + rename).
 
-`sdd archive` guards the operation with `st.CanTransition(PhaseArchive)` — the entire pipeline through `clean` must be completed first.
+`sdd archive` guards the operation with `st.CanTransition(PhaseArchive)` — the entire pipeline through `ship` must be completed first.
 
 ---
 
@@ -404,7 +404,7 @@ The 100KB limit is a hard error, not a soft warning. The intent is to keep sub-a
 
 ### Verify is zero-token
 
-`sdd verify` and `sdd archive` run entirely in Go without invoking Claude. They are "free" pipeline steps. This is a deliberate design point: quality gates should not consume token budget.
+`sdd verify`, `sdd ship`, and `sdd archive` run entirely in Go without invoking Claude. They are "free" pipeline steps. This is a deliberate design point: quality gates and shipping should not consume token budget.
 
 ### Error classification at the boundary
 

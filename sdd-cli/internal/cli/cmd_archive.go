@@ -38,6 +38,20 @@ func runArchive(args []string, stdout io.Writer, stderr io.Writer) error {
 		slog.Warn("archive --force: skipping prerequisite check", "error", err)
 	}
 
+	// Verify PR was merged before archiving (best-effort).
+	if st.Phases[state.PhaseShip] == state.StatusCompleted {
+		cwd, err := getCWD(stderr, "archive")
+		if err != nil {
+			return err
+		}
+		if err := verifyPRMerged(cwd, changeDir); err != nil {
+			if !force {
+				return errs.WriteError(stderr, "archive", fmt.Errorf("PR not merged: %w", err))
+			}
+			slog.Warn("archive --force: skipping PR merge check", "error", err)
+		}
+	}
+
 	// Execute archive.
 	result, err := verify.Archive(changeDir)
 	if err != nil {

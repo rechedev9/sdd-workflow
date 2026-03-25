@@ -711,10 +711,10 @@ func TestRunDoctor_FailPath(t *testing.T) {
 func TestCheckSkillsPathAllPresent(t *testing.T) {
 	t.Parallel()
 	skillsDir := t.TempDir()
-	// Create SKILL.md for all 10 phases → pass.
+	// Create SKILL.md for all 11 phases → pass.
 	for _, name := range []string{
 		"explore", "propose", "spec", "design", "tasks",
-		"apply", "review", "verify", "clean", "archive",
+		"apply", "review", "verify", "clean", "ship", "archive",
 	} {
 		phaseDir := filepath.Join(skillsDir, "sdd-"+name)
 		os.MkdirAll(phaseDir, 0o755)
@@ -725,7 +725,7 @@ func TestCheckSkillsPathAllPresent(t *testing.T) {
 	if r.Status != "pass" {
 		t.Errorf("expected pass for all skills present, got %q", r.Status)
 	}
-	if !strings.Contains(r.Message, "10/10") {
-		t.Errorf("expected '10/10' in message, got %q", r.Message)
+	if !strings.Contains(r.Message, "11/11") {
+		t.Errorf("expected '11/11' in message, got %q", r.Message)
 	}
 }

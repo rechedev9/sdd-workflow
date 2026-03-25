@@ -110,7 +110,15 @@ Agent(
 sdd write <name> clean
 ```
 
-Suggest `/sdd-archive`.
+Suggest `/sdd-ship`.
+
+#### ship
+
+```bash
+sdd ship <name>
+```
+
+Show PR URL. Suggest: review on GitHub, merge, then `/sdd-archive`.
 
 #### archive
 

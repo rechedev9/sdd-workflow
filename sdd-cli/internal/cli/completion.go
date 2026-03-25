@@ -10,7 +10,7 @@ import (
 
 var commands = []string{
 	"init", "new", "context", "write", "status", "list",
-	"verify", "archive", "diff", "health", "dump", "doctor",
+	"verify", "ship", "archive", "diff", "health", "dump", "doctor",
 	"errors", "dashboard", "quickstart", "completion", "version", "help",
 }
 

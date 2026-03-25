@@ -89,7 +89,7 @@ func TestAllPhasesOrder(t *testing.T) {
 	expected := []Phase{
 		PhaseExplore, PhasePropose, PhaseSpec, PhaseDesign,
 		PhaseTasks, PhaseApply, PhaseReview, PhaseVerify,
-		PhaseClean, PhaseArchive,
+		PhaseClean, PhaseShip, PhaseArchive,
 	}
 	if len(phases) != len(expected) {
 		t.Fatalf("phase count = %d, want %d", len(phases), len(expected))

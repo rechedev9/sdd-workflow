@@ -17,13 +17,15 @@ func TestResolvePhase(t *testing.T) {
 		{"review", PhaseReview, ""},
 		{"verify", PhaseVerify, ""},
 		{"clean", PhaseClean, ""},
+		{"ship", PhaseShip, ""},
 		{"archive", PhaseArchive, ""},
 		// Index
 		{"0", PhaseExplore, ""},
 		{"1", PhasePropose, ""},
 		{"5", PhaseApply, ""},
-		{"9", PhaseArchive, ""},
-		{"10", "", "out of range"},
+		{"9", PhaseShip, ""},
+		{"10", PhaseArchive, ""},
+		{"11", "", "out of range"},
 		{"-1", "", "out of range"},
 		// Prefix
 		{"exp", PhaseExplore, ""},
@@ -35,6 +37,7 @@ func TestResolvePhase(t *testing.T) {
 		{"rev", PhaseReview, ""},
 		{"v", PhaseVerify, ""},
 		{"cl", PhaseClean, ""},
+		{"sh", PhaseShip, ""},
 		{"ar", PhaseArchive, ""},
 		// Case insensitive
 		{"EXP", PhaseExplore, ""},
