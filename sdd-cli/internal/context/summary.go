@@ -187,6 +187,28 @@ func compactDesign(content string) string {
 	return extractDecisions(content)
 }
 
+// compactProposal extracts decision-driving sections from proposal.md.
+// Keeps the approach/decision content and, when present, the Critical Challenge
+// risk framing so downstream phases can review against approved intent.
+func compactProposal(content string) string {
+	parts := make([]string, 0, 3)
+
+	if decisions := extractDecisions(content); decisions != "" {
+		parts = append(parts, decisions)
+	}
+	if challenge := extractFirst(content, "## Critical Challenge", 8); challenge != "" {
+		parts = append(parts, "Critical Challenge: "+challenge)
+	}
+	if risks := extractFirst(content, "## Risks", 5); risks != "" {
+		parts = append(parts, "Risks: "+risks)
+	}
+
+	if len(parts) > 0 {
+		return strings.Join(parts, "\n")
+	}
+	return extractFirst(content, "##", 5)
+}
+
 // projectContext returns a compact project overview string with stack info.
 func projectContext(p *Params) string {
 	parts := []string{

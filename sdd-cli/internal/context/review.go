@@ -12,11 +12,12 @@ import (
 )
 
 // AssembleReview builds context for the review phase.
-// Includes: spec files, design.md, git diff of changed files, sdd-review SKILL.md.
+// Includes: proposal.md, spec files, design.md, git diff of changed files, sdd-review SKILL.md.
 // Optionally includes AGENTS.md / CLAUDE.md if present.
 func AssembleReview(w io.Writer, p *Params) error {
 	loaders := []func() ([]byte, error){
 		skillLoader(p.SkillsPath, "sdd-review"),
+		artifactLoader(p.ChangeDir, "proposal.md"),
 		loadSpecsLoader(p.ChangeDir),
 		artifactLoader(p.ChangeDir, "design.md"),
 		artifactLoader(p.ChangeDir, "tasks.md"),
@@ -43,22 +44,26 @@ func AssembleReview(w io.Writer, p *Params) error {
 	}
 	if loadErr != nil {
 		if _, e := ls.Get(1); e != nil {
-			return errRequiredArtifact("review", "spec artifacts", e)
+			return errRequiredArtifact("review", "proposal artifact", e)
 		}
 		if _, e := ls.Get(2); e != nil {
-			return errRequiredArtifact("review", "design artifact", e)
+			return errRequiredArtifact("review", "spec artifacts", e)
 		}
 		if _, e := ls.Get(3); e != nil {
+			return errRequiredArtifact("review", "design artifact", e)
+		}
+		if _, e := ls.Get(4); e != nil {
 			return errRequiredArtifact("review", "tasks artifact", e)
 		}
 	}
 
 	skill, _ := ls.Get(0)
-	specs, _ := ls.Get(1)
-	design, _ := ls.Get(2)
-	tasks, _ := ls.Get(3)
-	diff, _ := ls.Get(4)
-	rules, _ := ls.Get(5)
+	proposal, _ := ls.Get(1)
+	specs, _ := ls.Get(2)
+	design, _ := ls.Get(3)
+	tasks, _ := ls.Get(4)
+	diff, _ := ls.Get(5)
+	rules, _ := ls.Get(6)
 
 	writeSection(w, "SKILL", skill)
 
@@ -66,9 +71,11 @@ func AssembleReview(w io.Writer, p *Params) error {
 
 	tasksStr := string(tasks)
 	if p.Compact {
+		writeSectionStr(w, "PROPOSAL (compact)", compactProposal(string(proposal)))
 		writeSectionStr(w, "SPECIFICATIONS (compact)", compactSpecs(string(specs)))
 		writeSectionStr(w, "DESIGN (compact)", compactDesign(string(design)))
 	} else {
+		writeSection(w, "PROPOSAL", proposal)
 		writeSection(w, "SPECIFICATIONS", specs)
 		writeSection(w, "DESIGN", design)
 	}

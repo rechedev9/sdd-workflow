@@ -470,6 +470,7 @@ func TestAssembleReview(t *testing.T) {
 
 	specsDir := filepath.Join(changeDir, "specs")
 	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\n\n## Critical Challenge\n\n### Primary Risks\n\n- Rollout drift.\n"), 0o644)
 	os.WriteFile(filepath.Join(specsDir, "auth-spec.md"), []byte("# Auth Spec\nMUST validate.\n"), 0o644)
 	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
 	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [x] All done\n"), 0o644)
@@ -483,6 +484,12 @@ func TestAssembleReview(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "sdd-review") {
 		t.Error("missing sdd-review skill content")
+	}
+	if !strings.Contains(out, "--- PROPOSAL ---") {
+		t.Error("missing PROPOSAL section")
+	}
+	if !strings.Contains(out, "Rollout drift") {
+		t.Error("missing proposal content")
 	}
 	if !strings.Contains(out, "--- SPECIFICATIONS ---") {
 		t.Error("missing SPECIFICATIONS section")
@@ -504,6 +511,7 @@ func TestAssembleReviewNoDesign(t *testing.T) {
 
 	specsDir := filepath.Join(changeDir, "specs")
 	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\n"), 0o644)
 	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n"), 0o644)
 	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"), 0o644)
 
@@ -514,12 +522,33 @@ func TestAssembleReviewNoDesign(t *testing.T) {
 	}
 }
 
+func TestAssembleReviewNoProposal(t *testing.T) {
+	t.Parallel()
+	changeDir, _, p := setupFixture(t)
+
+	specsDir := filepath.Join(changeDir, "specs")
+	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"), 0o644)
+
+	var buf bytes.Buffer
+	err := AssembleReview(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when proposal.md is missing")
+	}
+	if !strings.Contains(err.Error(), "proposal artifact") {
+		t.Fatalf("expected proposal artifact error, got %v", err)
+	}
+}
+
 func TestAssembleReviewWithProjectRules(t *testing.T) {
 	t.Parallel()
 	changeDir, _, p := setupFixture(t)
 
 	specsDir := filepath.Join(changeDir, "specs")
 	os.MkdirAll(specsDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\n"), 0o644)
 	os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n"), 0o644)
 	os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\n"), 0o644)
 	os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"), 0o644)

@@ -59,7 +59,7 @@ var builtinPhases = []Phase{
 		Prerequisites: []string{"apply"},
 		NextPhases:    []string{"verify"},
 		ArtifactFile:  "review-report.md",
-		CacheInputs:   []string{"tasks.md", "design.md", "specs/"},
+		CacheInputs:   []string{"proposal.md", "tasks.md", "design.md", "specs/"},
 		CacheTTL:      1 * time.Hour,
 	},
 	{

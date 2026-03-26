@@ -237,6 +237,9 @@ func TestCheckSkillError_OtherLoaderFails(t *testing.T) {
 func TestAssembleReview_MissingSpecs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# proposal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	// No specs/ directory — loadSpecsLoader will error, triggering the
 	// errRequiredArtifact("review", "spec artifacts", ...) branch.
 	var buf strings.Builder
@@ -261,6 +264,9 @@ func TestAssembleReview_MissingDesign(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(specsDir, "feat.md"), []byte("# spec"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# proposal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	// No design.md — artifactLoader("design.md") errors → errRequiredArtifact branch.
 	var buf strings.Builder
 	p := &Params{ChangeDir: dir, ProjectDir: dir}
@@ -273,6 +279,34 @@ func TestAssembleReview_MissingDesign(t *testing.T) {
 	}
 }
 
+func TestAssembleReview_MissingProposal(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	specsDir := filepath.Join(dir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specsDir, "feat.md"), []byte("# spec"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "design.md"), []byte("# design"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tasks.md"), []byte("# tasks"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf strings.Builder
+	p := &Params{ChangeDir: dir, ProjectDir: dir}
+	err := AssembleReview(&buf, p)
+	if err == nil {
+		t.Fatal("expected error when proposal.md is missing")
+	}
+	if !strings.Contains(err.Error(), "proposal artifact") {
+		t.Errorf("error = %q, want mention of 'proposal artifact'", err.Error())
+	}
+}
+
 func TestAssembleReview_MissingTasks(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -282,6 +316,7 @@ func TestAssembleReview_MissingTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(specsDir, "feat.md"), []byte("# spec"), 0o644)
+	os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# proposal"), 0o644)
 	os.WriteFile(filepath.Join(dir, "design.md"), []byte("# design"), 0o644)
 
 	var buf strings.Builder
