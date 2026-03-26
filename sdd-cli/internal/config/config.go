@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -78,8 +79,8 @@ var manifests = []struct {
 	}},
 	{"package.json", manifestInfo{
 		Language: "typescript", BuildTool: "npm",
-		BuildCmd: "npm run build", TestCmd: "npm test",
-		LintCmd: "npm run lint", FormatCmd: "npm run format",
+		BuildCmd: "", TestCmd: "",
+		LintCmd: "", FormatCmd: "",
 	}},
 	{"pyproject.toml", manifestInfo{
 		Language: "python", BuildTool: "pip",
@@ -178,7 +179,49 @@ func detectConfig(projectDir string) (*Config, error) {
 		SkillsPath: defaultSkillsPath(),
 	}
 
+	if primary.BuildTool == "npm" {
+		cfg.Commands = detectNodeCommands(projectDir, cfg.Commands)
+	}
+
 	return cfg, nil
+}
+
+type packageJSON struct {
+	Scripts map[string]string `json:"scripts"`
+}
+
+func detectNodeCommands(projectDir string, fallback Commands) Commands {
+	data, err := os.ReadFile(filepath.Join(projectDir, "package.json"))
+	if err != nil {
+		return fallback
+	}
+
+	var pkg packageJSON
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		slog.Warn("package.json parse failed; using fallback commands", "dir", projectDir, "error", err)
+		return fallback
+	}
+
+	cmds := Commands{
+		Build:  firstNodeScript(pkg.Scripts, "typecheck"),
+		Test:   firstNodeScript(pkg.Scripts, "test"),
+		Lint:   firstNodeScript(pkg.Scripts, "lint"),
+		Format: firstNodeScript(pkg.Scripts, "format:check", "format"),
+	}
+	return cmds
+}
+
+func firstNodeScript(scripts map[string]string, names ...string) string {
+	for _, name := range names {
+		if strings.TrimSpace(scripts[name]) == "" {
+			continue
+		}
+		if name == "test" {
+			return "npm test"
+		}
+		return "npm run " + name
+	}
+	return ""
 }
 
 func findManifestDirs(startDir string, maxDepth int) ([]string, error) {
@@ -252,7 +295,23 @@ func Load(path string) (*Config, error) {
 	if err := validateModels(cfg.Models); err != nil {
 		return nil, fmt.Errorf("invalid models config: %w", err)
 	}
+	if shouldNormalizeLegacyNodeCommands(&cfg) {
+		projectDir := filepath.Dir(filepath.Dir(path))
+		cfg.Commands = detectNodeCommands(projectDir, cfg.Commands)
+	}
 	return &cfg, nil
+}
+
+func shouldNormalizeLegacyNodeCommands(cfg *Config) bool {
+	if cfg.Stack.BuildTool != "npm" {
+		return false
+	}
+	return cfg.Commands == (Commands{
+		Build:  "npm run build",
+		Test:   "npm test",
+		Lint:   "npm run lint",
+		Format: "npm run format",
+	})
 }
 
 // Save writes a Config to path as YAML.

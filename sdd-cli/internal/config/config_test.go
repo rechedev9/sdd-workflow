@@ -33,7 +33,16 @@ func TestDetectGo(t *testing.T) {
 func TestDetectNode(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"test"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name":"test",
+		"scripts":{
+			"typecheck":"tsc --noEmit",
+			"build":"vite build",
+			"test":"vitest run",
+			"lint":"eslint .",
+			"format:check":"prettier --check ."
+		}
+	}`), 0o644)
 
 	cfg, err := Detect(dir)
 	if err != nil {
@@ -42,8 +51,38 @@ func TestDetectNode(t *testing.T) {
 	if cfg.Stack.Language != "typescript" {
 		t.Errorf("language = %q, want typescript", cfg.Stack.Language)
 	}
-	if cfg.Commands.Build != "npm run build" {
-		t.Errorf("build cmd = %q, want %q", cfg.Commands.Build, "npm run build")
+	if cfg.Commands.Build != "npm run typecheck" {
+		t.Errorf("build cmd = %q, want %q", cfg.Commands.Build, "npm run typecheck")
+	}
+	if cfg.Commands.Test != "npm test" {
+		t.Errorf("test cmd = %q, want %q", cfg.Commands.Test, "npm test")
+	}
+	if cfg.Commands.Lint != "npm run lint" {
+		t.Errorf("lint cmd = %q, want %q", cfg.Commands.Lint, "npm run lint")
+	}
+	if cfg.Commands.Format != "npm run format:check" {
+		t.Errorf("format cmd = %q, want %q", cfg.Commands.Format, "npm run format:check")
+	}
+}
+
+func TestDetectNodeWithoutTypecheckSkipsBuild(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name":"test",
+		"scripts":{
+			"build":"vite build",
+			"lint":"eslint .",
+			"test":"vitest run"
+		}
+	}`), 0o644)
+
+	cfg, err := Detect(dir)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg.Commands.Build != "" {
+		t.Errorf("build cmd = %q, want empty when only production build is defined", cfg.Commands.Build)
 	}
 }
 
@@ -215,6 +254,58 @@ func TestSaveLoad(t *testing.T) {
 	}
 	if loaded.Commands.Test != original.Commands.Test {
 		t.Errorf("test cmd = %q, want %q", loaded.Commands.Test, original.Commands.Test)
+	}
+}
+
+func TestLoadNormalizesLegacyNodeCommands(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name":"web",
+		"scripts":{
+			"typecheck":"tsc --noEmit",
+			"build":"vite build",
+			"lint":"eslint .",
+			"test":"vitest run"
+		}
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configDir := filepath.Join(dir, "openspec")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(configDir, "config.yaml")
+	legacy := &Config{
+		ProjectName: "web",
+		Stack: Stack{
+			Language:  "typescript",
+			BuildTool: "npm",
+			Manifests: []string{"package.json"},
+		},
+		Commands: Commands{
+			Build:  "npm run build",
+			Test:   "npm test",
+			Lint:   "npm run lint",
+			Format: "npm run format",
+		},
+	}
+	if err := Save(legacy, path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.Commands.Build != "npm run typecheck" {
+		t.Errorf("build cmd = %q, want %q", loaded.Commands.Build, "npm run typecheck")
+	}
+	if loaded.Commands.Lint != "npm run lint" {
+		t.Errorf("lint cmd = %q, want %q", loaded.Commands.Lint, "npm run lint")
+	}
+	if loaded.Commands.Test != "npm test" {
+		t.Errorf("test cmd = %q, want %q", loaded.Commands.Test, "npm test")
 	}
 }
 
